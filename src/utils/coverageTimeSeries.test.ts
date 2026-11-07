@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coverageParameters, getTimeSeriesError, isTimeSeriesCoverage, parameterLabel, parameterUnit } from './coverageTimeSeries';
+import { coverageParameters, distinctLabel, getTimeSeriesError, isTimeSeriesCoverage, parameterLabel, parameterUnit } from './coverageTimeSeries';
 import dwdPosition from './__fixtures__/dwd-position-multipolygonseries.json';
 import dwdArea from './__fixtures__/dwd-area-multipolygonseries.json';
 import fmiPosition from './__fixtures__/fmi-position-pointseries.json';
@@ -83,6 +83,18 @@ describe('parameterLabel', () => {
 
   it('skips blank labels', () => {
     expect(parameterLabel('x', { observedProperty: { label: { en: ' ' } }, description: { en: 'Wind speed' } })).toBe('Wind speed');
+  });
+});
+
+describe('distinctLabel', () => {
+  it('keeps a label that says more than the id', () => {
+    expect(distinctLabel('t', 'Temperature')).toBe('Temperature');
+  });
+
+  it('drops one that only repeats it, whatever the capitals (FMI’s WindSpeedMS)', () => {
+    expect(distinctLabel('t2m', 't2m')).toBeNull();
+    expect(distinctLabel('windspeedms', 'WindSpeedMS')).toBeNull();
+    expect(distinctLabel('DBZH', 'dbzh')).toBeNull();
   });
 });
 

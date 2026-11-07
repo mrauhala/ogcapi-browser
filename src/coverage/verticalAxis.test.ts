@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isEvenlySpaced, readVerticalAxis, readVrs, textOf, vrsAbout, withUnit,
+  askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isEvenlySpaced, levelPosition, pickLevelLabels, readVerticalAxis,
+  readVrs, textOf, vrsAbout, withUnit,
 } from './verticalAxis';
 
 // A coverage whose z has this reference system
@@ -221,5 +222,88 @@ describe('words', () => {
     expect(textOf({ fi: 'paine' })).toBe('paine');
     expect(textOf({ fi: 3 })).toBeUndefined();
     expect(textOf(null)).toBeUndefined();
+  });
+});
+
+describe('levelPosition', () => {
+  // Sent in any order
+  const levels = [1000, 10, 500, 100];
+
+  it('puts a bigger value lower on an axis down, and higher on one up', () => {
+    const down = levelPosition(levels, { spacing: 'linear', direction: 'down' });
+    expect([10, 500, 1000].map(down)).toEqual([0, 490 / 990, 1]);
+    const up = levelPosition(levels, { spacing: 'linear', direction: 'up' });
+    expect([10, 500, 1000].map(up)).toEqual([1, 1 - 490 / 990, 0]);
+  });
+
+  it('turns it over when flipped', () => {
+    expect([10, 1000].map(levelPosition(levels, { spacing: 'linear', direction: 'down', flipped: true }))).toEqual([1, 0]);
+    expect([10, 1000].map(levelPosition(levels, { spacing: 'linear', direction: 'up', flipped: true }))).toEqual([0, 1]);
+  });
+
+  it('spaces by the log of the levels', () => {
+    const at = levelPosition(levels, { spacing: 'log', direction: 'down' });
+    expect(at(10)).toBe(0);
+    expect(at(100)).toBeCloseTo(0.5, 12);
+    expect(at(1000)).toBe(1);
+  });
+
+  it('spaces each level the same, in their order', () => {
+    const down = levelPosition(levels, { spacing: 'even', direction: 'down' });
+    const up = levelPosition(levels, { spacing: 'even', direction: 'up' });
+    [0, 1 / 3, 2 / 3, 1].forEach((at, i) => {
+      expect(down([10, 100, 500, 1000][i])).toBeCloseTo(at, 12);
+      expect(up([10, 100, 500, 1000][i])).toBeCloseTo(1 - at, 12);
+    });
+  });
+
+  it('puts a single level in the middle', () => {
+    for (const spacing of ['linear', 'log', 'even'] as const) {
+      expect(levelPosition([850], { spacing, direction: 'down' })(850)).toBe(0.5);
+      expect(levelPosition([850], { spacing, direction: 'up', flipped: true })(850)).toBe(0.5);
+    }
+  });
+});
+
+describe('pickLevelLabels', () => {
+  const apart = (labels: Set<number>, toPixels: (level: number) => number) => {
+    const pixels = [...labels].map(toPixels).sort((a, b) => a - b);
+    return Math.min(...pixels.slice(1).map((pixel, i) => pixel - pixels[i]));
+  };
+
+  it('labels the ends, then as many others as fit apart (MeteoCore over 300 px)', () => {
+    const levels = [10, 50, 100, 150, 200, 250, 300, 400, 500, 600, 700, 850, 925, 1000];
+    const toPixels = (level: number) => ((level - 10) / 990) * 300;
+    const labels = pickLevelLabels(levels, toPixels);
+    // 50 is 12 px from 10
+    expect([...labels].sort((a, b) => a - b)).toEqual(levels.filter(level => level !== 50));
+    expect(apart(labels, toPixels)).toBeGreaterThanOrEqual(13);
+  });
+
+  it('takes the roundest first', () => {
+    const toPixels = (level: number) => level * 2;
+    expect(pickLevelLabels([0, 7, 10, 13, 20], toPixels)).toEqual(new Set([0, 20, 10]));
+    expect(pickLevelLabels([0, 7, 10, 13, 20], toPixels, { minGap: 5 })).toEqual(new Set([0, 20, 10, 7, 13]));
+  });
+
+  it('labels both ends, round or not, before a rounder level beside one', () => {
+    expect(pickLevelLabels([3, 10, 20, 25], level => level * 2)).toEqual(new Set([3, 25, 10]));
+  });
+
+  it('labels those that must have one before the ends, as a missing level', () => {
+    expect(pickLevelLabels([10, 500, 990, 1000], level => level / 10, { must: [990] })).toEqual(new Set([990, 10, 500]));
+  });
+
+  it('labels evenly spaced levels on an even step', () => {
+    const levels = Array.from({ length: 20 }, (_, i) => 3 * (i + 1));
+    expect(pickLevelLabels(levels, level => (level * 7) / 3)).toEqual(new Set([3, 60, 30, 12, 18, 24, 36, 42, 48, 54]));
+    // 65 model levels 6 px apart: every fifth, and the ends
+    const model = Array.from({ length: 65 }, (_, i) => i + 1);
+    expect([...pickLevelLabels(model, level => level * 6)].sort((a, b) => a - b)).toEqual([1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65]);
+  });
+
+  it('labels the one level there is, and none of none', () => {
+    expect(pickLevelLabels([500], () => 0)).toEqual(new Set([500]));
+    expect(pickLevelLabels([], () => 0)).toEqual(new Set());
   });
 });

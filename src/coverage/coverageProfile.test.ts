@@ -129,12 +129,15 @@ describe('coverageToProfile: levels', () => {
     expect(profile.parameters[0].values[0][0][0]).toBe(-23.299797);
     expect(profile.parameters[0].values[0][0][2]).toBe(5.3022532);
     expect(messages(profile)).toContain("Levels aren't in order: 500, 1000, 850");
-    expect(profile.cellOf('t', 0, 0, 0)).toEqual({ raw: -23.299797, path: '/coverages/0/ranges/t/values/0', axisIndex: 0 });
+    expect(profile.cellOf('t', 0, 0, 0)).toEqual({ raw: -23.299797, path: '/coverages/0/ranges/t/values/0', axisIndex: 0, order: 0 });
+    // Kept in the order sent, for the Table: 1000 came second
+    expect(profile.cellOf('t', 0, 0, 2)).toMatchObject({ axisIndex: 1, order: 1 });
   });
 
   it('gives a level that was asked for and dropped a row of its own (MeteoCore z=1000,777,850,500)', () => {
     const profile = profileOf(mcIfsAsked777, MC);
     expect(profile.missing).toEqual([777]);
+    expect(profile.missingFrom).toBe('request');
     expect(profile.rows).toEqual([500, 777, 850, 1000]);
     expect(profile.parameters[0].values[0][0][1]).toBeUndefined();
     expect(messages(profile)).toContain("z=777 was asked for, and isn't in the response");
@@ -142,17 +145,26 @@ describe('coverageToProfile: levels', () => {
 
   it('asks a range only for the declared levels inside it', () => {
     expect(profileOf(mcIfsZrange, MC).missing).toEqual([]);
+    expect(profileOf(mcIfsZrange, MC).missingFrom).toBeNull();
+  });
+
+  it("takes a declared level missing from a range asked for as the collection's", () => {
+    const profile = profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x?z=500/1000');
+    expect(profile.missing).toEqual([925]);
+    expect(profile.missingFrom).toBe('collection');
   });
 
   it('names declared levels that aren’t in the response, when nothing was asked', () => {
     const profile = profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x?f=CoverageJSON');
     expect(profile.missing).toEqual([925]);
+    expect(profile.missingFrom).toBe('collection');
     expect(messages(profile)).toContain("Level 925 hPa is in the collection's extent, and isn't in the response");
   });
 
   it('counts an asked level that never came, though no vrs is read (FMI, z=1000,850,500,333)', () => {
     const profile = profileOf(fmiEcmwfZunsorted, FMI, 'x?z=1000,850,500,333');
     expect(profile.missing).toEqual([333]);
+    expect(profile.missingFrom).toBe('request');
     expect(profile.rows).toEqual([333, 500, 850, 1000]);
   });
 
@@ -289,6 +301,8 @@ describe('coverageToProfile: whatever shape it comes in', () => {
     expect(parameter.values[0][0]).toEqual([4, null, 'x', -2, 7, undefined]);
     const unnamed = { ...json, parameters: {} };
     expect(profileOf(unnamed).parameters[0]).toMatchObject({ id: 'a', label: null, unit: '' });
+    const repeated = { ...json, parameters: { a: { observedProperty: { label: { en: 'A' } } } } };
+    expect(profileOf(repeated).parameters[0].label).toBeNull();
   });
 
   it('has no cell where there’s no place, time or level', () => {

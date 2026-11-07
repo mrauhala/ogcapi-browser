@@ -57,6 +57,10 @@ export function parameterUnit(parameter?: { unit?: { symbol?: string | { value?:
   return unit === '1' ? '' : unit;
 }
 
+// A label worth showing beside its id: none where it only repeats the id, whatever the capitals, as FMI's WindSpeedMS
+// does windspeedms
+export const distinctLabel = (id: string, label: string): string | null => (label.toLowerCase() === id.toLowerCase() ? null : label);
+
 // A series' name: the observed property's label, else the parameter's description, else its id.
 // Labels that are links are skipped: DMI labels each observed property with an ECMWF parameter
 // database URL, which says nothing in a legend.

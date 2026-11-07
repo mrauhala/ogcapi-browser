@@ -9,11 +9,12 @@ import CellsFigures from './CellsFigures';
 import CellsView from './CellsView';
 import { summarizeCoverage } from './coverageSummary';
 import { MOST_VALUES_DRAWN, readCells } from './coverageCells';
-import { counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
+import { counting, grid, pointCollection, pointCoverage, pointLattice, triangles, words } from './cellsTestData';
 import ParameterPicker from './ParameterPicker';
 import StepBars from './StepBars';
 import ValueLegend from './ValueLegend';
 import fmiSeries from '../utils/__fixtures__/fmi-location-pointseries-5d.json';
+import mcIfsCube1pix from './__fixtures__/profiles/mc-ifs-cube-1pix.json';
 
 const panes = vi.hoisted(() => ({ isMobile: false, isOpen: { map: true } as Record<string, boolean>, showPane: () => {} }));
 vi.mock('../contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
@@ -42,24 +43,6 @@ function within(json: unknown, element: ReactElement, { choices, hovered, url = 
   );
 }
 
-// Only what shows: the text between tags, without emotion's styles. Read tag by tag, rather than cut out by a pattern
-const words = (html: string) => {
-  let inStyle = false;
-  const shown: string[] = [];
-  for (const piece of html.split(/(<[^>]*>)/)) {
-    if (piece.startsWith('<')) {
-      if (/^<style[\s>]/.test(piece)) inStyle = true;
-      else if (piece === '</style>') inStyle = false;
-      shown.push(' ');
-    } else if (!inStyle) {
-      shown.push(piece);
-    }
-  }
-  return shown.join('')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
 const shownPart = (html: string) => html.slice(html.indexOf('aria-live="polite"'));
 const keptRoom = (html: string) => html.slice(html.indexOf('aria-hidden="true"'), html.indexOf('aria-live="polite"'));
 
@@ -461,6 +444,12 @@ describe('CoverageData, with cells', () => {
     expect(toggle(html)).toContain('Chart* Table');
     expect(toggle(html)).not.toContain('Grid');
     expect(html).not.toContain('role="img"');
+  });
+
+  it('opens levels as a profile before a few cells drawn, with the picture to choose (MeteoCore, a 2-pixel cube)', () => {
+    const html = data(mcIfsCube1pix);
+    expect(toggle(html)).toMatch(/^Grid Profile\* Table /);
+    expect(html).toContain('aria-label="Profile. Up and down');
   });
 
   it('keeps what was chosen, if this response has it', () => {

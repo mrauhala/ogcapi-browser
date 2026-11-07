@@ -1,5 +1,5 @@
 import type { ValidationError } from '../types/api';
-import { axisLength, coverageParameters, isTimeSeriesCoverage, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
+import { axisLength, coverageParameters, distinctLabel, isTimeSeriesCoverage, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
 import { rangeMisfit } from './rangeFit';
@@ -227,7 +227,7 @@ function tallyParameters(coverages: Json[], json: Json): Map<string, Tally> {
         const parameter = parameters?.[id];
         const label = parameterLabel(id, parameter);
         tally = {
-          id, label: label === id ? null : label, unit: parameterUnit(parameter),
+          id, label: distinctLabel(id, label), unit: parameterUnit(parameter),
           count: 0, nulls: 0, others: 0, numbers: 0, min: null, max: null, mean: null, sum: 0, firstNull: null, notIncluded: false,
         };
         tallies.set(id, tally);

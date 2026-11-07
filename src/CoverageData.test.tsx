@@ -1,14 +1,22 @@
 import type { ComponentProps } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createTheme } from '@mui/material/styles';
-import CoverageData, { cursorText, lineColours, timeFraction } from './CoverageData';
+import CoverageData, { cursorText, timeFraction } from './CoverageData';
+import { lineColours } from './coverage/lineColours';
 import { summarizeCoverage } from './coverage/coverageSummary';
 import fmiPosition from './utils/__fixtures__/fmi-position-pointseries.json';
 import fmiSeries from './utils/__fixtures__/fmi-location-pointseries-5d.json';
 import dmiPosition from './utils/__fixtures__/dmi-position-grid.json';
 import dwdArea from './utils/__fixtures__/dwd-area-multipolygonseries.json';
 import hidrografico from './utils/__fixtures__/hidrografico-collection-parameters.json';
+import mcIfs1tAll from './coverage/__fixtures__/profiles/mc-ifs-1t-all.json';
+import mcIfs85t from './coverage/__fixtures__/profiles/mc-ifs-85t-2p.json';
+
+// The grid draws only in a browser: here it says which columns it was given
+vi.mock('@mui/x-data-grid', () => ({
+  DataGrid: ({ columns }: { columns: { headerName?: string }[] }) => <div data-columns={columns.map(column => column.headerName).join('|')} />,
+}));
 
 const render = (json: unknown, props: Partial<ComponentProps<typeof CoverageData>> = {}) => renderToStaticMarkup(
   <CoverageData summary={summarizeCoverage(json)!} view="chart" onViewChange={() => {}} {...props} />,
@@ -67,10 +75,10 @@ describe('CoverageData', () => {
   });
 
   it('shows the table when asked', () => {
-    // The grid itself only draws in a browser
     const html = render(fmiSeries, { view: 'table' });
     expect(html).toMatch(/aria-pressed="true"[^>]*>Table/);
     expect(html).not.toContain('>UTC<');
+    expect(html).toMatch(/data-columns="Time\|humidity/);
   });
 
   describe('several locations', () => {
@@ -153,6 +161,31 @@ describe('CoverageData', () => {
       expect(grid).toContain('x 1 to 2');
       expect(grid).toContain('y 3 to 4');
     });
+  });
+});
+
+describe('CoverageData, levels at a point', () => {
+  const PLOT = 'aria-label="Profile. Up and down';
+
+  it('opens them as a profile, named so, with the Table beside it', () => {
+    const html = render(mcIfs1tAll);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Profile/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*>Table/);
+    expect(html).toContain(PLOT);
+  });
+
+  it('draws many times as a profile too, and not a chart with a legend', () => {
+    const html = render(mcIfs85t);
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Profile/);
+    expect(html).toContain(PLOT);
+    expect(html).not.toContain('>UTC<');
+  });
+
+  it('shows its own table when asked', () => {
+    const html = render(mcIfs1tAll, { view: 'table' });
+    expect(html).toMatch(/aria-pressed="true"[^>]*>Table/);
+    expect(html).not.toContain(PLOT);
+    expect(html).toContain('data-columns="z (hPa)|gh (gpm)|r (%)|t (°C)|ws (m/s)"');
   });
 });
 

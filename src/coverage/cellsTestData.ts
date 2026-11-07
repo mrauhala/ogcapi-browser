@@ -96,3 +96,22 @@ export const triangles = (values: unknown[], t?: string[]): Json => ({
     ranges: { CAPE: { type: 'NdArray', axisNames: [...(t ? ['t'] : []), 'composite'], shape: [...(t ? [t.length] : []), 2], values } },
   }],
 });
+
+// Only what shows: the text between tags, without emotion's styles. Read tag by tag, rather than cut out by a pattern
+export const words = (html: string) => {
+  let inStyle = false;
+  const shown: string[] = [];
+  for (const piece of html.split(/(<[^>]*>)/)) {
+    if (piece.startsWith('<')) {
+      if (/^<style[\s>]/.test(piece)) inStyle = true;
+      else if (piece === '</style>') inStyle = false;
+      shown.push(' ');
+    } else if (!inStyle) {
+      shown.push(piece);
+    }
+  }
+  return shown.join('')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+};

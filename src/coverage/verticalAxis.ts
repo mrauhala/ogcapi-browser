@@ -147,6 +147,56 @@ export function defaultScale(kind: VerticalKind, levels: number[]): { scale: Lev
   return { scale: span > 0 && smallest / span < FEW_PIXELS ? 'log' : 'linear', canLog };
 }
 
+// How levels are spaced on screen: by their values, linear or log, or each the same height, for reading level by level
+export type LevelSpacing = LevelScale | 'even';
+
+// Where a level sits, from 0 at the top of the plot to 1 at the bottom. Down puts bigger values lower, and flipped
+// turns that over
+export function levelPosition(levels: number[], { spacing, direction, flipped = false }: { spacing: LevelSpacing; direction: Direction; flipped?: boolean }): (level: number) => number {
+  const down = (direction === 'down') !== flipped;
+  const sorted = [...levels].sort((a, b) => a - b);
+  if (spacing === 'even') {
+    return level => {
+      const at = sorted.length < 2 ? 0.5 : sorted.indexOf(level) / (sorted.length - 1);
+      return down ? at : 1 - at;
+    };
+  }
+  const value = spacing === 'log' ? Math.log : (level: number) => level;
+  const low = value(sorted[0]);
+  const span = value(sorted[sorted.length - 1]) - low;
+  return level => {
+    const at = span === 0 ? 0.5 : (value(level) - low) / span;
+    return down ? at : 1 - at;
+  };
+}
+
+const ROUNDNESS = [1000, 500, 100, 50, 10, 5, 1, 0.5, 0.1, 0.05, 0.01];
+const roundness = (level: number) => {
+  const at = ROUNDNESS.findIndex(step => Math.abs(level / step - Math.round(level / step)) < 1e-9);
+  return at === -1 ? ROUNDNESS.length : at;
+};
+
+// Which levels get a label. Every level has a tick, and the labels are real levels: those that must have one, the
+// ends, then the roundest, as many as fit apart
+export function pickLevelLabels(levels: number[], toPixels: (level: number) => number, { minGap = 13, must = [] as number[] } = {}): Set<number> {
+  const screen = [...levels].sort((a, b) => toPixels(a) - toPixels(b));
+  const ends = screen.length ? [screen[0], screen[screen.length - 1]] : [];
+  let rest = screen.filter(level => !ends.includes(level) && !must.includes(level)).sort((a, b) => roundness(a) - roundness(b));
+  // Evenly spaced levels read best on an even step, 1, 5, 10, 15, and not whichever happen to fit
+  const pixels = screen.map(toPixels);
+  const gaps = pixels.slice(1).map((pixel, i) => pixel - pixels[i]);
+  if (gaps.length > 1 && gaps.every(gap => Math.abs(gap - gaps[0]) < 0.01)) {
+    const sorted = [...levels].sort((a, b) => a - b);
+    const step = (sorted[1] - sorted[0]) * ([1, 2, 5, 10, 20, 50, 100, 200, 500].find(times => times * gaps[0] >= minGap) ?? 1000);
+    rest = rest.filter(level => Math.abs(level / step - Math.round(level / step)) < 1e-9);
+  }
+  const chosen: number[] = [];
+  for (const level of [...must, ...ends, ...rest]) {
+    if (!chosen.includes(level) && chosen.every(other => Math.abs(toPixels(other) - toPixels(level)) >= minGap)) chosen.push(level);
+  }
+  return new Set(chosen);
+}
+
 export type AskedLevels = { kind: 'list'; values: number[] } | { kind: 'range'; lo: number; hi: number } | { kind: 'other' };
 
 // What the request asked of z: a list of numbers, a range, or something else, such as a repeating interval

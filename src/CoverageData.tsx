@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
-import { useTheme, type Theme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { ChartsReferenceLine } from '@mui/x-charts/ChartsReferenceLine';
 import { ChartsText, type ChartsTextProps } from '@mui/x-charts/ChartsText';
 import { LineChart, type MarkElementProps } from '@mui/x-charts/LineChart';
@@ -16,7 +16,9 @@ import { opensAsPicture } from './coverage/cellSelection';
 import CellsFigures from './coverage/CellsFigures';
 import CellsTable from './coverage/CellsTable';
 import CellsView from './coverage/CellsView';
-import CoverageTable from './CoverageTable';
+import CoverageTable, { ProfileTable } from './CoverageTable';
+import ProfileView from './coverage/ProfileView';
+import { lineColours } from './coverage/lineColours';
 import { formatTimeTick } from './utils/timeAxisTicks';
 import { utcMoment } from './utils/utcTime';
 
@@ -30,16 +32,6 @@ const MARGIN = { left: 22, right: 22, top: 8, bottom: 8 };
 const AXIS_HEIGHT = 36;
 // A line per location takes only so many before none can be told apart. The rest are in the Table
 const MOST_LINES = 8;
-
-// Told apart by people with colour blindness too, on each theme's surface
-const LOCATION_COLOURS = {
-  light: ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'],
-  dark: ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'],
-};
-
-export function lineColours(locations: number, theme: Theme): string[] {
-  return locations === 1 ? [theme.palette.primary.main] : LOCATION_COLOURS[theme.palette.mode];
-}
 
 const MONO = { fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '17px' };
 
@@ -316,21 +308,22 @@ interface CoverageDataProps {
   onViewChange: (view: CoverageView) => void;
 }
 
-// A CoverageJSON response as data: what it holds in a sentence, then its cells as a picture, a row per parameter on a
-// shared time axis, or the same as a table. What can't be drawn or charted gets its figures alone
+// A CoverageJSON response as data: what it holds in a sentence, then its cells as a picture, its levels at a point or
+// a few as profiles, a row per parameter on a shared time axis, or the same as a table. What can't be drawn or charted
+// gets its figures alone
 export default function CoverageData({ summary, view, onViewChange }: CoverageDataProps) {
   const theme = useTheme();
   const { reading, drawAnyway } = useResponseCells();
-  const { series } = summary;
+  const { series, profile } = summary;
   const canChart = series !== null && series.times.length > 1;
   // One value for each parameter says it all in the figures
   const hasSeriesTable = series !== null && (canChart || series.locations.length > 1);
   const cells = reading?.drawable ? reading : null;
-  const hasTable = hasSeriesTable || cells !== null;
+  const hasTable = profile !== null || hasSeriesTable || cells !== null;
 
-  // What was chosen, if this response has it
+  // What was chosen, if this response has it. A profile is in the chart's place, and it opens before a few cells drawn
   const available: CoverageView[] = [...(cells ? ['cells' as const] : []), 'chart', ...(hasTable ? ['table' as const] : [])];
-  const preferred = view ?? (cells && opensAsPicture(cells) ? 'cells' : 'chart');
+  const preferred = view ?? (!profile && cells && opensAsPicture(cells) ? 'cells' : 'chart');
   const shown = available.includes(preferred) ? preferred : 'chart';
 
   return (
@@ -365,7 +358,7 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
             sx={{ '& .MuiToggleButton-root': { height: 28, px: 1.25, py: 0, textTransform: 'none', fontSize: '0.8125rem' } }}
           >
             {cells && <ToggleButton value="cells">{cells.viewLabel}</ToggleButton>}
-            <ToggleButton value="chart">{canChart ? 'Chart' : 'Figures'}</ToggleButton>
+            <ToggleButton value="chart">{profile ? 'Profile' : canChart ? 'Chart' : 'Figures'}</ToggleButton>
             <ToggleButton value="table">Table</ToggleButton>
           </ToggleButtonGroup>
         )}
@@ -387,11 +380,12 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
           )}
         </Box>
       )}
-      {series && canChart && shown === 'chart' && series.locations.length > 1 && (
+      {!profile && series && canChart && shown === 'chart' && series.locations.length > 1 && (
         <Legend locations={series.locations} colours={lineColours(series.locations.length, theme)} />
       )}
       {shown === 'cells' ? <CellsView />
-        : shown === 'table' ? (hasSeriesTable ? <CoverageTable series={series} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
+        : shown === 'table' ? (profile ? <ProfileTable profile={profile} /> : hasSeriesTable ? <CoverageTable series={series} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
+          : profile ? <ProfileView profile={profile} />
           : canChart ? <ChartedRows series={series} />
             : cells ? <CellsFigures onOpen={() => onViewChange('cells')} />
               : <FiguresList parameters={summary.parameters} />}

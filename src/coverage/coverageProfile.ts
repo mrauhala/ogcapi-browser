@@ -1,5 +1,5 @@
 import type { ValidationError, Vertical } from '../types/api';
-import { coverageParameters, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
+import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { axisValues, pointerPart } from './coverageCells';
 import type { ParameterFigures } from './coverageSummary';
@@ -28,6 +28,8 @@ export interface ProfileCell {
   path: string;
   // Where it is on its coverage's z axis, if it has one
   axisIndex: number | null;
+  // Which it was of all the values read, in the order they were sent
+  order: number;
 }
 
 export interface ProfileParameter extends ParameterFigures {
@@ -54,6 +56,8 @@ export interface CoverageProfile {
   // Those and the levels that should be there and aren't, ascending
   rows: number[];
   missing: number[];
+  // Whether the missing levels were asked for, or are the collection's
+  missingFrom: 'request' | 'collection' | null;
   // Sent, and not among the levels the collection declares
   undeclared: number[];
   // The most levels any one profile has
@@ -173,10 +177,10 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
     if (!perProfile.has(group)) perProfile.set(group, new Set());
     perProfile.get(group)!.add(z);
   };
-  const put = (id: string, place: string, time: string, z: number, cell: ProfileCell) => {
+  const put = (id: string, place: string, time: string, z: number, cell: Omit<ProfileCell, 'order'>) => {
     const key = `${place}|${time}|${z}|${id}`;
     if (cells.has(key)) duplicates++;
-    else cells.set(key, cell);
+    else cells.set(key, { ...cell, order: cells.size });
   };
   const pathOf = (coverage: number, id: string) => `${prefix(coverage)}/ranges/${pointerPart(id)}/values`;
 
@@ -310,7 +314,7 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
       } else others++;
     }
     return {
-      id, label: label === id ? null : label, unit: parameterUnit(definition),
+      id, label: distinctLabel(id, label), unit: parameterUnit(definition),
       count, nulls, others, numbers, min, max, mean: numbers ? sum / numbers : null,
       notIncluded: notIncluded.has(id), values, misfit: misfits.get(id) ?? null,
     };
@@ -422,7 +426,7 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
       shape: [plural(locations.length, 'point'), levelWords, ...timeWords, plural(parameters.length, 'parameter')].join(', '),
       axis,
       ...defaultScale(axis.kind, levels),
-      levels, rows, missing, undeclared, mostLevels,
+      levels, rows, missing, missingFrom: missing.length === 0 ? null : asked?.kind === 'list' ? 'request' : 'collection', undeclared, mostLevels,
       locations,
       times: timeList.map(({ raw, at }) => ({ raw, at })),
       parameters,

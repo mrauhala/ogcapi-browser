@@ -99,6 +99,9 @@ describe('summarizeCoverage', () => {
     const json = point([1, 2]);
     json.parameters.t2m = { ...temperature, observedProperty: { label: { en: 't2m' } } };
     expect(summarizeCoverage(json)!.parameters[0].label).toBeNull();
+    // As FMI's WindSpeedMS does windspeedms
+    json.parameters.t2m = { ...temperature, observedProperty: { label: { en: 'T2M' } } };
+    expect(summarizeCoverage(json)!.parameters[0].label).toBeNull();
   });
 
   it('has no unit where UCUM says there is none', () => {
