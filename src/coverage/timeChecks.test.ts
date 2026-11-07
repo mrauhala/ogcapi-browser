@@ -133,7 +133,8 @@ describe('timeFindings: numbers for times, and other calendars', () => {
       severity: 'info',
     });
     expect(kinds(notes)[`Every time is inside the datetime asked for, ${T[0]}/${T[2]}`]).toBe('pass');
-    expect(found(notes, /^t has|Gregorian form/)).toBeUndefined();
+    expect(found(notes, /^t has/)).toBeUndefined();
+    expect(found(notes, /Gregorian form/)).toBeUndefined();
   });
 
   it('reads no more times spaced by start, stop and num than it could hold', () => {
