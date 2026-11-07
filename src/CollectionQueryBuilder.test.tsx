@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CollectionQueryBuilder from './CollectionQueryBuilder';
 import type { Collection } from './DataRetrievalAPI';
+import { words } from './coverage/cellsTestData';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 import type { QueryIssue } from './query/types';
 
@@ -40,9 +41,8 @@ function form(selectedVertical: string, vertical: Record<string, unknown> = { va
   const html = renderToStaticMarkup(<CollectionQueryBuilder collection={collection(vertical)} queryState={state} />);
   return html.slice(html.indexOf('id="query-field-z"'));
 }
-// Only what shows, without emotion's styles
-const shown = (html: string) => html.replace(/<style[^>]*>.*?<\/style>/g, '').replace(/<[^>]+>/g, ' ')
-  .replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+// Only what shows, read tag by tag
+const shown = words;
 
 describe('the level field', () => {
   it('chooses one level or several', () => {
