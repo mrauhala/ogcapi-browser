@@ -76,7 +76,7 @@ describe('ProfilePanel', () => {
     const profile = profileOf(mcIfsAsked777, MC);
     const frame = frameOf(profile);
     expect(frame.labelled.has(777)).toBe(true);
-    expect(count(panelOn(profile, ['t']).drawing, new RegExp(`stroke="${colours.grid.replace(/[()]/g, '\\$&')}"`, 'g'))).toBe(frame.labelled.size - 1);
+    expect(panelOn(profile, ['t']).drawing.split(`stroke="${colours.grid}"`).length - 1).toBe(frame.labelled.size - 1);
   });
 
   it('draws a zero line where the values cross zero, and none where they don’t', () => {
