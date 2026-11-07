@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
+import type { ValidationError } from '../types/api';
 import { countText, describeTimes, formatValue, meanText, rangeText, stepRuns, summarizeCoverage } from './coverageSummary';
 import fmiMultipoint from './__fixtures__/profiles/fmi-ecmwf-multipoint.json';
 import mcIfs85t from './__fixtures__/profiles/mc-ifs-85t-2p.json';
 import mcGfs from './__fixtures__/profiles/mc-gfs-1t-all.json';
 import mcIfsZunsorted from './__fixtures__/profiles/mc-ifs-zunsorted.json';
+import mcIfs1tAll from './__fixtures__/profiles/mc-ifs-1t-all.json';
+import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
 
 const hours = (from: number, count: number, step = 1) => Array.from({ length: count }, (_, i) => new Date(Date.UTC(2026, 10, 5, from + i * step)).toISOString().replace('.000', ''));
 const axes = (t: string[], x = 10, y = 50) => ({ x: { values: [x] }, y: { values: [y] }, t: { values: t } });
 const range = (values: unknown[]) => ({ type: 'NdArray', dataType: 'float', axisNames: ['t'], shape: [values.length], values });
 const temperature = { type: 'Parameter', unit: { symbol: { value: 'K' } }, observedProperty: { label: { en: 'Air temperature' } } };
+const FITS: ValidationError = { message: "Every parameter's values fit its shape and axes", path: '/ranges', severity: 'pass' };
+// The notes besides what passed
+const noted = (notes: ValidationError[]) => notes.filter(note => note.severity !== 'pass');
 
 // As MeteoCore sends a position
 const point = (values: unknown[], t: string[] = hours(0, values.length)) => ({
@@ -53,8 +59,8 @@ describe('summarizeCoverage', () => {
       expect(summary.series!.parameters[0].series).toEqual([[270, 271, 275.5]]);
     });
 
-    it('has nothing to note', () => {
-      expect(summary.notes).toEqual([]);
+    it('has nothing to note, and passes its values', () => {
+      expect(summary.notes).toEqual([FITS]);
     });
   });
 
@@ -112,12 +118,12 @@ describe('summarizeCoverage', () => {
 
     it('points inside the first location that has that time', () => {
       const json = several(uneven, [1, 2, 3, 4, 5], [1, 2, 3, 4, 5]);
-      expect(summarizeCoverage(json)!.notes[0].path).toBe('/coverages/0/domain/axes/t/values/2');
+      expect(noted(summarizeCoverage(json)!.notes)[0].path).toBe('/coverages/0/domain/axes/t/values/2');
     });
 
     it('notes the change, pointing at the time it happens', () => {
       const { notes } = summarizeCoverage(point([1, 2, 3, 4, 5], uneven))!;
-      expect(notes).toEqual([{ message: 'Time step changes from 1 h to 3 h at Nov 5 02:00', path: '/domain/axes/t/values/2', severity: 'info' }]);
+      expect(noted(notes)).toEqual([{ message: 'Time step changes from 1 h to 3 h at Nov 5 02:00', path: '/domain/axes/t/values/2', severity: 'info' }]);
     });
 
     it('stops naming them when there are too many', () => {
@@ -125,8 +131,8 @@ describe('summarizeCoverage', () => {
       const summary = summarizeCoverage(point([1, 2, 3, 4, 5, 6, 7], t))!;
       expect(summary.timeText).toBe('Irregular steps, Nov 5 00:00 to Nov 5 12:00.');
       expect(summary.series!.stepChanges).toEqual([]);
-      expect(summary.notes).toHaveLength(1);
-      expect(summary.notes[0]).toMatchObject({ message: 'Time step changes 5 times, first at Nov 5 01:00', path: '/domain/axes/t/values/1' });
+      expect(noted(summary.notes)).toHaveLength(1);
+      expect(noted(summary.notes)[0]).toMatchObject({ message: 'Time step changes 5 times, first at Nov 5 01:00', path: '/domain/axes/t/values/1' });
     });
   });
 
@@ -134,16 +140,16 @@ describe('summarizeCoverage', () => {
     it('notes one, where it is', () => {
       const { notes, parameters } = summarizeCoverage(point([1, null, 3]))!;
       expect(parameters[0]).toMatchObject({ count: 3, nulls: 1, min: 1, max: 3, mean: 2 });
-      expect(notes).toEqual([{ message: '1 null in t2m, at Nov 5 01:00', path: '/ranges/t2m/values/1', severity: 'info' }]);
+      expect(noted(notes)).toEqual([{ message: '1 null in t2m, at Nov 5 01:00', path: '/ranges/t2m/values/1', severity: 'info' }]);
     });
 
     it('notes several by the first', () => {
-      expect(summarizeCoverage(point([1, null, null]))!.notes[0]).toMatchObject({ message: '2 nulls in t2m, first at Nov 5 01:00', path: '/ranges/t2m/values/1' });
+      expect(noted(summarizeCoverage(point([1, null, null]))!.notes)[0]).toMatchObject({ message: '2 nulls in t2m, first at Nov 5 01:00', path: '/ranges/t2m/values/1' });
     });
 
     it('notes all of them differently', () => {
       const summary = summarizeCoverage(point([null, null]))!;
-      expect(summary.notes[0]).toMatchObject({ message: 'All 2 values of t2m are null', path: '/ranges/t2m/values/0' });
+      expect(noted(summary.notes)[0]).toMatchObject({ message: 'All 2 values of t2m are null', path: '/ranges/t2m/values/0' });
       expect(summary.parameters[0]).toMatchObject({ min: null, max: null, mean: null });
     });
 
@@ -154,7 +160,7 @@ describe('summarizeCoverage', () => {
     it('makes a pointer of any id', () => {
       const json = point([null, 1]);
       json.ranges = { 'a/b~c': json.ranges.t2m } as unknown as typeof json.ranges;
-      expect(summarizeCoverage(json)!.notes[0].path).toBe('/ranges/a~1b~0c/values/0');
+      expect(noted(summarizeCoverage(json)!.notes)[0].path).toBe('/ranges/a~1b~0c/values/0');
     });
   });
 
@@ -196,7 +202,7 @@ describe('summarizeCoverage', () => {
     });
 
     it('says which one a note is about, and points inside it', () => {
-      expect(summary.notes[0]).toMatchObject({ message: '1 null in t2m, at Nov 5 01:00 (11, 51)', path: '/coverages/1/ranges/t2m/values/1' });
+      expect(noted(summary.notes)[0]).toMatchObject({ message: '1 null in t2m, at Nov 5 01:00 (11, 51)', path: '/coverages/1/ranges/t2m/values/1' });
     });
 
     it('lines times up when the locations have different ones', () => {
@@ -244,6 +250,7 @@ describe('summarizeCoverage', () => {
   describe('a grid', () => {
     const values = (start: number, count: number, step: number) => Array.from({ length: count }, (_, i) => start + i * step);
     // As MeteoCore sends an area: no time at all
+    const cells = [1, null, 3, 4, ...new Array(252).fill(2)];
     const grid = {
       type: 'Coverage',
       domain: {
@@ -252,7 +259,7 @@ describe('summarizeCoverage', () => {
         referencing: [{ coordinates: ['x', 'y'], system: { type: 'GeographicCRS', id: 'http://www.opengis.net/def/crs/OGC/1.3/CRS84' } }],
       },
       parameters: { t2m: temperature },
-      ranges: { t2m: range([1, null, 3, 4]) },
+      ranges: { t2m: { type: 'NdArray', dataType: 'float', axisNames: ['y', 'x'], shape: [16, 16], values: cells } },
     };
     const summary = summarizeCoverage(grid)!;
 
@@ -268,11 +275,11 @@ describe('summarizeCoverage', () => {
 
     it('has figures but no series', () => {
       expect(summary.series).toBeNull();
-      expect(summary.parameters[0]).toMatchObject({ count: 4, nulls: 1, min: 1, max: 4 });
+      expect(summary.parameters[0]).toMatchObject({ count: 256, nulls: 1, min: 1, max: 4 });
     });
 
     it('notes nulls without a time', () => {
-      expect(summary.notes[0]).toMatchObject({ message: '1 null in t2m', path: '/ranges/t2m/values/1' });
+      expect(summary.notes).toEqual([FITS, { message: '1 null in t2m', path: '/ranges/t2m/values/1', severity: 'info' }]);
     });
 
     it('gives no degrees without a coordinate system that has them', () => {
@@ -310,8 +317,8 @@ describe('summarizeCoverage', () => {
       const result = summarizeCoverage({ type: 'CoverageCollection', coverages: [grid, grid] })!;
       expect(result.shape).toBe('2 coverages, 1 parameter');
       expect(result.axes).toEqual([]);
-      expect(result.parameters[0].count).toBe(8);
-      expect(result.notes[0].path).toBe('/coverages/0/ranges/t2m/values/1');
+      expect(result.parameters[0].count).toBe(512);
+      expect(noted(result.notes)[0].path).toBe('/coverages/0/ranges/t2m/values/1');
     });
   });
 
@@ -479,6 +486,76 @@ describe('summarizeCoverage: levels at a point or a few', () => {
   it('has no profile, and the notes it had, where there are no levels', () => {
     const summary = summarizeCoverage(point([1, null, 3]))!;
     expect(summary.profile).toBeNull();
-    expect(summary.notes.map(note => note.message)).toEqual(['1 null in t2m, at Nov 5 01:00']);
+    expect(noted(summary.notes).map(note => note.message)).toEqual(['1 null in t2m, at Nov 5 01:00']);
+  });
+});
+
+describe('summarizeCoverage: every range against its domain', () => {
+  const errors = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => note.severity === 'error');
+  const passes = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => note.message === FITS.message);
+  const t = hours(0, 3);
+
+  it('passes once what fits, at the ranges of the first coverage', () => {
+    expect(passes(mcIfs1tAll)).toEqual([{ ...FITS, path: '/coverages/0/ranges' }]);
+    expect(errors(mcIfs1tAll)).toEqual([]);
+  });
+
+  it('makes an error of values that don’t fit, where they are, and passes nothing', () => {
+    const json = JSON.parse(JSON.stringify(mcIfs1tAll));
+    json.coverages[0].ranges.t.values.pop();
+    expect(errors(json)).toEqual([{ message: 't: shape 14 makes 14 values, and values has 13', path: '/coverages/0/ranges/t/values', severity: 'error' }]);
+    expect(passes(json)).toEqual([]);
+  });
+
+  it('makes an error of Polytope’s axisNames, which name the parameter and not an axis', () => {
+    expect(errors(polytopeArea)).toEqual([{ message: `2t: axisNames has "2t", which isn't an axis of the domain`, path: '/coverages/0/ranges/2t/axisNames', severity: 'error' }]);
+  });
+
+  it('says a fault the coverages share once, where it first is, and how many more have it', () => {
+    const json = several(t, [1, 2, 3], [4, 5, 6], [7, 8, 9]);
+    for (const coverage of json.coverages.slice(1)) coverage.ranges.t2m.axisNames = ['z'];
+    expect(errors(json)).toEqual([{ message: `t2m: axisNames has "z", which isn't an axis of the domain, and likewise in 1 more coverage`, path: '/coverages/1/ranges/t2m/axisNames', severity: 'error' }]);
+    json.coverages[0].ranges.t2m.axisNames = ['z'];
+    expect(errors(json)[0].message).toMatch(/, and likewise in 2 more coverages$/);
+    expect(errors(json)[0].path).toBe('/coverages/0/ranges/t2m/axisNames');
+  });
+
+  it('says different faults apart, of one parameter or of two', () => {
+    const json = several(t, [1, 2, 3], [4, 5, 6]);
+    json.coverages[0].ranges.t2m.axisNames = ['z'];
+    json.coverages[1].ranges.t2m.shape = [4];
+    expect(errors(json).map(note => note.path)).toEqual(['/coverages/0/ranges/t2m/axisNames', '/coverages/1/ranges/t2m/values']);
+    const two = point([1, 2, 3]) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    two.ranges = { a: { ...range([1, 2]), shape: [3] }, b: { ...range([1, 2]), shape: [3] } };
+    expect(errors(two).map(note => note.path)).toEqual(['/ranges/a/values', '/ranges/b/values']);
+  });
+
+  it('makes a pointer of any id', () => {
+    const json = point([1, 2, 3]) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    json.ranges = { 'a/b~c': { ...range([1, 2, 3]), axisNames: ['z'] } };
+    expect(errors(json)[0].path).toBe('/ranges/a~1b~0c/axisNames');
+  });
+
+  it('passes nothing where it couldn’t check every range', () => {
+    const axes = { x: { values: [1] }, y: { values: [2] }, z: { values: [1, 2] } };
+    const fits = { axisNames: ['z'], shape: [2], values: [1, 2] };
+    expect(passes({ type: 'Coverage', domain: { axes } })).toEqual([]);
+    expect(passes({ type: 'Coverage', domain: { axes }, ranges: {} })).toEqual([]);
+    expect(passes({ type: 'Coverage', domain: { axes }, ranges: { a: fits, b: 'https://example.org/b.json' } })).toEqual([]);
+    expect(passes({ type: 'Coverage', domain: { axes }, ranges: { a: fits, b: { type: 'TiledNdArray', axisNames: ['z'], shape: [2], tileSets: [] } } })).toEqual([]);
+    expect(passes({ type: 'Coverage', domain: 'https://example.org/domain.json', ranges: { a: fits } })).toEqual([]);
+    expect(passes({ type: 'Coverage', domain: { axes }, ranges: { a: fits } })).toEqual([FITS]);
+  });
+
+  it('still finds a fault in a range it can check beside one it can’t', () => {
+    const axes = { x: { values: [1] }, y: { values: [2] }, z: { values: [1, 2] } };
+    const json = { type: 'Coverage', domain: { axes }, ranges: { a: { axisNames: ['t'], shape: [2], values: [1, 2] }, b: 'https://example.org/b.json' } };
+    expect(errors(json).map(note => note.path)).toEqual(['/ranges/a/axisNames']);
+  });
+
+  it('checks a TiledNdArray’s names and shape, which it has without values', () => {
+    const axes = { x: { values: [1, 2] }, y: { values: [2] } };
+    const tiled = { type: 'TiledNdArray', axisNames: ['x'], shape: [3], tileSets: [] };
+    expect(errors({ type: 'Coverage', domain: { axes }, ranges: { a: tiled } })).toEqual([{ message: 'a: shape says x has 3 values, and the axis has 2', path: '/ranges/a/shape', severity: 'error' }]);
   });
 });

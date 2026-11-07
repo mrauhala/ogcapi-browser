@@ -1,0 +1,65 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { QueryResultValidator } from './QueryResultValidator';
+
+const POLYTOPE = readFileSync('src/coverage/__fixtures__/polytope-op-multipoint-area.json', 'utf8');
+const edited = (edit: (json: Record<string, any>) => void) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const json = JSON.parse(POLYTOPE);
+  edit(json);
+  return JSON.stringify(json);
+};
+const validate = (data: string) => QueryResultValidator.getInstance().validate(data, 'application/json');
+
+// The validator fetches its schema from the app's public directory, and says what it found on the console
+beforeAll(() => {
+  vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join('public', url), 'utf8')));
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
+afterAll(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe('QueryResultValidator: CoverageJSON', () => {
+  it('checks each coverage as the domainType it inherits, which finds Polytope’s coordinates', async () => {
+    const result = await validate(POLYTOPE);
+    expect(result).toMatchObject({ matched: true, schemaName: 'CoverageJSON 1.0', valid: false });
+    expect(result.errors).toEqual([{
+      message: '/coverages/0/domain/axes/composite/coordinates: must be equal to one of the allowed values: ["x","y","z"], ["x","y"]',
+      path: '/coverages/0/domain/axes/composite/coordinates',
+      keyword: 'enum',
+      schema: 'CoverageJSON 1.0',
+      section: 'Query Result',
+      type: 'schema',
+    }]);
+  });
+
+  it('finds nothing of the kind without a type to inherit, as the schema alone checks it', async () => {
+    expect(await validate(edited(json => { delete json.domainType; }))).toMatchObject({ valid: true, errors: [] });
+  });
+
+  it('passes the same points with the coordinates a MultiPoint has', async () => {
+    expect(await validate(edited(json => { json.coverages[0].domain.axes.composite.coordinates = ['x', 'y', 'z']; }))).toMatchObject({ valid: true });
+  });
+
+  it('checks a coverage by its own domainType where it has one', async () => {
+    const result = await validate(edited(json => { json.coverages[0].domain.domainType = 'Grid'; }));
+    expect(result.errors?.map(error => error.message)).toEqual([
+      "/coverages/0/domain/axes: must have required property 'x'",
+      "/coverages/0/domain/axes: must have required property 'y'",
+      '/coverages/0/domain/axes: must NOT have additional properties',
+    ]);
+  });
+
+  it('leaves out what only says a deeper error is there', async () => {
+    const result = await validate(edited(json => { json.coverages[0].domain.domainType = 'Grid'; }));
+    expect(result.errors?.map(error => error.keyword)).not.toEqual(expect.arrayContaining(['if']));
+    expect(result.errors?.some(error => /must match/.test(error.message))).toBe(false);
+  });
+
+  it('says what isn’t JSON', async () => {
+    expect(await QueryResultValidator.getInstance().validate('{"type":"Coverage",', 'application/prs.coverage+json')).toMatchObject({ valid: false, errors: [{ message: 'Failed to parse response as JSON' }] });
+  });
+});

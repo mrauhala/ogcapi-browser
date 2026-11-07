@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { axisDrift, axisValues, invMercY, mercY, readCells, stepsOfSlice, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
+import { axisDrift, axisValues, compositeRoles, invMercY, mercY, readCells, stepsOfSlice, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
 import dmiPosition from '../utils/__fixtures__/dmi-position-grid.json';
 import dwdArea from '../utils/__fixtures__/dwd-area-multipolygonseries.json';
 import fmiPosition from '../utils/__fixtures__/fmi-position-pointseries.json';
 import fmiSeries from '../utils/__fixtures__/fmi-location-pointseries-5d.json';
 import hidrografico from '../utils/__fixtures__/hidrografico-collection-parameters.json';
+import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -524,19 +525,198 @@ describe('readCells: points', () => {
     expect(refused(bad).reason).toBe("A point's x or y isn't a number");
   });
 
-  it('reads MultiPoint on a composite axis as points', () => {
-    const cells = drawn({
-      type: 'Coverage',
-      domain: { type: 'Domain', domainType: 'MultiPoint', axes: { composite: { coordinates: ['x', 'y'], values: [[24, 60], [25, 61], [26, 63]] } }, referencing: CRS84 },
-      ranges: { a: { type: 'NdArray', values: [1, 2, 3] } },
-    });
-    expect(cells.source).toBe('points');
-    expect(cells.parameters[0].rawAt(2, 0).value).toBe(3);
-  });
-
   it('turns down a composite axis of anything else', () => {
     const json = { type: 'Coverage', domain: { domainType: 'Odd', axes: { composite: { coordinates: ['x', 't'], values: [[1, 2]] } } }, ranges: {} };
     expect(refused(json).reason).toBe("A composite axis of x, t isn't cells on a plane");
+  });
+});
+
+describe('compositeRoles', () => {
+  it('finds x, y and z where a MultiPoint has them', () => {
+    expect(compositeRoles(['x', 'y'])).toEqual({ x: 0, y: 1, z: -1, names: ['x', 'y'], byName: false });
+    expect(compositeRoles(['x', 'y', 'z'])).toMatchObject({ x: 0, y: 1, z: 2, byName: false });
+  });
+
+  it('finds them by name where they’re called something else, as Polytope does', () => {
+    expect(compositeRoles(['latitude', 'longitude', 'levelist'])).toEqual({ x: 1, y: 0, z: 2, names: ['latitude', 'longitude', 'levelist'], byName: true });
+    expect(compositeRoles(['Lon', 'LAT'])).toMatchObject({ x: 0, y: 1, z: -1, byName: true });
+    expect(compositeRoles(['long', 'lat'])).toMatchObject({ x: 0, byName: true });
+    expect(compositeRoles(['easting', 'northing', 'z'])).toMatchObject({ x: 0, y: 1, z: 2, byName: true });
+    expect(compositeRoles(['x', 'y', 'height'])).toMatchObject({ z: 2, byName: true });
+    expect(compositeRoles(['x', 'latitude'])).toMatchObject({ x: 0, y: 1, byName: true });
+  });
+
+  it('takes x and y for themselves before a name like them', () => {
+    expect(compositeRoles(['lat', 'x', 'y'])).toMatchObject({ x: 1, y: 2, z: 0 });
+  });
+
+  it('has none for a line, what has no x or y, or more than one other coordinate', () => {
+    for (const coordinates of [['x', 't'], ['x', 'y', 't'], ['x', 'z'], ['lat', 'z'], ['x', 'y', 'z', 'w'], [], ['x', 1], ['x', 'y', 3], 'x,y', null]) {
+      expect(compositeRoles(coordinates)).toBeNull();
+    }
+  });
+});
+
+describe('readCells: MultiPoint on a composite axis', () => {
+  const tuples = [[24, 60], [25, 61], [26, 63]];
+  const multiPoint = (range: Json, axes: Json = {}, coordinates = ['x', 'y'], values: unknown[] = tuples): Json => ({
+    type: 'Coverage',
+    domain: { type: 'Domain', domainType: axes.t ? 'MultiPointSeries' : 'MultiPoint', axes: { composite: { dataType: 'tuple', coordinates, values }, ...axes }, referencing: CRS84 },
+    ranges: { a: { type: 'NdArray', dataType: 'float', ...range } },
+  });
+
+  it('reads each point at its place, and points at its value in the response', () => {
+    const cells = drawn(multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] }));
+    expect(cells.source).toBe('points');
+    expect(cells.domainType).toBe('MultiPoint');
+    const at = (x: number) => (cells.geometry as SamplesGeometry).xs.indexOf(x);
+    expect(cells.parameters[0].rawAt(at(26), 0)).toEqual({ value: 3, index: 2, pointer: '/ranges/a/values/2', coverage: null });
+    expect(cells.parameters[0].indicesAt(at(26), 0)).toEqual([['composite', 2]]);
+    expect(cells.coverageCount).toBeNull();
+    expect(cells.crs).toMatchObject({ declared: true, geographic: true });
+    expect(notesOf(cells)[0]).toMatch(/^Sent as 3 points on a composite axis, with 3 different x and 3 different y/);
+  });
+
+  it('names the point in the readout even when there is only one', () => {
+    const cells = drawn(multiPoint({ axisNames: ['composite'], shape: [1], values: [5] }, {}, ['x', 'y'], [[24, 60]]));
+    expect(cells.parameters[0].indicesAt(0, 0)).toEqual([['composite', 0]]);
+  });
+
+  it('makes a pointer of any id', () => {
+    const json = multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] });
+    json.ranges = { 'a/b': json.ranges.a };
+    expect(drawn(json).parameters[0].rawAt(0, 0).pointer).toMatch(/^\/ranges\/a~1b\/values\/\d$/);
+  });
+
+  it('shows a place missing from points on a lattice as absent', () => {
+    const cells = drawn(multiPoint({ axisNames: ['composite'], shape: [5], values: [1, 2, 3, 4, 5] }, {}, ['x', 'y'], [[24, 60], [25, 60], [26, 60], [24, 61], [25, 61]]));
+    expect(cells.source).toBe('points-grid');
+    expect(cells.parameters[0].rawAt(2, 0)).toEqual({ value: undefined, index: null, pointer: null, coverage: null, absent: true });
+    expect(cells.parameters[0].indicesAt(2, 0)).toEqual([]);
+  });
+
+  it('says when a point is sent twice, as points and not coverages', () => {
+    const cells = drawn(multiPoint({ axisNames: ['composite'], shape: [4], values: [1, 2, 3, 4] }, {}, ['x', 'y'], [[24, 60], [24, 60], [25, 61], [26, 63]]));
+    expect(notesOf(cells)).toContain('1 of the 4 points repeats a place and time another one has. A number is drawn over a null, and 1 pair of numbers disagree, where the first is drawn');
+  });
+
+  it('points inside the collection when it’s in one', () => {
+    const json = { type: 'CoverageCollection', domainType: 'MultiPoint', coverages: [multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] })] };
+    expect(drawn(json).parameters[0].rawAt(0, 0).pointer).toMatch(/^\/coverages\/0\/ranges\/a\/values\/\d$/);
+  });
+
+  it('reads a MultiPointSeries through its times, in the order its axisNames give', () => {
+    const t = { values: ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z'] };
+    // t slowest: the first three are the points at 06:00
+    const tFirst = drawn(multiPoint({ axisNames: ['t', 'composite'], shape: [2, 3], values: [1, 2, 3, 11, 12, 13] }, { t }));
+    expect(tFirst.dims).toEqual([{ name: 't', values: t.values }]);
+    const at = (cells: DrawableCells, x: number) => (cells.geometry as SamplesGeometry).xs.indexOf(x);
+    expect(tFirst.parameters[0].data[tFirst.cells + at(tFirst, 25)]).toBe(12);
+    expect(tFirst.parameters[0].rawAt(at(tFirst, 25), 1)).toEqual({ value: 12, index: 4, pointer: '/ranges/a/values/4', coverage: null });
+    expect(tFirst.parameters[0].indicesAt(at(tFirst, 25), 1)).toEqual([['t', 1], ['composite', 1]]);
+    // composite slowest: each point's two times together
+    const pointFirst = drawn(multiPoint({ axisNames: ['composite', 't'], shape: [3, 2], values: [1, 11, 2, 12, 3, 13] }, { t }));
+    expect(pointFirst.parameters[0].data[pointFirst.cells + at(pointFirst, 25)]).toBe(12);
+    expect(pointFirst.parameters[0].rawAt(at(pointFirst, 25), 1)).toMatchObject({ index: 3, pointer: '/ranges/a/values/3' });
+    expect(pointFirst.parameters[0].indicesAt(at(pointFirst, 25), 1)).toEqual([['composite', 1], ['t', 1]]);
+  });
+
+  it('reads levels on a z axis, each point at each, highest first', () => {
+    const cells = drawn(multiPoint({ axisNames: ['z', 'composite'], shape: [2, 3], values: [1, 2, 3, 11, 12, 13] }, { z: { values: [850, 1000] } }));
+    expect(cells.dims).toEqual([{ name: 'z', values: [1000, 850] }]);
+    const at = (cells.geometry as SamplesGeometry).xs.indexOf(25);
+    expect(cells.parameters[0].data[at]).toBe(12);
+    expect(cells.parameters[0].rawAt(at, 0)).toEqual({ value: 12, index: 4, pointer: '/ranges/a/values/4', coverage: null });
+    expect(cells.parameters[0].indicesAt(at, 0)).toEqual([['z', 1], ['composite', 1]]);
+  });
+
+  it('says how it named coordinates that aren’t x and y, with no z where there is none', () => {
+    const range = { axisNames: ['composite'], shape: [3], values: [1, 2, 3] };
+    expect(notesOf(drawn(multiPoint(range, {}, ['lon', 'lat'])))[0]).toBe("The composite axis's coordinates are lon, lat, not x, y. They're read by name: lon as x, lat as y");
+    const levels = tuples.map(([x, y]) => [x, y, 500]);
+    expect(notesOf(drawn(multiPoint(range, {}, ['lon', 'lat', 'z'], levels)))[0]).toBe("The composite axis's coordinates are lon, lat, z, not x, y, z. They're read by name: lon as x, lat as y, and z as z");
+  });
+
+  it('finds the unit of a level under the name the level has', () => {
+    const json = multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] }, {}, ['lon', 'lat', 'pressure'], tuples.map(([x, y]) => [x, y, 500]));
+    json.domain.referencing = [
+      { coordinates: ['lon', 'lat'], system: { type: 'GeographicCRS', id: 'http://www.opengis.net/def/crs/OGC/1.3/CRS84' } },
+      { coordinates: ['pressure'], system: { type: 'VerticalCRS', cs: { csAxes: [{ name: { en: 'Pressure' }, direction: 'down', unit: { symbol: 'hPa' } }] } } },
+    ];
+    const cells = drawn(json);
+    expect(cells.zUnit).toBe('hPa');
+    expect(cells.crs).toMatchObject({ declared: true, geographic: true });
+  });
+
+  it('takes a third coordinate for the level', () => {
+    const cells = drawn(multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] }, {}, ['x', 'y', 'z'], [[24, 60, 850], [25, 61, 850], [26, 63, 850]]));
+    expect(cells.fixed).toMatchObject({ z: 850 });
+    expect(notesOf(cells).some(note => /read by name/.test(note))).toBe(false);
+  });
+
+  it('turns down points that step through an axis it doesn’t draw', () => {
+    expect(refused(multiPoint({ axisNames: ['e', 'composite'], shape: [2, 3], values: [1, 2, 3, 4, 5, 6] }, { e: { values: [1, 2] } })).reason).toBe("The points step through e too, which this doesn't draw");
+  });
+
+  it('turns down a range it can read no way, and says why', () => {
+    const t = { values: ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z'] };
+    // A value per point would leave out the times
+    expect(refused(multiPoint({ axisNames: ['a'], shape: [3], values: [1, 2, 3] }, { t })).reason).toBe(`a: axisNames has "a", which isn't an axis of the domain`);
+    expect(refused(multiPoint({ axisNames: ['composite'], shape: [2], values: [1, 2] })).reason).toBe('a: shape says composite has 2 values, and the axis has 3');
+  });
+
+  it('turns down a TiledNdArray, values or not', () => {
+    expect(refused(multiPoint({ type: 'TiledNdArray', tileSets: [], values: [1, 2, 3] })).reason).toBe('a: a TiledNdArray keeps its values in tiles, which would take more requests');
+  });
+
+  it('turns down a place that isn’t a number', () => {
+    expect(refused(multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] }, {}, ['x', 'y'], [[24, 60], ['here', 61], [26, 63]])).reason).toBe("A point's x or y isn't a number");
+  });
+
+  it('leaves several coverages of points on a composite axis to the other views', () => {
+    const one = multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] });
+    expect(refused({ type: 'CoverageCollection', domainType: 'MultiPoint', coverages: [one, one] }).why).toBe('other-view');
+  });
+
+  it('draws the parameters it can, and lists the one it can’t first', () => {
+    const json = multiPoint({ axisNames: ['composite'], shape: [3], values: [1, 2, 3] });
+    json.ranges.b = { type: 'NdArray', axisNames: ['composite'], shape: [3], values: [1, 2] };
+    const cells = drawn(json);
+    expect(cells.parameters.map(parameter => parameter.id)).toEqual(['a']);
+    expect(cells.broken).toEqual([expect.objectContaining({ id: 'b', problem: 'b: shape 3 makes 3 values, and values has 2' })]);
+    expect(cells.notes[0]).toEqual({ level: 'error', text: 'b: shape 3 makes 3 values, and values has 2' });
+  });
+
+  describe('Polytope’s, with latitude, longitude and levelist, and axisNames of the parameter', () => {
+    const cells = drawn(polytopeArea);
+
+    it('draws every point at its longitude and latitude', () => {
+      expect(cells.source).toBe('points');
+      expect(cells.cells).toBe(10);
+      const g = cells.geometry as SamplesGeometry;
+      const first = g.xs.indexOf(24.06976744186);
+      expect(g.ys[first]).toBe(60.070296872301);
+      expect(cells.parameters[0].data[first]).toBeCloseTo(280.36732482910156, 4);
+      expect(cells.crs).toMatchObject({ declared: true, geographic: true });
+      expect(cells.fixed).toEqual({ t: '2026-11-06T00:00:00Z', z: 0 });
+    });
+
+    it('says how it read the coordinates and the values, and why', () => {
+      expect(notesOf(cells).slice(0, 3)).toEqual([
+        "The composite axis's coordinates are latitude, longitude, levelist, not x, y, z. They're read by name: longitude as x, latitude as y, and levelist, the third, as z",
+        `2t: axisNames has "2t", which isn't an axis of the domain. Its 10 values are read one per point, the only way they fit`,
+        expect.stringMatching(/^Sent as 10 points on a composite axis, with 10 different x and 2 different y/),
+      ]);
+      expect(cells.notes.slice(0, 2).map(note => note.level)).toEqual(['warn', 'warn']);
+      expect(cells.notes[1]).toMatchObject({ parameter: '2t' });
+    });
+
+    it('points at each value where it is in the response', () => {
+      const g = cells.geometry as SamplesGeometry;
+      const seventh = g.xs.indexOf(polytopeArea.coverages[0].domain.axes.composite.values[6][1]);
+      expect(cells.parameters[0].rawAt(seventh, 0)).toEqual({ value: polytopeArea.coverages[0].ranges['2t'].values[6], index: 6, pointer: '/coverages/0/ranges/2t/values/6', coverage: null });
+      expect(cells.parameters[0].indicesAt(seventh, 0)).toEqual([['composite', 6]]);
+    });
   });
 });
 

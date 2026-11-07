@@ -78,6 +78,8 @@ export function findingMessage({ path, message }: ValidationError): string {
 interface ResponseChecksProps {
   // The schema the response was checked against, if one applies
   schemaName: string | null;
+  // The domainType its coverages were checked as, if they inherit the collection's
+  checkedAs?: string | null;
   findings: ValidationError[];
   // Each line with findings on it, in the order Raw steps through them
   lines: { line: number; errors: ValidationError[] }[];
@@ -90,7 +92,7 @@ interface ResponseChecksProps {
 }
 
 // What was checked about this response, and what that found
-export default function ResponseChecks({ schemaName, findings, lines, onGoToLine, dataNotes = [], onGoToNote, collectionId }: ResponseChecksProps) {
+export default function ResponseChecks({ schemaName, checkedAs, findings, lines, onGoToLine, dataNotes = [], onGoToNote, collectionId }: ResponseChecksProps) {
   if (!schemaName && findings.length === 0 && dataNotes.length === 0) {
     return (
       <Typography variant="body2" sx={{ color: 'text.secondary', p: 2 }}>
@@ -107,6 +109,11 @@ export default function ResponseChecks({ schemaName, findings, lines, onGoToLine
         {schemaName && (
           <Item icon={count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
             {schemaName} schema: {count ? count.label : '0 errors'}
+            {checkedAs && (
+              <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
+                Each coverage checked as a {checkedAs}, the collection's domainType, which it inherits
+              </Box>
+            )}
           </Item>
         )}
         {findings.slice(0, MOST_SHOWN).map((finding, index) => {

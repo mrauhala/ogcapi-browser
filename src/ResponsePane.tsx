@@ -18,6 +18,7 @@ import { useTheme } from '@mui/material/styles';
 import VirtualizedCodeView from './VirtualizedCodeView';
 import CoverageData, { type CoverageView } from './CoverageData';
 import { summarizeCoverage } from './coverage/coverageSummary';
+import { inheritedDomainType } from './coverage/inheritedDomainType';
 import FetchErrorAlert from './FetchErrorAlert';
 import ResponseChecks, { ChecksTabLabel, findingMessage } from './ResponseChecks';
 import ResponseHeaders from './ResponseHeaders';
@@ -262,6 +263,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
         {!isLoading && response && tab === 'checks' && (
           <ResponseChecks
             schemaName={validationSchemaName}
+            checkedAs={validationSchemaName ? inheritedDomainType(parsedJson) : null}
             findings={validationErrors}
             lines={errorLineList}
             onGoToLine={index => {

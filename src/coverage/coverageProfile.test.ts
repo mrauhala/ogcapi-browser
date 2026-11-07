@@ -313,14 +313,15 @@ describe('coverageToProfile: whatever shape it comes in', () => {
 });
 
 describe('coverageToProfile: what doesn’t fit is said, and not read wrong', () => {
-  it('reads none of a parameter whose values don’t fit its axes, and says how many', () => {
+  // Checks says what's wrong with it, as it does for every response: coverageSummary.test.ts
+  it('reads none of a parameter whose values don’t fit its axes, and leaves saying so to the check of every range', () => {
     const json = copy(mcIfs1tAll);
     json.coverages[0].ranges.t.values.pop();
     const profile = profileOf(json);
     const temperature = profile.parameters.find(parameter => parameter.id === 't')!;
     expect(temperature.misfit).toEqual({ count: 13, expected: 14, path: '/coverages/0/ranges/t/values' });
     expect(temperature.numbers).toBe(0);
-    expect(messages(profile)).toContain('t: shape and axes make 14 values, and values has 13, so none are read');
+    expect(messages(profile).some(message => /values has|fit its shape/.test(message))).toBe(false);
     expect(profile.parameters.find(parameter => parameter.id === 'r')!.numbers).toBe(14);
   });
 
@@ -356,7 +357,6 @@ describe('coverageToProfile: what kind of finding each is', () => {
       'Every level asked for is in the response: 1000, 925, 850, 700, 600 and 9 more': 'pass',
       "Every level in the response is among those in the collection's extent": 'pass',
       "Every level is inside the collection's extent, 10 to 1000": 'pass',
-      "Every parameter's values fit its shape and axes": 'pass',
     });
   });
 
@@ -370,7 +370,6 @@ describe('coverageToProfile: what kind of finding each is', () => {
       "Every level in the response is among those in the collection's extent": 'pass',
       "Every level is inside the collection's extent, 50 to 1000": 'pass',
       '2 nulls in windspeedms, first at 50 hPa': 'info',
-      "Every parameter's values fit its shape and axes": 'pass',
     });
   });
 
@@ -383,7 +382,6 @@ describe('coverageToProfile: what kind of finding each is', () => {
       "Every level is inside the collection's extent, 0.5 to 15": 'pass',
       'The levels change from time to time: 12 in all, at most 10 at a time': 'info',
       'All 40 values of DBZH are null': 'info',
-      "Every parameter's values fit its shape and axes": 'pass',
     });
   });
 
@@ -411,7 +409,6 @@ describe('coverageToProfile: what kind of finding each is', () => {
     expect(kinds(profileOf(plain))).toEqual({
       "z's direction isn't in the response, and nothing says what z is: assumed up": 'warning',
       'z has no unit in the response': 'warning',
-      "Every parameter's values fit its shape and axes": 'pass',
     });
     const json = copy(mcIfs1tAll);
     json.coverages[0].domain.referencing.find((entry: Json) => entry.coordinates.includes('z')).system.cs.csAxes[0].direction = 'up';
@@ -450,14 +447,13 @@ describe('coverageToProfile: what kind of finding each is', () => {
     expect(kinds(profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x'))["Every level in the collection's extent is in the response"]).toBeUndefined();
   });
 
-  it('makes an error of values that don’t fit, which then don’t all fit', () => {
+  it('makes an issue of levels outside the extent, with a parameter that doesn’t fit beside them', () => {
     const json = copy(mcIfs1tAll);
     json.coverages[0].domain.axes.z.values = json.coverages[0].domain.axes.z.values.map((value: number) => value * 100);
     json.coverages[0].ranges.t.values.pop();
     const found = kinds(profileOf(json, MC, 'x'));
     expect(found["z 5000, 10000, 15000, 20000, 25000 and 8 more are outside the collection's extent, 10 to 1000"]).toBe('warning');
-    expect(found['t: shape and axes make 14 values, and values has 13, so none are read']).toBe('error');
-    expect(found["Every parameter's values fit its shape and axes"]).toBeUndefined();
+    expect(Object.values(found)).not.toContain('error');
   });
 });
 
@@ -486,13 +482,6 @@ describe('coverageToProfile: what isn’t claimed', () => {
     const json = copy(mcIfs1tAll);
     json.coverages[0].ranges.t.values.pop();
     expect(messagesOf(json, MC, 'x?z=1000,925').some(message => /^t (isn't at|has \d+ of)/.test(message))).toBe(false);
-  });
-
-  it('passes no fit without parameters, or with one whose values aren’t in the response', () => {
-    const axes = { x: { values: [1] }, y: { values: [2] }, z: { values: [1, 2] } };
-    expect(messagesOf({ type: 'Coverage', domain: { axes } }).some(message => /fit its shape/.test(message))).toBe(false);
-    const linked = { type: 'Coverage', domain: { axes }, ranges: { a: { axisNames: ['z'], shape: [2], values: [1, 2] }, b: 'https://example.org/b.json' } };
-    expect(messagesOf(linked).some(message => /fit its shape/.test(message))).toBe(false);
   });
 
   it('points at the collection’s referencing when that’s where z is put under CRS84', () => {

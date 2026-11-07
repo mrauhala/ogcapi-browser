@@ -22,6 +22,13 @@ describe('ResponseChecks', () => {
     expect(html).not.toContain('No schema applies');
   });
 
+  it('says what the coverages were checked as, when they inherit the collection’s domainType', () => {
+    // On the schema's own line, under what it found
+    expect(render({ schemaName: 'CoverageJSON 1.0', checkedAs: 'MultiPoint' })).toMatch(/schema: 0 errors<(?:(?!<li).)*>Each coverage checked as a MultiPoint, the collection&#x27;s domainType, which it inherits<\/span><\/div><\/li>/);
+    expect(render({ schemaName: 'CoverageJSON 1.0' })).not.toContain('checked as');
+    expect(render({ checkedAs: 'MultiPoint', findings: [FINDING] })).not.toContain('checked as');
+  });
+
   it('lists a finding with where it is, without repeating that in the message', () => {
     const html = render({ schemaName: 'CoverageJSON 1.0', findings: [FINDING] });
     expect(html).toContain('>/ranges/t</span>must be number');

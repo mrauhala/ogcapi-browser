@@ -1,6 +1,8 @@
-import Ajv, { ValidateFunction } from 'ajv';
+import Ajv, { type ErrorObject, ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
+import { withInheritedDomainType } from './coverage/inheritedDomainType';
 import { ValidationError } from './types/api';
+import { condenseAjvErrors } from './validation/ajvErrors';
 import { publicUrl } from './utils/publicUrl';
 
 // --- Registry types ---
@@ -11,6 +13,8 @@ interface QueryResultSchema {
   schemaType: 'json-schema';
   schemaPath: string;
   detect: (data: string, contentType: string, url?: string) => boolean;
+  // The document as the standard reads it, where the schema alone would miss something
+  asRead?: (json: unknown) => unknown;
 }
 
 export interface QueryResultValidation {
@@ -60,6 +64,7 @@ const SCHEMAS: QueryResultSchema[] = [
     schemaType: 'json-schema',
     schemaPath: '/schemas/covjson/1.0/coveragejson.json',
     detect: detectCoverageJson,
+    asRead: withInheritedDomainType,
   },
   {
     id: 'edr-locations',
@@ -69,6 +74,11 @@ const SCHEMAS: QueryResultSchema[] = [
     detect: detectEdrLocations,
   },
 ];
+
+// An enum's error says there are allowed values, but not which
+function allowedValues({ params }: ErrorObject): string {
+  return Array.isArray(params.allowedValues) ? `: ${params.allowedValues.map(value => JSON.stringify(value)).join(', ')}` : '';
+}
 
 // --- Validator class ---
 
@@ -129,15 +139,16 @@ export class QueryResultValidator {
       };
     }
 
-    const isValid = validator(parsed);
+    const isValid = validator(schema.asRead ? schema.asRead(parsed) : parsed);
 
     if (isValid) {
       console.log(`✅ ${schema.displayName}: Valid`);
       return { matched: true, schemaName: schema.displayName, valid: true, errors: [] };
     }
 
-    const errors: ValidationError[] = (validator.errors || []).map(err => ({
-      message: `${err.instancePath || ''}: ${err.message}`,
+    // Without "must match "then" schema" and the like, where an error under it says what
+    const errors: ValidationError[] = condenseAjvErrors(validator.errors || [], Infinity).map(err => ({
+      message: `${err.instancePath || ''}: ${err.message}${allowedValues(err)}`,
       path: err.instancePath || 'root',
       keyword: err.keyword,
       schema: schema.displayName,

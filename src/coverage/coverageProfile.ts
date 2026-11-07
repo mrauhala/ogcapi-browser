@@ -398,9 +398,6 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
     } else if (lacking.length) {
       note(`${parameter.id} has ${levels.length - lacking.length} of the ${levels.length} levels: not ${listed(lacking)}`, `${zValues}`);
     }
-    if (parameter.misfit) {
-      note(`${parameter.id}: shape and axes make ${plural(parameter.misfit.expected, 'value')}, and values has ${parameter.misfit.count.toLocaleString('en-US')}, so none are read`, parameter.misfit.path, 'error');
-    }
     const first = parameter.nulls > 0 ? firstNull(parameter.values) : null;
     const at = first && cellOf(parameter.id, first.location, first.time, first.row);
     if (!first || !at) continue;
@@ -413,8 +410,6 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
     const where = locations.length > 1 ? ` (${locations[first.location].label})` : '';
     note(`${plural(parameter.nulls, 'null')} in ${parameter.id}, ${parameter.nulls === 1 ? 'at' : 'first at'} ${levelText(rows[first.row])}${when}${where}`, at.path);
   }
-  const fitting = parameters.filter(parameter => !parameter.misfit && !parameter.notIncluded).length;
-  if (fitting > 0 && fitting === parameters.length) pass(`Every parameter's values fit its shape and axes`, `${prefix(0)}/ranges`);
 
   const domainTypes = new Set(coverages.map(({ json: coverage }) => (isObject(coverage.domain) ? coverage.domain.domainType : undefined) ?? json.domainType));
   const [onlyType] = domainTypes;

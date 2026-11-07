@@ -1,5 +1,6 @@
 import { analyse, shareText, type CellFigures } from './cellFigures';
 import { formatValue } from './coverageSummary';
+import { rangeMisfit } from './rangeFit';
 import { parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime } from '../utils/utcTime';
 
@@ -199,9 +200,10 @@ export function axisDrift(values: number[]) {
 export const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-85.06, Math.min(85.06, lat)) * Math.PI) / 360)) * (180 / Math.PI);
 export const invMercY = (y: number) => (Math.atan(Math.exp((y * Math.PI) / 180)) * 360) / Math.PI - 90;
 
-function crsOf(referencing: unknown, xs: number[], ys: number[]): CellCrs {
+// xName: what the response calls x, if not x
+function crsOf(referencing: unknown, xs: number[], ys: number[], xName = 'x'): CellCrs {
   const entry = Array.isArray(referencing)
-    ? (referencing as unknown[]).find(item => isObj(item) && Array.isArray(item.coordinates) && item.coordinates.includes('x')) as Json | undefined
+    ? (referencing as unknown[]).find(item => isObj(item) && Array.isArray(item.coordinates) && item.coordinates.includes(xName)) as Json | undefined
     : undefined;
   const system = entry && isObj(entry.system) ? entry.system : null;
   const id = system && typeof system.id === 'string' ? system.id : null;
@@ -212,9 +214,9 @@ function crsOf(referencing: unknown, xs: number[], ys: number[]): CellCrs {
   return { declared: true, geographic, label, inDegrees };
 }
 
-function zUnitOf(referencing: unknown): string {
+function zUnitOf(referencing: unknown, zName = 'z'): string {
   const entry = Array.isArray(referencing)
-    ? (referencing as unknown[]).find(item => isObj(item) && Array.isArray(item.coordinates) && item.coordinates.includes('z')) as Json | undefined
+    ? (referencing as unknown[]).find(item => isObj(item) && Array.isArray(item.coordinates) && item.coordinates.includes(zName)) as Json | undefined
     : undefined;
   const system = entry && isObj(entry.system) ? entry.system : null;
   const cs = system && isObj(system.cs) ? system.cs : null;
@@ -229,23 +231,17 @@ function zUnitOf(referencing: unknown): string {
 
 // ---- A range, read through its own axis order -------------------------------------------------
 
+// The values, if they're in the range itself
+const inlineValues = (range: unknown): unknown[] | null =>
+  isObj(range) && range.type !== 'TiledNdArray' && !Array.isArray(range.tileSets) && Array.isArray(range.values) ? range.values : null;
+
 // Says why a range can't be read as these axes, in numbers an API developer can check
 function rangeProblem(id: string, range: unknown, axisLen: Record<string, number>): string | null {
   if (typeof range === 'string') return `${id}: its values are at a link, not in this response`;
   if (!isObj(range)) return `${id}: its range isn't an object`;
   if (range.type === 'TiledNdArray' || Array.isArray(range.tileSets)) return `${id}: a TiledNdArray keeps its values in tiles, which would take more requests`;
   if (!Array.isArray(range.values)) return `${id}: its range has no values array`;
-  const names = Array.isArray(range.axisNames) ? (range.axisNames as string[]) : null;
-  const shape = Array.isArray(range.shape) ? (range.shape as number[]) : null;
-  if (!names || !shape) return null;
-  if (names.length !== shape.length) return `${id}: axisNames has ${names.length} names, shape has ${shape.length}`;
-  const product = shape.reduce((a, b) => a * b, 1);
-  if (product !== range.values.length) return `${id}: shape ${shape.join(' × ')} makes ${count(product)} values, and values has ${count(range.values.length)}`;
-  for (let i = 0; i < names.length; i++) {
-    if (!(names[i] in axisLen)) return `${id}: axisNames has "${names[i]}", which isn't an axis of the domain`;
-    if (shape[i] !== axisLen[names[i]]) return `${id}: shape says ${names[i]} has ${count(shape[i])} values, and the axis has ${count(axisLen[names[i]])}`;
-  }
-  return null;
+  return rangeMisfit(id, range, axisLen)?.message ?? null;
 }
 
 // How many values along each named axis one step moves in a flat values array
@@ -341,9 +337,8 @@ export function readCells(json: unknown, { drawAnyway = false }: { drawAnyway?: 
       return values.length > 1 ? readPolygons(first, type, paramDefs, topRef) : cant(`A ${type || 'polygon'} of one polygon is one place`, 'other-view');
     }
     const coordinates = axes.composite.coordinates;
-    if (coverages.length === 1 && Array.isArray(coordinates) && coordinates.includes('x') && !coordinates.includes('t') && !coordinates.includes('z')) {
-      return readMultiPoint(first, type, paramDefs, topRef);
-    }
+    const roles = compositeRoles(coordinates);
+    if (coverages.length === 1 && roles) return readMultiPoint(first, type, paramDefs, topRef, roles, isCollection ? '/coverages/0' : '');
     return cant(`A composite axis of ${Array.isArray(coordinates) ? coordinates.join(', ') : 'unknown coordinates'} isn't cells on a plane`, 'other-view');
   }
 
@@ -427,16 +422,8 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
       continue;
     }
     const theRange = range as Json;
-    const order = Object.keys(axes);
-    const strides = stridesOf(theRange, order, axisLen);
-    if (strides.x === undefined && nx > 1) {
-      broken.push({ ...base, problem: `${id}: axisNames has no x, and x has ${count(nx)} values` });
-      continue;
-    }
-    if (strides.y === undefined && ny > 1) {
-      broken.push({ ...base, problem: `${id}: axisNames has no y, and y has ${count(ny)} values` });
-      continue;
-    }
+    // rangeProblem has seen to it that x and y are in axisNames if they have more than one value
+    const strides = stridesOf(theRange, Object.keys(axes), axisLen);
     const strideX = strides.x ?? 0;
     const strideY = strides.y ?? 0;
     const data = new Float32Array(slices * cells);
@@ -492,7 +479,16 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
 
 // ---- Points: FMI's answer to area and cube ------------------------------------------------------
 
-function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: unknown): CellsReading {
+// How the points came, for the notes, and what the response calls x and z
+interface PointsSent {
+  // "66 points on a composite axis"
+  as: string;
+  each: 'coverage' | 'point';
+  xName: string;
+  zName: string;
+}
+
+function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: unknown, sent?: PointsSent): CellsReading {
   const axesOf = (coverage: Json) => (coverage.domain as Json).axes as Json;
   const places = new Map<string, number>();
   const xs: number[] = [];
@@ -528,7 +524,7 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
   const zLength = Math.max(zs.length, 1);
   const slices = tLength * zLength;
   const refs = (coverages[0].domain as Json).referencing ?? topRef;
-  const crs = crsOf(refs, xs, ys);
+  const crs = crsOf(refs, xs, ys, sent?.xName);
 
   // A complete lattice on lon/lat lines is a Grid sent the long way round
   const distinctX = [...new Set(xs)].sort((a, b) => a - b);
@@ -654,20 +650,23 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
   if (parameters.length === 0) return cant('The coverages have no ranges');
   const notes: CellNote[] = [];
   const kind = type || 'Point';
+  const sentAs = sent?.as ?? plural(coverages.length, `${kind} coverage`);
+  const each = sent?.each ?? 'coverage';
   if (isLattice) {
     const missing = product - n;
-    notes.push({ level: 'info', text: `Sent as ${plural(coverages.length, `${kind} coverage`)}, which line up as a ${count(distinctX.length)} × ${count(distinctY.length)} grid${missing ? `, with ${plural(missing, 'position')} missing` : ''}. A Grid domain would say that in a fraction of the size` });
+    notes.push({ level: 'info', text: `Sent as ${sentAs}, which line up as a ${count(distinctX.length)} × ${count(distinctY.length)} grid${missing ? `, with ${plural(missing, 'position')} missing` : ''}. A Grid domain would say that in a fraction of the size` });
   } else {
     const { spacing } = geometry as SamplesGeometry;
-    notes.push({ level: 'info', text: `Sent as ${plural(coverages.length, `${kind} coverage`)}, with ${count(distinctX.length)} different x and ${count(distinctY.length)} different y, so they aren't on lon/lat lines. Each is drawn at its own place${spacing.regular && spacing.km !== null ? `, about ${formatValue(spacing.km)} km apart` : ''}` });
+    notes.push({ level: 'info', text: `Sent as ${sentAs}, with ${count(distinctX.length)} different x and ${count(distinctY.length)} different y, so they aren't on lon/lat lines. Each is drawn at its own place${spacing.regular && spacing.km !== null ? `, about ${formatValue(spacing.km)} km apart` : ''}` });
   }
   if (repeats > 0) {
-    notes.push({ level: 'warn', text: `${count(repeats)} of the ${count(coverages.length)} coverages repeat${repeats === 1 ? 's' : ''} a place and time another one has. A number is drawn over a null${disagree ? `, and ${plural(disagree, 'pair')} of numbers disagree, where the first is drawn` : ', and no two numbers disagree'}` });
+    notes.push({ level: 'warn', text: `${count(repeats)} of the ${count(coverages.length)} ${each}s repeat${repeats === 1 ? 's' : ''} a place and time another one has. A number is drawn over a null${disagree ? `, and ${plural(disagree, 'pair')} of numbers disagree, where the first is drawn` : ', and no two numbers disagree'}` });
   }
   parameters.forEach(parameter => addParameterNotes(notes, parameter));
   return {
     drawable: true, source: isLattice ? 'points-grid' : 'points', viewLabel: isLattice ? 'Grid' : 'Points', domainType: kind,
-    geometry, dims, fixed, slices, cells, crs, parameters, broken: [], notes, order: null, zUnit: zUnitOf(refs), coverageCount: coverages.length,
+    geometry, dims, fixed, slices, cells, crs, parameters, broken: [], notes, order: null, zUnit: zUnitOf(refs, sent?.zName),
+    coverageCount: each === 'coverage' ? coverages.length : null,
   };
 }
 
@@ -798,23 +797,124 @@ function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unk
   };
 }
 
-function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: unknown): CellsReading {
+// Which of a composite axis's coordinates is which, by name first: Polytope sends latitude, longitude, levelist, where a
+// MultiPoint has x, y and z, in that order. What's left, if one is, is z by its place. With t, it's a line
+export interface CompositeRoles {
+  x: number;
+  y: number;
+  z: number;
+  names: string[];
+  // Not just x, y and z
+  byName: boolean;
+}
+
+const X_NAMES = /^(lon|long|longitude|easting)$/i;
+const Y_NAMES = /^(lat|latitude|northing)$/i;
+
+export function compositeRoles(coordinates: unknown): CompositeRoles | null {
+  if (!Array.isArray(coordinates) || !coordinates.every(name => typeof name === 'string')) return null;
+  const names = coordinates as string[];
+  if (names.includes('t')) return null;
+  const find = (exact: string, like: RegExp) => (names.includes(exact) ? names.indexOf(exact) : names.findIndex(name => like.test(name)));
+  const x = find('x', X_NAMES);
+  const y = find('y', Y_NAMES);
+  const rest = names.map((_, i) => i).filter(i => i !== x && i !== y);
+  if (x < 0 || y < 0 || rest.length > 1) return null;
+  const z = rest.length ? rest[0] : -1;
+  return { x, y, z, names, byName: names[x] !== 'x' || names[y] !== 'y' || (z >= 0 && names[z] !== 'z') };
+}
+
+// Every point on a composite axis as a coverage of its own, read through its range's strides, so the same reader
+// does both. A MultiPointSeries steps through t as well. Raw's paths and the readout's indices are the response's own
+function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: unknown, roles: CompositeRoles, prefix: string): CellsReading {
   const domain = coverage.domain as Json;
   const axes = domain.axes as Json;
-  const composite = axes.composite as Json;
-  const tuples = composite.values as number[][];
-  const coordinates = composite.coordinates as string[];
-  const atX = coordinates.indexOf('x');
-  const atY = coordinates.indexOf('y');
+  const tuples = axisValues(axes.composite) ?? [];
+  const n = tuples.length;
+  const lengths: Record<string, number> = {};
+  for (const name of Object.keys(axes)) lengths[name] = axisValues(axes[name])?.length ?? 0;
+  const odd = Object.keys(axes).find(name => name !== 'composite' && name !== 't' && name !== 'z' && lengths[name] > 1);
+  if (odd) return cant(`The points step through ${odd} too, which this doesn't draw`);
+  const t = axisValues(axes.t);
+  const z = axisValues(axes.z);
+  const tLength = t?.length ?? 1;
+  const zLength = z?.length ?? 1;
+  const own = tLength * zLength;
+  const { names } = roles;
+  const notes: CellNote[] = [];
+  if (roles.byName) {
+    const third = roles.z >= 0 ? `, and ${names[roles.z]}${names[roles.z] === 'z' ? '' : ', the third,'} as z` : '';
+    notes.push({ level: 'warn', text: `The composite axis's coordinates are ${names.join(', ')}, not x, y${roles.z >= 0 ? ', z' : ''}. They're read by name: ${names[roles.x]} as x, ${names[roles.y]} as y${third}` });
+  }
+
+  const definitions = { ...paramDefs, ...(isObj(coverage.parameters) ? coverage.parameters : {}) };
+  const broken: BrokenParameter[] = [];
+  // Per parameter, where each point's values are in the response's values, and the axes in its values' order
+  const indices = new Map<string, Int32Array>();
+  const orders = new Map<string, string[]>();
+  for (const [id, range] of Object.entries(isObj(coverage.ranges) ? coverage.ranges : {})) {
+    const problem = rangeProblem(id, range, lengths);
+    const values = inlineValues(range);
+    // When only the composite axis has more than one value, a value per point is the only way to read them
+    const oneWay = values !== null && values.length === n && Object.keys(lengths).every(name => name === 'composite' || lengths[name] <= 1);
+    if (problem && !oneWay) {
+      broken.push({ ...parameterBase(id, definitions[id]), problem });
+      continue;
+    }
+    if (problem) notes.push({ level: 'warn', text: `${problem}. Its ${count(n)} values are read one per point, the only way they fit`, parameter: id });
+    const strides = problem ? { composite: 1 } : stridesOf(range as Json, Object.keys(axes), lengths);
+    // stridesOf goes from the fastest axis out, so its keys are the other way round
+    orders.set(id, Object.keys(strides).reverse().filter(name => name === 'composite' || lengths[name] > 1));
+    const at = new Int32Array(n * own);
+    for (let i = 0; i < n; i++) {
+      for (let ti = 0; ti < tLength; ti++) {
+        for (let zi = 0; zi < zLength; zi++) at[i * own + ti * zLength + zi] = i * (strides.composite ?? 0) + ti * (strides.t ?? 0) + zi * (strides.z ?? 0);
+      }
+    }
+    indices.set(id, at);
+  }
+  if (indices.size === 0) return cant(broken[0]?.problem ?? 'The coverage has no ranges');
+
   const ranges = isObj(coverage.ranges) ? coverage.ranges : {};
-  const asPoints: Json[] = tuples.map((tuple, i) => ({
-    domain: {
-      axes: { x: { values: [tuple[atX]] }, y: { values: [tuple[atY]] }, ...(axes.t ? { t: axes.t } : {}), ...(axes.z ? { z: axes.z } : {}) },
-      referencing: domain.referencing,
-    },
-    ranges: Object.fromEntries(Object.entries(ranges).map(([id, range]) => [id, { values: isObj(range) && Array.isArray(range.values) ? [range.values[i]] : [] }])),
-  }));
-  return readPoints(asPoints, type, { ...paramDefs, ...(isObj(coverage.parameters) ? coverage.parameters : {}) }, topRef);
+  const asPoints: Json[] = tuples.map((tuple, i) => {
+    const place = Array.isArray(tuple) ? tuple : [];
+    const level = z ?? (roles.z >= 0 ? [place[roles.z]] : null);
+    return {
+      domain: { axes: { x: { values: [place[roles.x]] }, y: { values: [place[roles.y]] }, ...(t ? { t: { values: t } } : {}), ...(level ? { z: { values: level } } : {}) } },
+      ranges: Object.fromEntries([...indices].map(([id, at]) => {
+        const values = (ranges[id] as Json).values as unknown[];
+        return [id, { values: Array.from(at.subarray(i * own, (i + 1) * own), index => values[index]) }];
+      })),
+    };
+  });
+  const reading = readPoints(asPoints, type, definitions, domain.referencing ?? topRef, {
+    as: `${plural(n, 'point')} on a composite axis`, each: 'point', xName: names[roles.x], zName: roles.z >= 0 ? names[roles.z] : 'z',
+  });
+  if (!reading.drawable) return reading;
+  return {
+    ...reading,
+    broken,
+    notes: [...broken.map(({ problem }): CellNote => ({ level: 'error', text: problem })), ...notes, ...reading.notes],
+    parameters: reading.parameters.map(parameter => {
+      const at = indices.get(parameter.id)!;
+      return {
+        ...parameter,
+        rawAt(cell, slice) {
+          const raw = parameter.rawAt(cell, slice);
+          if (raw.coverage === null || raw.index === null) return raw;
+          const index = at[raw.coverage * own + raw.index];
+          return { ...raw, index, pointer: `${prefix}/ranges/${pointerPart(parameter.id)}/values/${index}`, coverage: null };
+        },
+        // Where it is along each of the response's axes, from where it is in its point's own values
+        indicesAt(cell, slice) {
+          const raw = parameter.rawAt(cell, slice);
+          if (raw.coverage === null || raw.index === null) return [];
+          const along: Record<string, number> = { composite: raw.coverage, t: Math.floor(raw.index / zLength), z: raw.index % zLength };
+          return orders.get(parameter.id)!.map((name): [string, number] => [name, along[name]]);
+        },
+      };
+    }),
+  };
 }
 
 // ---- Notes, in the same voice as coverageSummary's --------------------------------------------

@@ -2,6 +2,7 @@ import type { ValidationError } from '../types/api';
 import { axisLength, coverageParameters, isTimeSeriesCoverage, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
+import { rangeMisfit } from './rangeFit';
 
 // What a CoverageJSON response holds, worked out once for all the ways of showing it: its shape in
 // a sentence, each parameter's figures, its time series if it has them, and what's worth a note.
@@ -309,6 +310,42 @@ function buildSeries(coverages: Json[], tallies: Map<string, Tally>): { series: 
   };
 }
 
+// Every range against its domain, whatever the response is: a schema can't check that its axisNames and shape are
+// the domain's axes. The same fault in many coverages is said once
+function rangeFindings(coverages: Json[], prefix: (coverage: number) => string): ValidationError[] {
+  const faults = new Map<string, { message: string; path: string; more: number }>();
+  let fitting = 0;
+  let unchecked = 0;
+  coverages.forEach((coverage, c) => {
+    const axes = isObject(coverage.domain) && isObject(coverage.domain.axes) ? coverage.domain.axes : null;
+    for (const [id, range] of Object.entries(isObject(coverage.ranges) ? coverage.ranges : {})) {
+      if (!axes || !isObject(range)) {
+        unchecked++;
+        continue;
+      }
+      const lengths = Object.fromEntries(Object.entries(axes).map(([name, axis]) => [name, axisLength(axis as Axis & Parameters<typeof axisLength>[0]) ?? 0]));
+      const misfit = rangeMisfit(id, range, lengths);
+      if (!misfit) {
+        if (Array.isArray(range.values)) fitting++;
+        else unchecked++;
+        continue;
+      }
+      const key = `${id}\u0000${misfit.member}`;
+      const known = faults.get(key);
+      if (known) known.more++;
+      else faults.set(key, { message: misfit.message, path: `${prefix(c)}/ranges/${pointerPart(id)}/${misfit.member}`, more: 0 });
+    }
+  });
+  if (faults.size === 0) {
+    return fitting > 0 && unchecked === 0 ? [{ message: "Every parameter's values fit its shape and axes", path: `${prefix(0)}/ranges`, severity: 'pass' }] : [];
+  }
+  return [...faults.values()].map(({ message, path, more }) => ({
+    message: more ? `${message}, and likewise in ${plural(more, 'more coverage')}` : message,
+    path,
+    severity: 'error',
+  }));
+}
+
 // The request's URL and the open collection's vertical extent tell a profile which levels should be there
 export function summarizeCoverage(json: unknown, context: ProfileContext = {}): CoverageSummary | null {
   if (!isObject(json)) return null;
@@ -329,6 +366,7 @@ export function summarizeCoverage(json: unknown, context: ProfileContext = {}): 
   const notes: ValidationError[] = [];
   const note = (message: string, path: string) => notes.push({ message, path, severity: 'info' });
 
+  notes.push(...rangeFindings(coverages, prefix));
   if (profile) notes.push(...profile.notes);
   for (const { id, nulls, count, firstNull } of tallies.values()) {
     if (!firstNull || profile) continue;
