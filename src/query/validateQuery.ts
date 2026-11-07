@@ -2,6 +2,7 @@ import type { Collection } from '../types/api';
 import { normalizeTemporal, getOverallTemporalExtent, expandTemporalValues } from '../utils/extents/temporal';
 import { normalizeVertical, expandVerticalValues } from '../utils/extents/vertical';
 import { normalizeBbox } from '../utils/extents/bbox';
+import { REPEATING_LEVELS } from './levels';
 import { effectiveOutputFormats, parameterIdsOf, unitsFor } from './queryTypes';
 import { timeIsOnlyAFilter, type QueryModel } from './queryModel';
 import type { BBox, DimSelection, IssueSeverity, IssueSource, QueryIssue } from './types';
@@ -277,23 +278,42 @@ function checkDimension(selection: DimSelection, field: string, label: string, a
   return true;
 }
 
+// z as EDR 1.1 has it (/req/edr/z-response): a level, a list of them, a range, or a repeating interval
 function checkVertical(model: QueryModel, add: Add) {
   const levels = extentsOf(model.collection).levels;
   if (!levels || !checkDimension(model.vertical, 'z', 'level', add)) return;
   const { mode, value, start, end } = model.vertical;
-  const chosen = (mode === 'range' ? [start, end] : [value]).filter(Boolean);
+  const repeating = mode === 'individual' ? REPEATING_LEVELS.exec(value.trim()) : null;
+  const items = mode === 'range' ? [start, end] : repeating ? [repeating[2], repeating[3]] : value.split(',').map(text => text.trim());
+  if (mode === 'individual' && !repeating && items.length > 1 && items.some(text => !text)) {
+    add('error', 'metadata', 'z', 'empty', `The list of levels "${value}" has an empty entry`, 'form');
+  }
+  if (repeating && items.some(text => !text.trim())) {
+    add('error', 'metadata', 'z', 'empty', `The repeating interval "${value}" needs its lowest level and its step, as R3/500/100`, 'form');
+  }
+  const chosen = items.filter(Boolean);
   const numbers = chosen.map(Number);
   chosen.forEach((text, i) => {
     if (!isFinite(numbers[i])) add('error', 'metadata', 'z', `number-${i}`, `Level "${text}" isn't a number`, 'form');
   });
   if (numbers.some(n => !isFinite(n))) return;
-  if (mode === 'individual' && numbers.length === 1 && levels.values.length > 0 && !levels.values.includes(numbers[0])) {
-    add('error', 'metadata', 'z', 'offered', `Level ${chosen[0]} isn't one of the collection's levels`, 'form');
+  const list = mode === 'individual' && !repeating;
+  if (list && levels.values.length > 0) {
+    const unlisted = chosen.filter((_, i) => !levels.values.includes(numbers[i]));
+    if (unlisted.length === 1) add('error', 'metadata', 'z', 'offered', `Level ${unlisted[0]} isn't one of the collection's levels`, 'form');
+    else if (unlisted.length > 1) add('error', 'metadata', 'z', 'offered', `Levels ${unlisted.join(', ')} aren't among the collection's levels`, 'form');
   }
-  // No order check for ranges: levels can run either way (pressure 1000/500 is a natural range)
+  // No order check for ranges: levels can run either way (pressure 1000/500 is a natural range). A repeating interval
+  // runs from its lowest level, the number of intervals times its step
   const range = levels.range;
-  if (range && numbers.some(n => n < range.min || n > range.max)) {
-    add('warning', 'metadata', 'z', 'extent', `The selected level is outside the collection's vertical extent (${range.min} – ${range.max})`, 'form');
+  const ends = repeating && numbers.length === 2 ? [numbers[0], numbers[0] + Number(repeating[1]) * numbers[1]] : numbers;
+  if (!range || !ends.some(n => n < range.min || n > range.max)) return;
+  const extent = `the collection's vertical extent (${range.min} – ${range.max})`;
+  if (list && chosen.length > 1) {
+    const outside = chosen.filter((_, i) => numbers[i] < range.min || numbers[i] > range.max);
+    add('warning', 'metadata', 'z', 'extent', `${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} outside ${extent}`, 'form');
+  } else {
+    add('warning', 'metadata', 'z', 'extent', `The selected ${repeating ? 'levels go' : 'level is'} outside ${extent}`, 'form');
   }
 }
 

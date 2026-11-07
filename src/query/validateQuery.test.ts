@@ -182,6 +182,49 @@ describe('collection metadata checks', () => {
     expect(at({ mode: 'range', value: '', start: '1000', end: '500' })).toEqual([]);
   });
 
+  describe('z as EDR 1.1 has it: a level, a list, a range or a repeating interval', () => {
+    const messages = (value: string) => issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical: { mode: 'individual', value, start: '', end: '' } })
+      .filter(issue => issue.field === 'z').map(issue => `${issue.severity}: ${issue.message}`);
+
+    it('takes a list of the collection’s levels, however it’s spaced', () => {
+      expect(messages('1000,925,850')).toEqual([]);
+      expect(messages('1000, 925 ,850')).toEqual([]);
+      expect(messages('1000.0,850')).toEqual([]);
+    });
+
+    it('names the levels not listed in one error', () => {
+      expect(messages('1000,777,850')).toEqual(["error: Level 777 isn't one of the collection's levels"]);
+      expect(messages('1000,777,333')).toEqual(["error: Levels 777, 333 aren't among the collection's levels"]);
+    });
+
+    it('names those outside the extent in one warning', () => {
+      expect(messages('1000,2000,10')).toEqual([
+        "error: Levels 2000, 10 aren't among the collection's levels",
+        "warning: 2000, 10 are outside the collection's vertical extent (50 – 1000)",
+      ]);
+      expect(messages('1000,2000')).toEqual(["error: Level 2000 isn't one of the collection's levels", "warning: 2000 is outside the collection's vertical extent (50 – 1000)"]);
+      expect(messages('2000')).toEqual(["error: Level 2000 isn't one of the collection's levels", "warning: The selected level is outside the collection's vertical extent (50 – 1000)"]);
+    });
+
+    it('says what isn’t a number, and an empty entry', () => {
+      expect(messages('1000,high')).toEqual(['error: Level "high" isn\'t a number']);
+      expect(messages('1000,,850')).toEqual(['error: The list of levels "1000,,850" has an empty entry']);
+    });
+
+    it('takes a repeating interval, its first and last levels inside the extent', () => {
+      // 500, 600, 700, 800
+      expect(messages('R3/500/100')).toEqual([]);
+      // To 1100
+      expect(messages('R6/500/100')).toEqual(["warning: The selected levels go outside the collection's vertical extent (50 – 1000)"]);
+      expect(messages('R3/10/100')).toEqual(["warning: The selected levels go outside the collection's vertical extent (50 – 1000)"]);
+    });
+
+    it('says what a repeating interval lacks, or what in it isn’t a number', () => {
+      expect(messages('R3/low/100')).toEqual(['error: Level "low" isn\'t a number']);
+      expect(messages('R3/500/')).toEqual(['error: The repeating interval "R3/500/" needs its lowest level and its step, as R3/500/100']);
+    });
+  });
+
   it('asks for both ends of a custom dimension range', () => {
     const issues = issuesFor(FMI, 'position', {
       points: [HELSINKI], customDims: { member: { mode: 'range', value: '', start: '1', end: '' } },

@@ -21,6 +21,7 @@ import QueryTypeInputs from './QueryTypeInputs';
 import InstancePicker from './InstancePicker';
 import { queryTypeOf, queryVariables, unitsFor } from './query/queryTypes';
 import { EDR_QUERY_RULES, mapInputRequired } from './query/edrRules';
+import { levelChoice, pickedLevels, startsRepeating, unlistedReason } from './query/levels';
 import { timeIsOnlyAFilter } from './query/queryModel';
 import { useCollection } from './contexts/CollectionContext';
 import { usePanes } from './contexts/PanesContext';
@@ -165,7 +166,8 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
         // Check if we have too many values (from large intervals)
         // If so, use TextField instead of dropdown
         const tooManyValues = verticalValues.length > 250;
-        const useDropdown = hasValues && !tooManyValues;
+        // A repeating interval, R3/500/100, isn't a choice of levels: it stays as text, as sent
+        const useDropdown = hasValues && !tooManyValues && !startsRepeating(selectedVertical);
 
         // Show vertical selection UI if collection has vertical extent (values OR interval)
         return (hasValues || hasInterval) ? (
@@ -204,7 +206,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
                 <FormControlLabel
                   value="individual"
                   control={<Radio size="small" />}
-                  label={<Typography variant="body2">Individual Level</Typography>}
+                  label={<Typography variant="body2">Individual Levels</Typography>}
                 />
                 <FormControlLabel
                   value="range"
@@ -216,37 +218,46 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
 
             {/* Individual Level - show dropdown if values exist, otherwise show TextField */}
             {verticalMode === 'individual' && (
-              useDropdown ? (
-                <FormControl fullWidth>
-                  <InputLabel id="vertical-select-label">Select Level</InputLabel>
-                  <Select
-                    labelId="vertical-select-label"
-                    value={selectedVertical}
-                    label="Select Level"
-                    onChange={(e) => {
-                      const vertical = e.target.value as string;
-                      setSelectedVertical(vertical);
-                    }}
-                    size="small"
-                    MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                  >
-                    {verticalValues.map((level) => (
-                      <MenuItem key={level} value={level}>
-                        <ListItemText
-                          primary={level}
-                          slotProps={{
-                            primary: {
-                              style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                            }
-                          }}
-                        />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              ) : (
+              useDropdown ? (() => {
+                // One level or several, sent as a list. Any not among the collection's, as from a link, are shown first,
+                // so that they can be taken out
+                const { chosen, unlisted } = levelChoice(selectedVertical, verticalValues);
+                return (
+                  <FormControl fullWidth>
+                    <InputLabel id="vertical-select-label">Select Levels</InputLabel>
+                    <Select
+                      labelId="vertical-select-label"
+                      multiple
+                      value={chosen}
+                      label="Select Levels"
+                      onChange={(e) => {
+                        const picked = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
+                        setSelectedVertical(pickedLevels(picked, verticalValues));
+                      }}
+                      renderValue={(selected) => selected.join(', ')}
+                      size="small"
+                      MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
+                    >
+                      {[...unlisted, ...verticalValues].map((level) => (
+                        <MenuItem key={level} value={level} dense>
+                          <Checkbox size="small" checked={chosen.includes(level)} sx={{ py: 0 }} />
+                          <ListItemText
+                            primary={level}
+                            secondary={unlisted.includes(level) ? unlistedReason(level) : undefined}
+                            slotProps={{
+                              primary: {
+                                style: { fontSize: '0.85rem', fontFamily: 'monospace' }
+                              }
+                            }}
+                          />
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                );
+              })() : (
                 <TextField
-                  label="Vertical Level"
+                  label="Vertical Levels"
                   value={selectedVertical}
                   onChange={(e) => {
                     const vertical = e.target.value;
@@ -254,8 +265,8 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
                   }}
                   fullWidth
                   size="small"
-                  placeholder="Enter vertical level (e.g., 1000)"
-                  helperText="Enter a numeric value"
+                  placeholder="e.g. 1000, or 1000,850,500"
+                  helperText="A level, several separated by commas, or R3/500/100 for 3 steps of 100 from 500"
                 />
               )
             )}
