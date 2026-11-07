@@ -3,6 +3,7 @@ import { axisLength, coverageParameters, isTimeSeriesCoverage, parameterLabel, p
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
 import { rangeMisfit } from './rangeFit';
+import { timeFindings, type TimeContext } from './timeChecks';
 
 // What a CoverageJSON response holds, worked out once for all the ways of showing it: its shape in
 // a sentence, each parameter's figures, its time series if it has them, and what's worth a note.
@@ -346,8 +347,10 @@ function rangeFindings(coverages: Json[], prefix: (coverage: number) => string):
   }));
 }
 
-// The request's URL and the open collection's vertical extent tell a profile which levels should be there
-export function summarizeCoverage(json: unknown, context: ProfileContext = {}): CoverageSummary | null {
+// The request's URL and the open collection's extent say which levels and times should be there
+export type SummaryContext = ProfileContext & TimeContext;
+
+export function summarizeCoverage(json: unknown, context: SummaryContext = {}): CoverageSummary | null {
   if (!isObject(json)) return null;
   const isCollection = json.type === 'CoverageCollection' && Array.isArray(json.coverages);
   if (json.type !== 'Coverage' && !isCollection) return null;
@@ -367,6 +370,7 @@ export function summarizeCoverage(json: unknown, context: ProfileContext = {}): 
   const note = (message: string, path: string) => notes.push({ message, path, severity: 'info' });
 
   notes.push(...rangeFindings(coverages, prefix));
+  notes.push(...timeFindings(json, coverages, prefix, context));
   if (profile) notes.push(...profile.notes);
   for (const { id, nulls, count, firstNull } of tallies.values()) {
     if (!firstNull || profile) continue;

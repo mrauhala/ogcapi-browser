@@ -16,10 +16,12 @@ const FITS: ValidationError = { message: "Every parameter's values fit its shape
 // The notes besides what passed
 const noted = (notes: ValidationError[]) => notes.filter(note => note.severity !== 'pass');
 
+const TIME_REFERENCE = [{ coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'Gregorian' } }];
+
 // As MeteoCore sends a position
 const point = (values: unknown[], t: string[] = hours(0, values.length)) => ({
   type: 'Coverage',
-  domain: { type: 'Domain', domainType: 'PointSeries', axes: axes(t) },
+  domain: { type: 'Domain', domainType: 'PointSeries', axes: axes(t), referencing: TIME_REFERENCE },
   parameters: { t2m: temperature },
   ranges: { t2m: range(values) },
 });
@@ -29,7 +31,7 @@ const several = (t: string[], ...lines: unknown[][]) => ({
   type: 'CoverageCollection',
   domainType: 'PointSeries',
   parameters: { t2m: temperature },
-  coverages: lines.map((values, i) => ({ type: 'Coverage', domain: { domainType: 'PointSeries', axes: axes(t, 10 + i, 50 + i) }, ranges: { t2m: range(values) } })),
+  coverages: lines.map((values, i) => ({ type: 'Coverage', domain: { domainType: 'PointSeries', axes: axes(t, 10 + i, 50 + i), referencing: TIME_REFERENCE }, ranges: { t2m: range(values) } })),
 });
 
 describe('summarizeCoverage', () => {
@@ -59,8 +61,13 @@ describe('summarizeCoverage', () => {
       expect(summary.series!.parameters[0].series).toEqual([[270, 271, 275.5]]);
     });
 
-    it('has nothing to note, and passes its values', () => {
-      expect(summary.notes).toEqual([FITS]);
+    it('has nothing to note, and passes its values and times', () => {
+      expect(noted(summary.notes)).toEqual([]);
+      expect(summary.notes.map(note => note.message)).toEqual([
+        FITS.message,
+        't has a temporal reference system: TemporalRS, calendar Gregorian',
+        'Every time is in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z, like 2026-11-05T00:00:00Z',
+      ]);
     });
   });
 
@@ -490,8 +497,19 @@ describe('summarizeCoverage: levels at a point or a few', () => {
   });
 });
 
+describe('summarizeCoverage: the times', () => {
+  it('checks them against the datetime asked for and the collection’s extent', () => {
+    const json = point([1, 2, 3]);
+    const temporal = { interval: [['2026-11-05T01:00:00Z', null]] };
+    const notes = summarizeCoverage(json, { url: 'https://x/collections/a/position?datetime=2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', temporal })!.notes;
+    expect(notes).toContainEqual({ message: 'Every time is inside the datetime asked for, 2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', path: '/domain/axes/t/values/0', severity: 'pass' });
+    expect(notes).toContainEqual({ message: "t 2026-11-05T00:00:00Z is outside the collection's extent, from 2026-11-05T01:00:00Z", path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection' });
+  });
+});
+
 describe('summarizeCoverage: every range against its domain', () => {
-  const errors = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => note.severity === 'error');
+  // Of the ranges: the times have checks of their own
+  const errors = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => note.severity === 'error' && /\/ranges\b/.test(note.path ?? ''));
   const passes = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => note.message === FITS.message);
   const t = hours(0, 3);
 

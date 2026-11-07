@@ -101,7 +101,8 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   const { selectedCollection } = useCollection();
   const checkedAgainst = selectedCollection && url && collectionIdOf(url) === String(selectedCollection.id) ? selectedCollection : null;
   const vertical = checkedAgainst?.extent?.vertical;
-  const coverage = useMemo(() => summarizeCoverage(parsedJson, { url, vertical }), [parsedJson, url, vertical]);
+  const temporal = checkedAgainst?.extent?.temporal;
+  const coverage = useMemo(() => summarizeCoverage(parsedJson, { url, vertical, temporal }), [parsedJson, url, vertical, temporal]);
   const [coverageView, setCoverageView] = useState<CoverageView | null>(null);
 
   const tabs = responseTabs({

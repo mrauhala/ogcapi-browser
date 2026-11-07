@@ -24,7 +24,11 @@ const OK: ResponseDetails = {
 const BAD_REQUEST: ResponseDetails = { ...OK, status: 400, statusText: 'Bad Request' };
 const COVERAGE = JSON.stringify({
   type: 'Coverage',
-  domain: { type: 'Domain', domainType: 'PointSeries', axes: { x: { values: [1] }, y: { values: [2] }, t: { values: ['2026-01-01T00:00:00Z', '2026-01-01T01:00:00Z'] } } },
+  domain: {
+    type: 'Domain', domainType: 'PointSeries',
+    axes: { x: { values: [1] }, y: { values: [2] }, t: { values: ['2026-01-01T00:00:00Z', '2026-01-01T01:00:00Z'] } },
+    referencing: [{ coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'Gregorian' } }],
+  },
   parameters: { a: { type: 'Parameter', observedProperty: { label: { en: 'A' } } } },
   ranges: { a: { type: 'NdArray', dataType: 'float', axisNames: ['t'], shape: [2], values: [1, 2] } },
 });
@@ -123,7 +127,8 @@ describe('ResponsePane', () => {
     const nulls = JSON.parse(COVERAGE);
     nulls.ranges.a.values = [1, null];
     const html = render({ data: JSON.stringify(nulls), contentType: 'application/prs.coverage+json', response: OK });
-    expect(html).toContain('>1 note<');
+    // The null, and the times the server chose with no datetime asked
+    expect(html).toContain('>2 notes<');
   });
 
   it('takes the levels that should be there from the open collection, only if the request is for it', () => {
@@ -157,6 +162,20 @@ describe('ResponsePane', () => {
     } finally {
       open.collection = null;
     }
+  });
+
+  it('takes the times that should be there from the open collection, only if the request is for it', () => {
+    const withOpen = (id: string) => {
+      open.collection = { id, extent: { temporal: { interval: [['2026-02-01T00:00:00Z', null]] } } };
+      try {
+        return render({ data: COVERAGE, contentType: 'application/prs.coverage+json', response: OK });
+      } finally {
+        open.collection = null;
+      }
+    };
+    // Both times are before the collection's extent
+    expect(withOpen('a')).toContain('>1 issue<');
+    expect(withOpen('b')).not.toContain('issue<');
   });
 
   it('adds what the data is worth noting to what the schema found', () => {
