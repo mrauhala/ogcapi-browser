@@ -2,6 +2,8 @@ import { analyse, shareText, type CellFigures } from './cellFigures';
 import { formatValue } from './coverageSummary';
 import { rangeMisfit } from './rangeFit';
 import { parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
+import { i18nText } from '../utils/i18nText';
+import { NAMED } from './parameterChecks';
 import { parseTime } from '../utils/utcTime';
 import { COVJSON } from '../standards';
 import type { Rule, ValidationError } from '../types/api';
@@ -251,8 +253,8 @@ function zUnitOf(referencing: unknown, zName = 'z'): string {
   const unit = axis && isObj(axis.unit) ? axis.unit.symbol : null;
   if (typeof unit === 'string') return unit;
   if (isObj(unit) && typeof unit.value === 'string') return unit.value;
-  const description = system && isObj(system.description) ? system.description.en : null;
-  const said = typeof description === 'string' ? /in\s+(\S+)$/.exec(description) : null;
+  const description = i18nText(system?.description);
+  const said = description === undefined ? null : /in\s+(\S+)$/.exec(description);
   return said ? said[1] : '';
 }
 
@@ -1057,15 +1059,15 @@ function addUnitNote(notes: CellNote[], { id, label, unit, figures }: CellParame
   const hi = figures.hi!;
   const say = (text: string) => notes.push({ level: 'warn', text, parameter: id, checks: 'info', at: 'unit' });
   const values = `its values (${formatValue(lo)} to ${formatValue(hi)})`;
-  if (/temperature|(^|[^a-z])t2m|tmp/.test(name)) {
+  if (NAMED.temperature.test(name)) {
     if (/°?c$|deg_?c|celsius/.test(symbol) && lo > 150) say(`${id} says ${unit}, and ${values} look like kelvin`);
     if (/^k$|kelvin/.test(symbol) && hi < 100) say(`${id} says ${unit}, and ${values} look like °C`);
   }
-  if (/pressure|mslp|prmsl/.test(name)) {
+  if (NAMED.pressure.test(name)) {
     if (/hpa/.test(symbol) && lo > 10000) say(`${id} says ${unit}, and ${values} look like Pa`);
     if (/^pa$/.test(symbol) && hi < 2000) say(`${id} says ${unit}, and ${values} look like hPa`);
   }
-  if (/humidity/.test(name) && symbol === '%' && hi <= 1.5) say(`${id} says %, and ${values} look like a fraction`);
+  if (NAMED.humidity.test(name) && symbol === '%' && hi <= 1.5) say(`${id} says %, and ${values} look like a fraction`);
 }
 
 function gridNotes({ xv, yv, crs, nx, ny, parameters, broken, prefix, referencingAt }: {

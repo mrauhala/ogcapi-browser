@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
 import type { ValidationError } from './types/api';
-import { COVJSON } from './standards';
+import { COVJSON, EDR12 } from './standards';
 
 const render = (props: Partial<ComponentProps<typeof ResponseChecks>>) => renderToStaticMarkup(
   <ResponseChecks schemaName={null} findings={[]} lines={[]} onGoToLine={() => {}} {...props} />,
@@ -97,6 +97,17 @@ describe('ResponseChecks', () => {
       expect(html).toMatch(/850 (<style[^>]*>[^<]*<\/style>)*<a /);
       // Only the finding with a rule has a link
       expect(html.split('href="https://docs.ogc.org/').length - 1).toBe(1);
+    });
+
+    it('cites two rules where two standards differ, each a link of its own after a space', () => {
+      const html = render({ dataNotes: [{ message: 't’s unit type is https://www.opengis.net/def/uom/UCUM/', line: 9, severity: 'info', rule: [COVJSON.parameter, EDR12.parameters] }] });
+      expect(html).toContain('>CoverageJSON 9.3</a>');
+      expect(html).toContain('href="https://docs.ogc.org/is/19-086r9/19-086r9.html#req_edr_rc-parameters"');
+      expect(html).toContain('>EDR 1.2 /req/edr/rc-parameters</a>');
+      expect(html.split('href="https://docs.ogc.org/').length - 1).toBe(2);
+      expect(html.split('target="_blank"').length - 1).toBe(2);
+      // Read and copied as words apart: a space before each
+      expect(html).toMatch(/UCUM\/ (<style[^>]*>[^<]*<\/style>)*<a [^>]*>CoverageJSON 9\.3<\/a> (<style[^>]*>[^<]*<\/style>)*<a /);
     });
 
     it('stands alone with no schema', () => {

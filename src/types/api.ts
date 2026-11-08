@@ -133,7 +133,8 @@ export interface ValidationError {
   // What a finding about a response rests on: the response, which is undefined, or the collection's metadata it was
   // checked against. One about the collection alone has no path, since there's nothing in the response to show
   source?: 'collection';
-  rule?: Rule;
+  // The rule it rests on, or the rules, where two standards differ
+  rule?: Rule | readonly Rule[];
 }
 
 export interface ValidationResult {

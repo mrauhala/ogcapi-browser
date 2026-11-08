@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isEvenlySpaced, levelPosition, pickLevelLabels, readVerticalAxis,
-  readVrs, textOf, vrsAbout, withUnit,
+  readVrs, vrsAbout, withUnit,
 } from './verticalAxis';
 
 // A coverage whose z has this reference system
@@ -216,13 +216,6 @@ describe('words', () => {
     expect(withUnit(3, '')).toBe('3');
   });
 
-  it('reads text, or an i18n object’s English or first language', () => {
-    expect(textOf('a')).toBe('a');
-    expect(textOf({ fi: 'paine', en: 'pressure' })).toBe('pressure');
-    expect(textOf({ fi: 'paine' })).toBe('paine');
-    expect(textOf({ fi: 3 })).toBeUndefined();
-    expect(textOf(null)).toBeUndefined();
-  });
 });
 
 describe('levelPosition', () => {

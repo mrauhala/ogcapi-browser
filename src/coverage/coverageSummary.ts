@@ -5,6 +5,7 @@ import { axisFault } from './coverageCells';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
 import { rangeMisfit } from './rangeFit';
 import { timeFindings, type TimeContext } from './timeChecks';
+import { parameterFindings } from './parameterChecks';
 import { COVJSON } from '../standards';
 
 // What a CoverageJSON response holds, worked out once for all the ways of showing it: its shape in
@@ -422,6 +423,7 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
   // t is the time checks', and z the profile's where there is one
   notes.push(...axisOrderFindings(coverages, prefix, profile ? ['x', 'y'] : ['x', 'y', 'z']));
   if (profile) notes.push(...profile.notes);
+  notes.push(...parameterFindings(json, coverages, prefix));
   for (const { id, nulls, count, firstNull } of tallies.values()) {
     if (!firstNull || profile) continue;
     const path = `${prefix(firstNull.coverage)}/ranges/${pointerPart(id)}/values/${firstNull.index}`;

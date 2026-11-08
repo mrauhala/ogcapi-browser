@@ -1,3 +1,5 @@
+import { i18nText } from './i18nText';
+
 // A CoverageJSON coverage can be charted as a time series when its domain has a t axis and
 // every other axis (x, y, z, composite, ...) holds exactly one value. Each range's flattened
 // values then line up 1:1 with the t axis, whatever the domainType: PointSeries, a single-point
@@ -47,17 +49,15 @@ export function coverageParameters<P>(
   return { ...collectionParameters, ...coverage.parameters };
 }
 
-type I18nText = { en?: unknown; fi?: unknown };
-
 // Text, or nothing: a response can send anything where text should be, a number, an object or null
 const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 
 // A parameter's unit as text, or '' if it has none. A symbol may be text or { value, type }, and
 // UCUM's "1" means no unit at all, which beside a value only reads as a mistake.
-export function parameterUnit(parameter?: { unit?: { symbol?: unknown; label?: I18nText } }): string {
+export function parameterUnit(parameter?: { unit?: { symbol?: unknown; label?: unknown } }): string {
   const symbol = parameter?.unit?.symbol;
   const fromSymbol = text(symbol) ?? (symbol !== null && typeof symbol === 'object' ? text((symbol as { value?: unknown }).value) : undefined);
-  const unit = fromSymbol ?? text(parameter?.unit?.label?.en) ?? text(parameter?.unit?.label?.fi) ?? '';
+  const unit = fromSymbol ?? i18nText(parameter?.unit?.label) ?? '';
   return unit === '1' ? '' : unit;
 }
 
@@ -65,18 +65,16 @@ export function parameterUnit(parameter?: { unit?: { symbol?: unknown; label?: I
 // does windspeedms
 export const distinctLabel = (id: string, label: string): string | null => (label.toLowerCase() === id.toLowerCase() ? null : label);
 
-// A series' name: the observed property's label, else the parameter's description, else its id.
-// Labels that are links are skipped: DMI labels each observed property with an ECMWF parameter
-// database URL, which says nothing in a legend.
+// A series' name: the parameter's own label, which CoverageJSON makes its name, else the observed property's, else the
+// description, else its id. The parameter's label is passed over where it only repeats the id (DWD's T_2M), so that
+// "Air Temperature" isn't lost. Labels that are links are skipped: DMI labels each observed property with an ECMWF
+// parameter database URL, which says nothing in a legend.
 export function parameterLabel(
   id: string,
-  parameter?: { observedProperty?: { label?: I18nText }; description?: I18nText },
+  parameter?: { label?: unknown; observedProperty?: { label?: unknown }; description?: unknown },
 ): string {
-  const candidates = [
-    parameter?.observedProperty?.label?.en,
-    parameter?.observedProperty?.label?.fi,
-    parameter?.description?.en,
-    parameter?.description?.fi,
-  ].map(text);
-  return candidates.find(label => label?.trim() && !/^https?:\/\//i.test(label.trim())) ?? id;
+  const usable = (label: string | undefined): label is string => !!label?.trim() && !/^https?:\/\//i.test(label.trim());
+  const own = i18nText(parameter?.label);
+  if (usable(own) && distinctLabel(id, own) !== null) return own;
+  return [parameter?.observedProperty?.label, parameter?.description].map(i18nText).find(usable) ?? id;
 }

@@ -1,4 +1,5 @@
 import type { Vertical } from '../types/api';
+import { i18nText } from '../utils/i18nText';
 
 // What a coverage's z is, in what unit, and which way it runs, read from the response alone. The collection's vrs
 // isn't read: on every real response it changed only a word, and unguarded it misread radar sections in metres as
@@ -30,14 +31,6 @@ type Json = Record<string, unknown>;
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
 export const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
-// Text, or an i18n object's English or first language
-export function textOf(value: unknown): string | undefined {
-  if (typeof value === 'string') return value;
-  if (!isObject(value)) return undefined;
-  const text = value.en ?? Object.values(value)[0];
-  return typeof text === 'string' ? text : undefined;
-}
-
 const UNIT_WORDS: Record<string, string> = {
   hectopascal: 'hPa', hectopascals: 'hPa', pascal: 'Pa', millibar: 'hPa', mbar: 'hPa',
   metre: 'm', meter: 'm', metres: 'm', meters: 'm', kilometre: 'km', foot: 'ft', feet: 'ft',
@@ -60,7 +53,7 @@ function unitSymbol(unit: unknown): string | undefined {
   const { symbol } = unit;
   if (typeof symbol === 'string') return symbol;
   if (isObject(symbol) && typeof symbol.value === 'string') return symbol.value;
-  return textOf(unit.label);
+  return i18nText(unit.label);
 }
 
 // The referencing entry for z, on the coverage's domain or on the collection
@@ -92,8 +85,8 @@ export function readVerticalAxis(json: unknown, coverage: unknown): VerticalAxis
   const system = zSystemOf(coverage, json);
   const csAxes = isObject(system?.cs) ? system.cs.csAxes : undefined;
   const csAxis = Array.isArray(csAxes) && isObject(csAxes[0]) ? csAxes[0] : null;
-  const description = textOf(system?.description) ?? textOf(system?.label) ?? '';
-  const words = [textOf(csAxis?.name), textOf(csAxis?.label), description].filter(Boolean).join(' ');
+  const description = i18nText(system?.description) ?? i18nText(system?.label) ?? '';
+  const words = [i18nText(csAxis?.name), i18nText(csAxis?.label), description].filter(Boolean).join(' ');
   // From a sentence, only a final "in hPa". A unit is never guessed from the numbers
   const describedUnit = /\bin\s+([^\s.]+)\.?\s*$/.exec(description)?.[1];
   const symbol = cleanUnit(unitSymbol(csAxis?.unit) ?? unitSymbol(system?.unit));
@@ -104,7 +97,7 @@ export function readVerticalAxis(json: unknown, coverage: unknown): VerticalAxis
   const angleByUnit = !found && unit === '°';
   const lengthByUnit = !found && /^(m|km|ft)$/.test(unit);
   const kind = found?.kind ?? (angleByUnit ? 'angle' : lengthByUnit ? 'height' : 'unknown');
-  const name = textOf(csAxis?.name) ?? found?.name ?? (angleByUnit ? 'Elevation angle' : lengthByUnit ? 'Height' : 'z');
+  const name = i18nText(csAxis?.name) ?? found?.name ?? (angleByUnit ? 'Elevation angle' : lengthByUnit ? 'Height' : 'z');
 
   const direction = cleanDirection(csAxis?.direction);
   const usual = found?.usual ?? (angleByUnit || lengthByUnit ? 'up' : undefined);

@@ -612,6 +612,14 @@ describe('summarizeCoverage: every range against its domain', () => {
   });
 });
 
+describe('summarizeCoverage: what it says of the parameters', () => {
+  it('adds the parameters’ findings to its notes', () => {
+    const notes = summarizeCoverage(mcIfs1tAll)!.notes.filter(note => /unit type/.test(note.message));
+    expect(notes).toEqual([expect.objectContaining({ severity: 'info', path: '/parameters/r/unit/symbol/type', rule: [COVJSON.parameter, COVJSON.customTypes] })]);
+    expect(notes[0].message).toMatch(/^r's unit type is https:\/\/qudt\.org\/vocab\/unit\/PERCENT, and likewise for 2 more parameters\. /);
+  });
+});
+
 describe('summarizeCoverage: axes in order', () => {
   const gridOf = (axes: Record<string, unknown>) => ({
     type: 'Coverage',

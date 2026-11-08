@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
@@ -146,13 +146,15 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
             {section.notes.map(note => (
               <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
                 {note.message}
-                {/* The rule it rests on, where the standard has one to cite */}
-                {note.rule && ' '}
-                {note.rule && (
-                  <Link href={note.rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                    {note.rule.label}
-                  </Link>
-                )}
+                {/* The rules it rests on, where a standard has one to cite: two where standards differ */}
+                {(note.rule ? [note.rule].flat() : []).map(rule => (
+                  <Fragment key={rule.url}>
+                    {' '}
+                    <Link href={rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                      {rule.label}
+                    </Link>
+                  </Fragment>
+                ))}
               </Item>
             ))}
           </Box>

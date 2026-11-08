@@ -144,8 +144,8 @@ describe('ResponsePane', () => {
     const nulls = JSON.parse(COVERAGE);
     nulls.ranges.a.values = [1, null];
     const html = render({ data: JSON.stringify(nulls), contentType: 'application/prs.coverage+json', response: OK });
-    // The null, and the times the server chose with no datetime asked
-    expect(html).toContain('>2 notes<');
+    // The null, the times the server chose with no datetime asked, and a having no unit
+    expect(html).toContain('>3 notes<');
   });
 
   it('takes the levels that should be there from the open collection, only if the request is for it', () => {

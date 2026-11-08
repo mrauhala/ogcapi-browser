@@ -6,6 +6,7 @@ import fmiPosition from './__fixtures__/fmi-position-pointseries.json';
 import fmiLocation from './__fixtures__/fmi-location-pointseries-5d.json';
 import hidrografico from './__fixtures__/hidrografico-collection-parameters.json';
 import dmiPosition from './__fixtures__/dmi-position-grid.json';
+import knmiProfile from '../coverage/__fixtures__/profiles/knmi-pl-position.json';
 
 const firstCoverage = (doc: { type: string; coverages?: unknown[] }) =>
   doc.type === 'CoverageCollection' ? doc.coverages![0] : doc;
@@ -84,6 +85,30 @@ describe('parameterLabel', () => {
   it('skips blank labels', () => {
     expect(parameterLabel('x', { observedProperty: { label: { en: ' ' } }, description: { en: 'Wind speed' } })).toBe('Wind speed');
   });
+
+  // CoverageJSON 9.3: a parameter's label is its name
+  it('takes the parameter’s own label first', () => {
+    expect(parameterLabel('t2m', { label: { en: 'Temperature at 2 m' }, observedProperty: { label: { en: 'Air temperature' } } })).toBe('Temperature at 2 m');
+    expect(parameterLabel('t2m', { label: 'Temperature at 2 m', observedProperty: { label: { en: 'Air temperature' } } })).toBe('Temperature at 2 m');
+    const knmi = knmiProfile.coverages[0].parameters.air_temperature_pl;
+    expect(parameterLabel('air_temperature_pl', knmi)).toBe('UWCW_HA43(DINI) Air temperature at pressure level');
+  });
+
+  it('passes over its own label where it only repeats the id, is a link or is blank (DWD)', () => {
+    const t2m = firstCoverage(dwdArea) as { parameters: Record<string, Parameters<typeof parameterLabel>[1]> };
+    expect(parameterLabel('T_2M', t2m.parameters.T_2M)).toBe('Air Temperature');
+    expect(parameterLabel('t2m', { label: { en: 'T2M' }, observedProperty: { label: { en: 'Air temperature' } } })).toBe('Air temperature');
+    expect(parameterLabel('t2m', { label: { en: 'https://example.org/t2m' }, observedProperty: { label: { en: 'Air temperature' } } })).toBe('Air temperature');
+    expect(parameterLabel('t2m', { label: { en: ' ' }, observedProperty: { label: { en: 'Air temperature' } } })).toBe('Air temperature');
+    expect(parameterLabel('t2m', { label: { en: 'T2M' } })).toBe('t2m');
+  });
+
+  it('reads any language, English first', () => {
+    expect(parameterLabel('t2m', { label: { de: 'Lufttemperatur' } })).toBe('Lufttemperatur');
+    expect(parameterLabel('t2m', { observedProperty: { label: { fi: 'Lämpötila', 'en-GB': 'Air temperature' } } })).toBe('Air temperature');
+    expect(parameterLabel('t2m', { observedProperty: { label: { und: 'T2m' } } })).toBe('T2m');
+    expect(parameterLabel('t2m', { description: { de: 'Temperatur in 2 m' } })).toBe('Temperatur in 2 m');
+  });
 });
 
 describe('text where text should be', () => {
@@ -125,6 +150,12 @@ describe('parameterUnit', () => {
     expect(parameterUnit({ unit: { label: { en: 'kelvin' } } })).toBe('kelvin');
     expect(parameterUnit({ unit: { label: { fi: 'kelviniä' } } })).toBe('kelviniä');
     expect(parameterUnit({ unit: { symbol: {}, label: { en: 'kelvin' } } })).toBe('kelvin');
+  });
+
+  it('reads a label in any language, English first', () => {
+    expect(parameterUnit({ unit: { label: { de: 'Kelvin' } } })).toBe('Kelvin');
+    expect(parameterUnit({ unit: { label: { fi: 'kelviniä', 'en-GB': 'kelvin' } } })).toBe('kelvin');
+    expect(parameterUnit({ unit: { label: 'kelvin' } })).toBe('kelvin');
   });
 
   it('has none without one, or where UCUM says so', () => {

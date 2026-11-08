@@ -494,6 +494,15 @@ describe('readCells: referencing', () => {
     expect(drawn(grid({ z: [1000, 500], referencing: inWords })).zUnit).toBe('Pa');
     expect(drawn(grid({ z: [1000, 500] })).zUnit).toBe('');
   });
+
+  it('reads the description in any language, or as text', () => {
+    const described = (description: unknown) => drawn(grid({ z: [1000, 500], referencing: [...CRS84, { coordinates: ['z'], system: { description } }] })).zUnit;
+    expect(described({ fi: 'Paine', 'en-GB': 'Pressure in hPa' })).toBe('hPa');
+    expect(described({ de: 'Druck in hPa' })).toBe('hPa');
+    expect(described('Pressure in Pa')).toBe('Pa');
+    expect(described({ en: 5 })).toBe('');
+    expect(described('Pressure')).toBe('');
+  });
 });
 
 describe('readCells: points', () => {
