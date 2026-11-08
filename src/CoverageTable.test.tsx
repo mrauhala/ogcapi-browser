@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { coverageColumns, coverageRows, profileColumns, profileRows } from './coverageTableColumns';
+import { coverageColumns, coverageRows, profileColumns, profileRows, sectionColumns, sectionRows } from './coverageTableColumns';
+import { toSection, type SectionData } from './coverage/coverageSection';
+import fmiEcFrames from './coverage/__fixtures__/sections/fmi-ec-frames.json';
+import mcRadarFikorZ from './coverage/__fixtures__/sections/mc-radar-fikor-z.json';
+import mcSingleNoz from './coverage/__fixtures__/sections/mc-single-noz.json';
+import mcIfsBadlevel from './coverage/__fixtures__/sections/mc-ifs-badlevel.json';
+import mcMepsClosed from './coverage/__fixtures__/sections/mc-meps-closed.json';
+import fmiEc2param from './coverage/__fixtures__/sections/fmi-ec-2param.json';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverage/coverageProfile';
 import type { CoverageSeries } from './coverage/coverageSummary';
 import extents from './coverage/__fixtures__/profiles/vertical-extents.json';
@@ -148,5 +155,76 @@ describe('profileRows', () => {
     expect(rows).toHaveLength(40);
     expect(rows.filter(row => row.time === profile.times[0].raw).map(row => row.z)).toEqual([0.5, 0.6, 1, 1.5, 2.4, 4.5, 8.5, 10, 13, 15]);
     expect(rows.every(row => row.p0 === null)).toBe(true);
+  });
+});
+
+describe('a path’s table', () => {
+  const headers = (columns: { headerName?: string }[]) => columns.map(column => column.headerName);
+  const sectionOf = (json: unknown, url?: string): SectionData => {
+    const result = toSection(json, url ?? (/^GET (\S+),/.exec((json as { _comment: string })._comment)?.[1]));
+    if (result === null || result.kind === 'cant') throw new Error('not a path');
+    return result;
+  };
+  const trajectory = (tuples: unknown[][], values: unknown[], coordinates = ['t', 'x', 'y']) => ({
+    type: 'Coverage',
+    domain: { type: 'Domain', domainType: 'Trajectory', axes: { composite: { dataType: 'tuple', coordinates, values: tuples } } },
+    ranges: { a: { type: 'NdArray', dataType: 'float', axisNames: ['composite'], shape: [values.length], values } },
+  });
+
+  it('has a column for time where there are several, then the position, km, x, y and z, and a column per parameter', () => {
+    const section = sectionOf(fmiEcFrames);
+    expect(headers(sectionColumns(section))).toEqual(['Time', '#', 'km', 'x', 'y', 'z (hPa)', 'temperature', 'windspeedms']);
+    expect(headers(sectionColumns(sectionOf(mcRadarFikorZ)))).toEqual(['#', 'km', 'x', 'y', 'z (m)', 'DBZH (dBZ)']);
+    expect(headers(sectionColumns(sectionOf(mcSingleNoz)))).toEqual(['#', 'km', 'x', 'y', '2t (°C)']);
+  });
+
+  it('has a row per time, position and level, along the path, each value as sent', () => {
+    const rows = sectionRows(sectionOf(fmiEcFrames));
+    expect(rows).toHaveLength(135);
+    expect(rows[0]).toMatchObject({ time: '2026-11-07T00:00:00Z', position: 1, km: 0, x: 20, y: 58, z: 50, p0: -62.5257, p1: null });
+    expect(rows[1]).toMatchObject({ position: 1, z: 200 });
+    expect(rows[9]).toMatchObject({ position: 2, z: 50, km: 160.82 });
+    expect(rows[45]).toMatchObject({ time: '2026-11-07T06:00:00Z', position: 1, z: 50 });
+  });
+
+  it('has no row for a level asked for and not sent', () => {
+    const section = sectionOf(mcIfsBadlevel);
+    expect(section.levels).toEqual([333, 850]);
+    expect(sectionRows(section).map(row => row.z)).toEqual([850, 850, 850, 850, 850]);
+  });
+
+  it('marks what wasn’t sent apart from a null', () => {
+    const rows = sectionRows(sectionOf(trajectory([['2026-11-07T00:00:00Z', 24, 60], ['2026-11-07T00:00:00Z', 25, 61]], [null, 'x'])));
+    expect(rows.map(row => row.p0)).toEqual([null, 'x']);
+  });
+
+  it('leaves a value not sent blank, apart from a null, where another parameter has one', () => {
+    const json = JSON.parse(JSON.stringify(fmiEc2param)) as { coverages: { ranges: Record<string, unknown> }[] };
+    delete json.coverages[0].ranges.windspeedms;
+    const section = sectionOf(json, /^GET (\S+),/.exec((fmiEc2param as { _comment: string })._comment)?.[1]);
+    const rows = sectionRows(section);
+    expect(section.levels.length).toBeGreaterThan(1);
+    const blank = rows.filter(row => row.p1 === undefined);
+    expect(blank.length).toBe(3);
+    expect(blank.every(row => typeof row.p0 === 'number')).toBe(true);
+    expect(rows.filter(row => row.p1 !== undefined).length).toBe(rows.length - 3);
+  });
+
+  it('gives each position its own time, where time runs along the path, to the second', () => {
+    const section = sectionOf(trajectory([['2026-11-07T00:00:00Z', 24, 60], ['2026-11-07T03:00:00.5Z', 25, 61]], [1, 2]));
+    expect(headers(sectionColumns(section))[0]).toBe('Time');
+    expect(sectionRows(section).map(row => row.time)).toEqual(['2026-11-07T00:00:00Z', '2026-11-07T03:00:00.500Z']);
+  });
+
+  it('has no km where x and y aren’t lon/lat, and no z without one', () => {
+    const projected = sectionOf(trajectory([['2026-11-07T00:00:00Z', 500000, 6650000], ['2026-11-07T00:00:00Z', 510000, 6660000]], [1, 2]));
+    expect(headers(sectionColumns(projected))).toEqual(['#', 'x', 'y', 'a']);
+    expect(sectionRows(projected)[1]).not.toHaveProperty('km');
+  });
+
+  it('sizes x and y for the longest place sent, as a place isn’t rounded', () => {
+    const [, , x] = sectionColumns(sectionOf(mcMepsClosed));
+    expect(x.headerName).toBe('x');
+    expect(x.width).toBeGreaterThan(17 * 7.5);
   });
 });

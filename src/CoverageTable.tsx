@@ -3,7 +3,8 @@ import Box from '@mui/material/Box';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import type { CoverageProfile } from './coverage/coverageProfile';
 import type { CoverageSeries } from './coverage/coverageSummary';
-import { coverageColumns, coverageRows, profileColumns, profileRows, type CoverageRow } from './coverageTableColumns';
+import type { SectionData } from './coverage/coverageSection';
+import { coverageColumns, coverageRows, profileColumns, profileRows, sectionColumns, sectionRows, type CoverageRow } from './coverageTableColumns';
 
 // The most the free grid shows at a time
 const MOST_PER_PAGE = 100;
@@ -11,6 +12,12 @@ const MOST_PER_PAGE = 100;
 export function ProfileTable({ profile }: { profile: CoverageProfile }) {
   const columns = useMemo(() => profileColumns(profile), [profile]);
   const rows = useMemo(() => profileRows(profile), [profile]);
+  return <TableGrid columns={columns} rows={rows} />;
+}
+
+export function SectionTable({ section }: { section: SectionData }) {
+  const columns = useMemo(() => sectionColumns(section), [section]);
+  const rows = useMemo(() => sectionRows(section), [section]);
   return <TableGrid columns={columns} rows={rows} />;
 }
 

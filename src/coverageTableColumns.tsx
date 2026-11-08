@@ -1,9 +1,10 @@
 import Box from '@mui/material/Box';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import type { CoverageProfile } from './coverage/coverageProfile';
+import type { SectionData } from './coverage/coverageSection';
 import type { CoverageSeries } from './coverage/coverageSummary';
 
-// The Data tab's tables, as columns and rows for the grid: a time series's, and a profile's
+// The Data tab's tables, as columns and rows for the grid: a time series's, a profile's, and a path's
 
 export type CoverageRow = { id: string; time: string; location: string } & Record<string, unknown>;
 
@@ -73,4 +74,45 @@ export function profileRows(profile: CoverageProfile): CoverageRow[] {
       return out;
     });
   }));
+}
+
+// A time along a path is kept as a number: written as UTC, to the second unless it has more
+const isoTime = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
+
+// A path's: the time where there are several, the position's number, km along the path where it's lon/lat, x and y,
+// the level with z's unit, and a column per parameter. Places as sent, not rounded to the grid's few digits
+export function sectionColumns({ frames, timeAlong, crs, levels, z, parameters, colCount, positions }: SectionData): GridColDef[] {
+  const zName = z?.unit ? `z (${z.unit})` : 'z';
+  const times = timeAlong ? timeAlong.map(ms => (Number.isFinite(ms) ? isoTime(ms) : '')) : frames.map(frame => frame.raw ?? '');
+  return [
+    ...(timeAlong || frames.length > 1 ? [{ field: 'time', headerName: 'Time', width: widthOf(longest(['Time', ...times])) }] : []),
+    { field: 'position', headerName: '#', type: 'number', width: widthOf(String(colCount), 32) },
+    ...(crs.geographic ? [{ field: 'km', headerName: 'km', type: 'number', width: widthOf('0000.00', 32), renderCell: renderValue } as GridColDef] : []),
+    { field: 'x', headerName: 'x', type: 'number', width: widthOf(longest(['x', ...positions.map(([x]) => String(x))]), 16), renderCell: renderValue },
+    { field: 'y', headerName: 'y', type: 'number', width: widthOf(longest(['y', ...positions.map(([, y]) => String(y))]), 16), renderCell: renderValue },
+    ...(levels.some(level => level !== null) ? [{ field: 'z', headerName: zName, type: 'number', width: widthOf(longest([zName, ...levels.map(String)]), 32), renderCell: renderValue } as GridColDef] : []),
+    ...parameterColumns(parameters, renderSent),
+  ];
+}
+
+// A row per time, position and level sent, along the path, each level's values exactly as sent. No row where nothing was
+export function sectionRows(section: SectionData): CoverageRow[] {
+  const { frames, timeAlong, positions, km, levels, parameters, colCount, crs, cellAt } = section;
+  const rows: CoverageRow[] = [];
+  frames.forEach((frame, at) => {
+    for (let col = 0; col < colCount; col++) {
+      levels.forEach((level, row) => {
+        const cells = parameters.map(({ id }) => cellAt(id, at, row * colCount + col));
+        if (cells.every(cell => cell === null)) return;
+        const time = timeAlong ? (Number.isFinite(timeAlong[col]) ? isoTime(timeAlong[col]) : '') : frame.raw ?? '';
+        const out: CoverageRow = { id: `${at}:${col}:${row}`, time, location: '', position: col + 1, x: positions[col][0], y: positions[col][1], z: level };
+        if (crs.geographic) out.km = Number(km[col].toFixed(2));
+        cells.forEach((cell, column) => {
+          out[`p${column}`] = cell === null ? undefined : cell.raw;
+        });
+        rows.push(out);
+      });
+    }
+  });
+  return rows;
 }

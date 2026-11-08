@@ -1,0 +1,280 @@
+{
+ "_comment": "GET https://opendata.fmi.fi/edr/collections/ecmwf_painepinta/trajectory?coords=LINESTRING(24%2060,25%2061,26%2062)&z=1000,850,500&parameter-name=temperature,windspeedms&datetime=2026-11-07T00:00:00Z&f=CoverageJSON, saved 2026-11-06",
+ "coverages": [
+  {
+   "type": "Coverage",
+   "domain": {
+    "type": "Domain",
+    "axes": {
+     "composite": {
+      "coordinates": [
+       "t",
+       "x",
+       "y",
+       "z"
+      ],
+      "dataType": "tuple",
+      "values": [
+       [
+        "2026-11-07T00:00:00Z",
+        24,
+        60,
+        500
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        25,
+        61,
+        500
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        26,
+        62,
+        500
+       ]
+      ]
+     }
+    }
+   },
+   "ranges": {
+    "temperature": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      -23.1,
+      -23.1539,
+      -23.0389
+     ]
+    },
+    "windspeedms": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      20.4567,
+      22.3883,
+      24.0672
+     ]
+    }
+   }
+  },
+  {
+   "type": "Coverage",
+   "domain": {
+    "type": "Domain",
+    "axes": {
+     "composite": {
+      "coordinates": [
+       "t",
+       "x",
+       "y",
+       "z"
+      ],
+      "dataType": "tuple",
+      "values": [
+       [
+        "2026-11-07T00:00:00Z",
+        24,
+        60,
+        850
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        25,
+        61,
+        850
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        26,
+        62,
+        850
+       ]
+      ]
+     }
+    }
+   },
+   "ranges": {
+    "temperature": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      -0.0761111,
+      -0.964444,
+      -2.04331
+     ]
+    },
+    "windspeedms": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      12.9161,
+      11.3972,
+      10.4439
+     ]
+    }
+   }
+  },
+  {
+   "type": "Coverage",
+   "domain": {
+    "type": "Domain",
+    "axes": {
+     "composite": {
+      "coordinates": [
+       "t",
+       "x",
+       "y",
+       "z"
+      ],
+      "dataType": "tuple",
+      "values": [
+       [
+        "2026-11-07T00:00:00Z",
+        24,
+        60,
+        1000
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        25,
+        61,
+        1000
+       ],
+       [
+        "2026-11-07T00:00:00Z",
+        26,
+        62,
+        1000
+       ]
+      ]
+     }
+    }
+   },
+   "ranges": {
+    "temperature": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      3.26833,
+      0.814452,
+      0.274432
+     ]
+    },
+    "windspeedms": {
+     "axisNames": [
+      "composite"
+     ],
+     "dataType": "float",
+     "shape": [
+      3
+     ],
+     "type": "NdArray",
+     "values": [
+      8.00667,
+      4.687,
+      3.80002
+     ]
+    }
+   }
+  }
+ ],
+ "domainType": "Trajectory",
+ "referencing": [
+  {
+   "coordinates": [
+    "x",
+    "y"
+   ],
+   "system": {
+    "id": "OGC:CRS84",
+    "type": "GeographicCRS"
+   }
+  },
+  {
+   "coordinates": [
+    "z"
+   ],
+   "system": {
+    "type": "VerticalCRS",
+    "description": {
+     "en": "Pressure level in hPa"
+    }
+   }
+  },
+  {
+   "coordinates": [
+    "t"
+   ],
+   "system": {
+    "calendar": "Gregorian",
+    "type": "TemporalRS"
+   }
+  }
+ ],
+ "type": "CoverageCollection",
+ "parameters": {
+  "temperature": {
+   "id": "Temperature",
+   "type": "Parameter",
+   "description": {
+    "en": "Temperature"
+   },
+   "label": {
+    "en": "Temperature"
+   },
+   "observedProperty": {
+    "id": "Temperature",
+    "label": {
+     "en": "Temperature"
+    }
+   }
+  },
+  "windspeedms": {
+   "id": "WindSpeedMS",
+   "type": "Parameter",
+   "description": {
+    "en": "Tuulen nopeus"
+   },
+   "label": {
+    "en": "WindSpeedMS"
+   },
+   "observedProperty": {
+    "id": "WindSpeedMS",
+    "label": {
+     "en": "WindSpeedMS"
+    }
+   }
+  }
+ }
+}

@@ -230,7 +230,7 @@ export const mercY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(
 export const invMercY = (y: number) => (Math.atan(Math.exp((y * Math.PI) / 180)) * 360) / Math.PI - 90;
 
 // xName: what the response calls x, if not x
-function crsOf(referencing: unknown, xs: number[], ys: number[], xName = 'x'): CellCrs {
+export function crsOf(referencing: unknown, xs: number[], ys: number[], xName = 'x'): CellCrs {
   const entry = Array.isArray(referencing)
     ? (referencing as unknown[]).find(item => isObj(item) && Array.isArray(item.coordinates) && item.coordinates.includes(xName)) as Json | undefined
     : undefined;

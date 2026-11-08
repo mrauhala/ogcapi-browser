@@ -4,10 +4,7 @@ import { parseTime, utcMoment } from '../utils/utcTime';
 import { axisFault, axisValues, pointerPart } from './coverageCells';
 import type { ParameterFigures } from './coverageSummary';
 import { COVJSON } from '../standards';
-import {
-  askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isNumber, readVerticalAxis, vrsAbout, withUnit,
-  type LevelScale, type VerticalAxis,
-} from './verticalAxis';
+import { askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isNumber, readVerticalAxis, vrsAbout, withUnit, type LevelScale, type VerticalAxis, zFindings } from './verticalAxis';
 
 // A coverage as profiles: values at several levels, at one point or a few. Nothing about its shape is taken for
 // granted. Every value becomes a cell, keyed by place, time and level, through its range's own axisNames and shape,
@@ -349,25 +346,13 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   // What z is: the response's own words, then the collection's vrs against them. The vrs is only checked against,
   // and only where it's about these levels
   const vrs = vrsAbout(context.vertical, levels);
-  if (axis.directionSource === 'response') pass(`z's direction is in the response: ${axis.direction}`, zPath);
-  else if (axis.directionSource === 'usual') issue(`z's direction isn't in the response: assumed ${axis.direction}, as usual for ${axis.usualWords}`, zPath);
-  else issue("z's direction isn't in the response, and nothing says what z is: assumed up", zPath);
+  const first = coverages[0].json;
+  notes.push(...zFindings(axis, zPath, isObject(first.domain) && Array.isArray(first.domain.referencing) ? `${prefix(0)}/domain/referencing` : '/referencing'));
   if (vrs?.direction && vrs.direction !== axis.direction) {
     against('warning', axis.directionSource === 'response'
       ? `The response says z runs ${axis.direction}, and the collection's vrs says ${vrs.direction}`
       : `The collection's vrs says z runs ${vrs.direction}, and ${axis.direction} is assumed for the response`, zPath);
   } else if (vrs?.direction) against('pass', `The collection's vrs gives z's direction: ${vrs.direction}`);
-  if (axis.againstUsual) issue(`z is ${axis.usualWords} and says it runs ${axis.direction}, against the usual`, zPath);
-  if (axis.flatCrs) {
-    const first = coverages[0].json;
-    const referencing = isObject(first.domain) && Array.isArray(first.domain.referencing) ? `${prefix(0)}/domain/referencing` : '/referencing';
-    issue(`z is referenced to ${axis.flatCrs}, which has no vertical axis`, referencing);
-  }
-
-  // A level number needs no unit
-  if (axis.unitSource === 'response' && axis.unit) pass(`z's unit is in the response: ${axis.unit}`, zPath);
-  else if (axis.unitSource === 'description') issue(`z's unit, ${axis.unit}, is only in a description, and not in its reference system's axis`, zPath);
-  else if (axis.unitSource === 'none' && axis.kind !== 'modelLevel') issue('z has no unit in the response', zPath);
   if (vrs?.unit && axis.unit && vrs.unit !== axis.unit) against('warning', `z's unit is ${axis.unit} in the response, and ${vrs.unit} in the collection's vrs`, zPath);
   else if (vrs?.unit) against('pass', `The collection's vrs gives z's unit: ${vrs.unit}`);
 

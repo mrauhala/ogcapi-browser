@@ -6,6 +6,7 @@ import { coverageToProfile, type CoverageProfile, type ProfileContext } from './
 import { rangeMisfit } from './rangeFit';
 import { timeFindings, type TimeContext } from './timeChecks';
 import { parameterFindings } from './parameterChecks';
+import { toSection, type SectionData, type SectionResult } from './coverageSection';
 import { COVJSON } from '../standards';
 
 // What a CoverageJSON response holds, worked out once for all the ways of showing it: its shape in
@@ -63,6 +64,8 @@ export interface CoverageSummary {
   series: CoverageSeries | null;
   // If it has values at several levels, at a point or a few
   profile: CoverageProfile | null;
+  // If it's along a path, read as frames × levels × positions, or why it can't be
+  section: SectionResult;
   notes: ValidationError[];
 }
 
@@ -409,6 +412,8 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
   // too: 2 points at 3 levels, not 6 points, and 1 point over 85 times, not 85 coverages. One coverage's axes say it
   // already, a grid's cells better than points would
   const { profile } = coverageToProfile(json, context);
+  // A path: a Trajectory or a Section. At one place it's the profile's
+  const section = toSection(json, context.url);
   const profileShape = profile && coverages.length > 1 ? profile.shape : null;
   const prefix = (coverage: number) => (isCollection ? `/coverages/${coverage}` : '');
   const tallies = tallyParameters(coverages, json);
@@ -423,6 +428,7 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
   // t is the time checks', and z the profile's where there is one
   notes.push(...axisOrderFindings(coverages, prefix, profile ? ['x', 'y'] : ['x', 'y', 'z']));
   if (profile) notes.push(...profile.notes);
+  if (section && section.kind !== 'cant') notes.push(...section.notes);
   notes.push(...parameterFindings(json, coverages, prefix));
   for (const { id, nulls, count, firstNull } of tallies.values()) {
     if (!firstNull || profile) continue;
@@ -460,6 +466,7 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
       parameters: built.series.parameters,
       series: built.series,
       profile,
+      section,
       notes,
     };
   }
@@ -469,6 +476,19 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
   const one = coverages.length === 1 ? only : null;
   const time = one ? timesOf(one) : null;
   const profileTimes = profileShape && profile ? profile.times.map(({ at }) => at).filter(Number.isFinite) : null;
+  if (section && section.kind !== 'cant') {
+    return {
+      domainType: domainTypeOf(coverages, json),
+      shape: [...pathShape(section), parameterCount].join(', '),
+      timeText: pathTimes(section),
+      axes: pathAxes(section),
+      parameters: [...tallies.values()].map(toFigures),
+      series: null,
+      profile,
+      section,
+      notes,
+    };
+  }
   return {
     domainType: domainTypeOf(coverages, json),
     shape: profileShape ?? [...(one ? describeAxes(one) : [plural(coverages.length, 'coverage')]), parameterCount].join(', '),
@@ -478,8 +498,40 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
     parameters: [...tallies.values()].map(toFigures),
     series: null,
     profile,
+    section,
     notes,
   };
+}
+
+// "9 positions along 245.3 km, 9 levels, 1 time": what's along the path, from the path's own reading, where the axes
+// alone would say "3 coverages"
+function pathShape({ kind, colCount, crs, km, breaks, levels, notBack, frames, timeAlong }: SectionData): string[] {
+  const along = crs.geographic && colCount > 1 ? ` along ${formatValue(Number(km[colCount - 1].toFixed(2)))} km` : '';
+  const lines = breaks.length > 0 ? ` in ${plural(breaks.length + 1, 'line')}` : '';
+  const sent = levels.filter(level => level !== null && !notBack.includes(level)).length;
+  const levelsSaid = kind === 'track' ? ['a level each'] : sent > 0 ? [plural(sent, 'level')] : [];
+  const timesSaid = timeAlong ? ['a time each'] : frames.some(frame => frame.raw !== null) ? [plural(frames.length, 'time')] : [];
+  return [`${plural(colCount, 'position')}${along}${lines}`, ...levelsSaid, ...timesSaid];
+}
+
+function pathTimes({ frames, timeAlong }: SectionData): string | null {
+  const times = (timeAlong ?? frames.map(frame => frame.ms)).filter(Number.isFinite);
+  return times.length > 0 ? describeTimes([...new Set(times)].sort((a, b) => a - b)) : null;
+}
+
+// x and y as far as the path goes, and the levels with z's unit
+function pathAxes({ positions, levels, notBack, z }: SectionData): string[] {
+  const span = (name: string, values: number[]) => {
+    const min = values.reduce((a, b) => Math.min(a, b));
+    const max = values.reduce((a, b) => Math.max(a, b));
+    return min === max ? `${name} ${formatValue(min)}` : `${name} ${formatValue(min)} to ${formatValue(max)}`;
+  };
+  const sent = levels.filter((level): level is number => level !== null && !notBack.includes(level));
+  const unit = z?.unit ? ` ${z.unit}` : '';
+  return [
+    ...(positions.length > 0 ? [span('x', positions.map(([x]) => x)), span('y', positions.map(([, y]) => y))] : []),
+    ...(sent.length > 0 ? [`${span('z', sent)}${unit}`] : []),
+  ];
 }
 
 // The words beside a parameter

@@ -1,0 +1,135 @@
+{
+ "_comment": "GET https://meteocore.app.meteo.fi/edr/collections/ecmwf-ifs-single/trajectory?coords=LINESTRING(24%2060,25%2061,26%2062)&parameter-name=2t&datetime=2026-11-07T00:00:00Z&f=CoverageJSON, saved 2026-11-06",
+ "type": "Coverage",
+ "domain": {
+  "type": "Domain",
+  "domainType": "Trajectory",
+  "axes": {
+   "composite": {
+    "dataType": "tuple",
+    "coordinates": [
+     "t",
+     "x",
+     "y"
+    ],
+    "values": [
+     [
+      "2026-11-07T00:00:00+00:00",
+      24,
+      60
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      24.244261039669055,
+      60.25069516686613
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      24.492287460964093,
+      60.50093480470763
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      24.744169501368674,
+      60.75070713581084
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      25,
+      61
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      25.24402167194262,
+      61.25067995551859
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      25.49196335053142,
+      61.50091461345034
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      25.743922616832435,
+      61.750692065146644
+     ],
+     [
+      "2026-11-07T00:00:00+00:00",
+      26,
+      62
+     ]
+    ]
+   }
+  },
+  "referencing": [
+   {
+    "coordinates": [
+     "x",
+     "y"
+    ],
+    "system": {
+     "type": "GeographicCRS",
+     "id": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    }
+   },
+   {
+    "coordinates": [
+     "t"
+    ],
+    "system": {
+     "type": "TemporalRS",
+     "calendar": "Gregorian"
+    }
+   }
+  ]
+ },
+ "parameters": {
+  "2t": {
+   "type": "Parameter",
+   "description": {
+    "en": "Temperature (2 m above ground), in °C"
+   },
+   "unit": {
+    "label": {
+     "en": "°C"
+    },
+    "symbol": {
+     "value": "°C",
+     "type": "https://qudt.org/vocab/unit/DEG_C"
+    }
+   },
+   "observedProperty": {
+    "id": "2t",
+    "label": {
+     "en": "Temperature (2 m above ground)"
+    },
+    "description": {
+     "en": "Temperature (2 m above ground), in °C"
+    }
+   }
+  }
+ },
+ "ranges": {
+  "2t": {
+   "type": "NdArray",
+   "dataType": "float",
+   "axisNames": [
+    "composite"
+   ],
+   "shape": [
+    9
+   ],
+   "values": [
+    3.695764,
+    1.4608796,
+    0.45534632,
+    0.45811582,
+    0.6957642,
+    0.954381,
+    2.9099298,
+    1.2125112,
+    0.19576415
+   ]
+  }
+ }
+}

@@ -7,6 +7,14 @@ import mcGfs from './__fixtures__/profiles/mc-gfs-1t-all.json';
 import mcIfsZunsorted from './__fixtures__/profiles/mc-ifs-zunsorted.json';
 import mcIfs1tAll from './__fixtures__/profiles/mc-ifs-1t-all.json';
 import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
+import fmiEcFrames from './__fixtures__/sections/fmi-ec-frames.json';
+import fmiMultilinestring from './__fixtures__/sections/fmi-multilinestring.json';
+import mcIfsLsz from './__fixtures__/sections/mc-ifs-lsz.json';
+import mcIfsBadlevel from './__fixtures__/sections/mc-ifs-badlevel.json';
+import mcMepsClosed from './__fixtures__/sections/mc-meps-closed.json';
+import mcRadarFikorZ from './__fixtures__/sections/mc-radar-fikor-z.json';
+import mcSingleNoz from './__fixtures__/sections/mc-single-noz.json';
+import fmiTrajectoryOnePlace from './__fixtures__/profiles/fmi-trajectory-one-place.json';
 import { COVJSON } from '../standards';
 import { counting } from './cellsTestData';
 
@@ -662,5 +670,71 @@ describe('summarizeCoverage: axes in order', () => {
     expect(orderOf(collection)).toEqual([
       { message: "x isn't in order: 2 comes after 3, and likewise in 2 more coverages", path: '/coverages/1/domain/axes/x/values/2', severity: 'error', rule: COVJSON.domain },
     ]);
+  });
+});
+
+describe('summarizeCoverage: a path', () => {
+  const urlOf = (json: unknown) => /^GET (\S+),/.exec((json as { _comment: string })._comment)?.[1];
+  const of = (json: unknown) => summarizeCoverage(json, { url: urlOf(json) })!;
+  const trajectory = (tuples: unknown[][], coordinates = ['t', 'x', 'y']) => ({
+    type: 'Coverage',
+    domain: { type: 'Domain', domainType: 'Trajectory', axes: { composite: { dataType: 'tuple', coordinates, values: tuples } } },
+    ranges: { a: { type: 'NdArray', dataType: 'float', axisNames: ['composite'], shape: [tuples.length], values: tuples.map((_, i) => i) } },
+  });
+
+  it('says how far along it, and the levels and times, where the axes would say "5 coverages"', () => {
+    const summary = of(fmiEcFrames);
+    expect(summary.domainType).toBe('Trajectory');
+    expect(summary.shape).toBe('5 positions along 628.99 km, 9 levels, 3 times, 2 parameters');
+    expect(summary.timeText).toBe('6-hourly, Nov 7 00:00 to Nov 7 12:00.');
+    expect(summary.axes).toEqual(['x 20 to 28', 'y 58 to 62', 'z 50 to 1000 hPa']);
+    expect(summary.section).toMatchObject({ kind: 'section', colCount: 5 });
+  });
+
+  it('adds its notes, the path’s and z’s', () => {
+    const notes = of(mcMepsClosed).notes.map(note => note.message);
+    expect(notes).toContain("The path ends 20.66 km from the line's last vertex");
+    expect(notes).toContain("z's direction is in the response: down");
+  });
+
+  it('says a radar Section’s shape', () => {
+    const summary = of(mcRadarFikorZ);
+    expect(summary.shape).toBe('257 positions along 127.77 km, 39 levels, 1 time, 1 parameter');
+    expect(summary.axes.at(-1)).toBe('z 0 to 9306.12 m');
+  });
+
+  it('says a level each for a track, a time each for time along it, and its lines', () => {
+    expect(of(mcIfsLsz).shape).toBe('9 positions along 247.14 km, a level each, 1 time, 1 parameter');
+    expect(of(fmiMultilinestring).shape).toBe('4 positions along 246.42 km in 2 lines, 2 levels, 1 time, 1 parameter');
+    const along = summarizeCoverage(trajectory([['2026-11-07T00:00:00Z', 24, 60], ['2026-11-07T03:00:00Z', 25, 61], ['2026-11-07T06:00:00Z', 26, 62]]))!;
+    expect(along.shape).toBe('3 positions along 247.14 km, a time each, 1 parameter');
+    expect(along.timeText).toBe('3-hourly, Nov 7 00:00 to Nov 7 06:00.');
+  });
+
+  it('counts only the levels sent, not one asked for and missing', () => {
+    expect(of(mcIfsBadlevel).shape).toBe('5 positions along 123.94 km, 1 level, 1 time, 1 parameter');
+    expect(of(mcIfsBadlevel).axes.at(-1)).toBe('z 850 hPa');
+  });
+
+  it('says no levels where there’s no z, and no time where there’s none', () => {
+    expect(of(mcSingleNoz).shape).toBe('9 positions along 247.14 km, 1 time, 1 parameter');
+    expect(of(mcSingleNoz).axes).toEqual(['x 24 to 26', 'y 60 to 62']);
+    expect(summarizeCoverage(trajectory([[24, 60], [25, 61]], ['x', 'y']))!.shape).toBe('2 positions along 123.94 km, 1 parameter');
+  });
+
+  it('says no km where x and y aren’t lon/lat', () => {
+    expect(summarizeCoverage(trajectory([[500000, 6650000], [510000, 6660000]], ['x', 'y']))!.shape).toBe('2 positions, 1 parameter');
+  });
+
+  it('keeps what a path it can’t read says today, with why', () => {
+    const summary = summarizeCoverage(trajectory([[24, 60], ['a', 61]], ['x', 'y']))!;
+    expect(summary.section).toMatchObject({ kind: 'cant' });
+    expect(summary.shape).toBe('2 positions, 1 parameter');
+  });
+
+  it('leaves a path at one place to the profile', () => {
+    const summary = summarizeCoverage(fmiTrajectoryOnePlace)!;
+    expect(summary.section).toBeNull();
+    expect(summary.profile).not.toBeNull();
   });
 });

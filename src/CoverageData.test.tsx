@@ -12,6 +12,7 @@ import dwdArea from './utils/__fixtures__/dwd-area-multipolygonseries.json';
 import hidrografico from './utils/__fixtures__/hidrografico-collection-parameters.json';
 import mcIfs1tAll from './coverage/__fixtures__/profiles/mc-ifs-1t-all.json';
 import mcIfs85t from './coverage/__fixtures__/profiles/mc-ifs-85t-2p.json';
+import mcMepsClosed from './coverage/__fixtures__/sections/mc-meps-closed.json';
 
 // The grid draws only in a browser: here it says which columns it was given
 vi.mock('@mui/x-data-grid', () => ({
@@ -137,6 +138,35 @@ describe('CoverageData', () => {
       expect(result).toContain('Figures');
       expect(result).toContain('Table');
       expect(result).not.toContain('<svg');
+    });
+  });
+
+  describe('a path', () => {
+    const html = render(mcMepsClosed);
+
+    it('says how far along it, and offers its figures and its table', () => {
+      expect(html).toContain('48 positions along 227.23 km, 1 level, 1 time, 1 parameter');
+      expect(html).toMatch(/aria-pressed="true"[^>]*>Figures</);
+      expect(html).toMatch(/aria-pressed="false"[^>]*>Table</);
+      expect(html).not.toMatch(/>Chart</);
+    });
+
+    it('shows its table when asked', () => {
+      expect(render(mcMepsClosed, { view: 'table' })).toContain('data-columns="#|km|x|y|z (hPa)|air_temperature_pl (°C)"');
+    });
+
+    it('says why one can’t be read, and points to Raw', () => {
+      const broken = {
+        type: 'Coverage',
+        domain: { type: 'Domain', domainType: 'Trajectory', axes: { composite: { dataType: 'tuple', coordinates: ['x', 'y'], values: [[24, 60], ['a', 61]] } } },
+        ranges: { a: range([1, 2]) },
+      };
+      const said = render(broken);
+      expect(said).toContain('Can&#x27;t read this as a path');
+      expect(said).toContain('/domain/axes/composite/values/1 has x &quot;a&quot;, which isn&#x27;t a number');
+      expect(said).toContain('Raw has what was sent.');
+      expect(render(mcMepsClosed)).not.toContain('Can&#x27;t read this as a path');
+      expect(said).not.toContain('Table');
     });
   });
 

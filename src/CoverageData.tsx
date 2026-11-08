@@ -16,7 +16,7 @@ import { opensAsPicture } from './coverage/cellSelection';
 import CellsFigures from './coverage/CellsFigures';
 import CellsTable from './coverage/CellsTable';
 import CellsView from './coverage/CellsView';
-import CoverageTable, { ProfileTable } from './CoverageTable';
+import CoverageTable, { ProfileTable, SectionTable } from './CoverageTable';
 import ProfileView from './coverage/ProfileView';
 import { lineColours } from './coverage/lineColours';
 import { formatTimeTick } from './utils/timeAxisTicks';
@@ -319,7 +319,10 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
   // One value for each parameter says it all in the figures
   const hasSeriesTable = series !== null && (canChart || series.locations.length > 1);
   const cells = reading?.drawable ? reading : null;
-  const hasTable = profile !== null || hasSeriesTable || cells !== null;
+  // Along a path: its table now, and its picture to come. Or why it can't be read
+  const section = summary.section && summary.section.kind !== 'cant' ? summary.section : null;
+  const pathFault = summary.section?.kind === 'cant' ? summary.section.reason : null;
+  const hasTable = profile !== null || hasSeriesTable || cells !== null || section !== null;
 
   // What was chosen, if this response has it. A profile is in the chart's place, and it opens before a few cells drawn
   const available: CoverageView[] = [...(cells ? ['cells' as const] : []), 'chart', ...(hasTable ? ['table' as const] : [])];
@@ -380,11 +383,18 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
           )}
         </Box>
       )}
+      {pathFault && (
+        <Box sx={{ mx: 1.75, mb: 1, px: 1.5, py: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1, fontSize: '0.8125rem', lineHeight: '18px' }}>
+          <Box sx={{ fontWeight: 500 }}>Can't read this as a path</Box>
+          <Box sx={{ ...MONO, overflowWrap: 'anywhere' }}>{pathFault}</Box>
+          <Box sx={{ color: 'text.secondary', mt: 0.5 }}>Raw has what was sent.</Box>
+        </Box>
+      )}
       {!profile && series && canChart && shown === 'chart' && series.locations.length > 1 && (
         <Legend locations={series.locations} colours={lineColours(series.locations.length, theme)} />
       )}
       {shown === 'cells' ? <CellsView />
-        : shown === 'table' ? (profile ? <ProfileTable profile={profile} /> : hasSeriesTable ? <CoverageTable series={series} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
+        : shown === 'table' ? (profile ? <ProfileTable profile={profile} /> : hasSeriesTable ? <CoverageTable series={series} /> : section ? <SectionTable section={section} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
           : profile ? <ProfileView profile={profile} />
           : canChart ? <ChartedRows series={series} />
             : cells ? <CellsFigures onOpen={() => onViewChange('cells')} />
