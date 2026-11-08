@@ -78,10 +78,6 @@ service follows the standards.
 
 **Online:** https://ogcapi-browser.meteo.fi. Every merge to `main` deploys it.
 
-<img src="docs/images/phone.webp" alt="The same area query on a phone: the request line, the Data tab with the grid of temperatures, and the panes as buttons at the bottom" width="260">
-
-*On a phone, each pane fills the screen in turn.*
-
 **With npx**, no clone needed (requires Node.js):
 
 ```bash
