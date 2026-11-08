@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Temporal, ValidationError } from '../types/api';
 import { askedDatetime, timeFindings, timeSpan, type TimeContext } from './timeChecks';
+import { COVJSON } from '../standards';
 import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -202,13 +203,21 @@ describe('timeFindings: the form of the times', () => {
 });
 
 describe('timeFindings: their order', () => {
-  it('notes times out of order, and makes an issue of one twice', () => {
-    expect(found(findings(series([T[1], T[0], T[2]])), /order/)).toEqual({ message: `Times aren't in order: ${T[0]} comes after ${T[1]}`, path: '/domain/axes/t/values/1', severity: 'info' });
+  it('makes an error of times out of order, and an issue of one twice', () => {
+    // The first step sets the way: falling to T0, then turning back up at T2
+    expect(found(findings(series([T[1], T[0], T[2]])), /order/)).toEqual({ message: `Times aren't in order: ${T[2]} comes after ${T[0]}`, path: '/domain/axes/t/values/2', severity: 'error', rule: COVJSON.domain });
     expect(found(findings(series([T[0], T[1], T[0]])), /twice/)).toEqual({ message: `t has ${T[0]} twice`, path: '/domain/axes/t/values/2', severity: 'warning' });
     // The first of each
-    expect(found(findings(series([T[1], T[0], T[2], T[1]])), /order/)?.path).toBe('/domain/axes/t/values/1');
+    expect(found(findings(series([T[0], T[2], T[1], T[0]])), /order/)?.path).toBe('/domain/axes/t/values/2');
     expect(found(findings(series([T[0], T[0], T[1], T[1]])), /twice/)?.path).toBe('/domain/axes/t/values/1');
     expect(found(findings(series(T)), /order|twice/)).toBeUndefined();
+  });
+
+  it('takes times that fall all the way as in order, as CoverageJSON allows', () => {
+    expect(found(findings(series([T[2], T[1], T[0]])), /order/)).toBeUndefined();
+    expect(found(findings(series([T[1], T[1], T[0]])), /order/)).toBeUndefined();
+    // Staying a step isn't turning back
+    expect(found(findings(series([T[0], T[1], T[1]])), /order/)).toBeUndefined();
   });
 
   it('doesn’t count a time in two coverages as twice, or their order', () => {
@@ -216,8 +225,8 @@ describe('timeFindings: their order', () => {
   });
 
   it('makes an error of a Trajectory or a Section going back in time, as FMI’s do', () => {
-    expect(found(findings(trajectory([T[0], T[2], T[1]])), /order/)).toEqual({ message: `A Trajectory's points must follow the order of t, and ${T[1]} comes after ${T[2]}`, path: '/domain/axes/composite/values/2/0', severity: 'error' });
-    expect(found(findings(trajectory([T[2], T[0]], 'Section')), /order/)?.message).toBe(`A Section's points must follow the order of t, and ${T[0]} comes after ${T[2]}`);
+    expect(found(findings(trajectory([T[0], T[2], T[1]])), /order/)).toEqual({ message: `A Trajectory's points must follow the order of t, and ${T[1]} comes after ${T[2]}`, path: '/domain/axes/composite/values/2/0', severity: 'error', rule: COVJSON.trajectory });
+    expect(found(findings(trajectory([T[2], T[0]], 'Section')), /order/)).toMatchObject({ message: `A Section's points must follow the order of t, and ${T[0]} comes after ${T[2]}`, rule: COVJSON.section });
     expect(found(findings({ ...collection(trajectory([T[2], T[0]], null)), domainType: 'Trajectory' }), /order/)?.severity).toBe('error');
   });
 

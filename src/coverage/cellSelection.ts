@@ -178,7 +178,8 @@ export function longestReadout({ geometry: g, dims, slices, cells, coverageCount
     value: `${LONGEST_NUMBER}${parameter.unit ? ` ${parameter.unit}` : ''}`,
     under: 'one of 999 under this pixel',
     where: `[${indices}] ${place}`,
-    pointer: coverageCount ? `/coverages/${coverageCount - 1}${tail}` : tail,
+    // A grid's or polygons' paths start where the coverage is, in a collection under /coverages/0
+    pointer: coverageCount ? `/coverages/${coverageCount - 1}${tail}` : `${(parameter.rawAt(0, 0).pointer ?? '').split('/ranges/')[0]}${tail}`,
   };
 }
 

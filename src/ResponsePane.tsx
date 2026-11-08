@@ -27,7 +27,8 @@ import ResponseSizes from './ResponseSizes';
 import ResponseStatusLine from './ResponseStatusLine';
 import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useCollection } from './contexts/CollectionContext';
-import { usePublishResponseCells } from './contexts/responseCells';
+import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
+import { cellFindings } from './coverage/coverageCells';
 import { shortUrl } from './query/requestUrl';
 import { collectionIdOf } from './query/requestLink';
 import { checksCount, responseTabs, shownTab, type ResponseTab } from './responseTabs';
@@ -151,12 +152,15 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
 
   const flaggedColor = checksCount(errorLineList.flatMap(entry => entry.errors))?.color ?? 'info';
 
-  const allFindings = useMemo(() => [...validationErrors, ...(coverage?.notes ?? [])], [validationErrors, coverage]);
+  // What the picture found joins what the summary did. It leaves out what the summary says already: nulls and ranges
+  const { reading } = useResponseCells();
+  const coverageNotes = useMemo(() => [...(coverage?.notes ?? []), ...cellFindings(reading)], [coverage, reading]);
+  const allFindings = useMemo(() => [...validationErrors, ...coverageNotes], [validationErrors, coverageNotes]);
   // Only when they're asked for: each is a walk through the whole of the text
   const showingChecks = tab === 'checks';
-  const dataNotes = useMemo(() => (showingChecks && coverage
-    ? coverage.notes.map(note => ({ message: note.message, severity: note.severity, source: note.source, line: note.path ? findLineForJsonPointer(formattedData, note.path) : undefined }))
-    : []), [showingChecks, coverage, formattedData]);
+  const dataNotes = useMemo(() => (showingChecks
+    ? coverageNotes.map(note => ({ message: note.message, severity: note.severity, source: note.source, rule: note.rule, line: note.path ? findLineForJsonPointer(formattedData, note.path) : undefined }))
+    : []), [showingChecks, coverageNotes, formattedData]);
   const markedLines = useMemo(() => (noteLine === null ? errorLines : new Set(errorLines).add(noteLine)), [errorLines, noteLine]);
   const modifier = navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl';
 

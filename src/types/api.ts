@@ -110,6 +110,12 @@ export interface Collection {
   };
 }
 
+// Where the rule a finding rests on is written: the standard and its section, and a link to it
+export interface Rule {
+  label: string;
+  url: string;
+}
+
 export interface ValidationError {
   message: string;
   title?: string;
@@ -127,6 +133,7 @@ export interface ValidationError {
   // What a finding about a response rests on: the response, which is undefined, or the collection's metadata it was
   // checked against. One about the collection alone has no path, since there's nothing in the response to show
   source?: 'collection';
+  rule?: Rule;
 }
 
 export interface ValidationResult {

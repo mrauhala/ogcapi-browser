@@ -21,7 +21,7 @@ const SEVERITY_ICON = {
 };
 const WORST_FIRST = ['error', 'warning', 'info', 'pass'] as const;
 // A finding about the data, and its line in Raw if it's about something there
-type DataNote = { message: string; line?: number; severity?: ValidationError['severity']; source?: ValidationError['source'] };
+type DataNote = { message: string; line?: number; severity?: ValidationError['severity']; source?: ValidationError['source']; rule?: ValidationError['rule'] };
 const worstFirst = (notes: DataNote[]) => WORST_FIRST.flatMap(severity => notes.filter(note => (note.severity ?? 'info') === severity));
 
 const Item = ({ icon, children, line, onClick }: { icon: ReactNode; children: ReactNode; line?: number; onClick?: () => void }) => (
@@ -146,6 +146,13 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
             {section.notes.map(note => (
               <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
                 {note.message}
+                {/* The rule it rests on, where the standard has one to cite */}
+                {note.rule && ' '}
+                {note.rule && (
+                  <Link href={note.rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+                    {note.rule.label}
+                  </Link>
+                )}
               </Item>
             ))}
           </Box>

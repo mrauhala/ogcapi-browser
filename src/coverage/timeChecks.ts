@@ -1,6 +1,7 @@
 import type { Temporal, ValidationError } from '../types/api';
 import { parseDuration } from '../utils/extents/temporal';
 import { parseTime } from '../utils/utcTime';
+import { COVJSON } from '../standards';
 
 // What a response says of time: by CoverageJSON 1.0 ("The axis and coordinate identifier "t" MUST refer to temporal
 // coordinates and be referenced by a temporal reference system", and with the Gregorian calendar a lexical form that
@@ -211,7 +212,7 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     return asked && asked !== 'unreadable' ? [{ message: `A datetime was asked for, ${asked.text}, and the response has no times`, path: `${prefix(0)}/domain/axes`, severity: 'info' }] : [];
   }
   const notes: ValidationError[] = [];
-  const note = (severity: ValidationError['severity'], message: string, path: string) => notes.push({ message, path, severity });
+  const note = (severity: ValidationError['severity'], message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, ...(rule ? { rule } : {}) });
   const against = (severity: 'warning' | 'pass', message: string, path: string) => notes.push({ message, path, severity, source: 'collection' });
 
   // ---- How t is referenced, per coverage that has times ----
@@ -283,7 +284,7 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   // A pass only where every time was read
   const all = read.length === times.length;
 
-  // ---- Their order: a composite axis's points MUST follow t, and an axis out of order or twice is worth a note ----
+  // ---- Their order: an axis's values MUST run one way, rising or falling, and a composite's points MUST follow t ----
   const byAxis = new Map<string, SentTime[]>();
   for (const time of read) {
     const key = `${time.coverage}|${time.on}`;
@@ -295,9 +296,15 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   for (const [key, list] of byAxis) {
     const domainType = (isObject(coverages[list[0].coverage].domain) ? (coverages[list[0].coverage].domain as Json).domainType : undefined) ?? json.domainType;
     const seen = new Set<number>();
+    const onAxis = key.endsWith('axis');
+    // The way an axis runs, from its first step that goes anywhere
+    let way = 0;
     for (let i = 1; i < list.length; i++) {
       const [before, now] = [spans.get(list[i - 1])![0], spans.get(list[i])![0]];
-      if (now < before && !backwards) backwards = [list[i - 1], list[i], key.endsWith('composite') ? String(domainType ?? 'composite') : 'axis'];
+      const step = Math.sign(now - before);
+      if (onAxis && way === 0) way = step;
+      const turned = onAxis ? step !== 0 && step !== way : now < before;
+      if (turned && !backwards) backwards = [list[i - 1], list[i], onAxis ? 'axis' : String(domainType ?? 'composite')];
     }
     if (key.endsWith('axis')) {
       for (const time of list) {
@@ -309,8 +316,8 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   }
   if (backwards) {
     const [before, now, kind] = backwards;
-    if (kind === 'axis') note('info', `Times aren't in order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path);
-    else if (kind === 'Trajectory' || kind === 'Section') note('error', `A ${kind}'s points must follow the order of t, and ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path);
+    if (kind === 'axis') note('error', `Times aren't in order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, COVJSON.domain);
+    else if (kind === 'Trajectory' || kind === 'Section') note('error', `A ${kind}'s points must follow the order of t, and ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, kind === 'Trajectory' ? COVJSON.trajectory : COVJSON.section);
     else note('info', `The composite axis's points aren't in time order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path);
   }
   if (twice) note('warning', `t has ${shown(twice.raw)} twice`, twice.path);

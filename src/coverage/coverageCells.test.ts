@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { axisDrift, axisFault, axisValues, compositeRoles, invMercY, mercY, notNumbersText, notNumberWord, readCells, stepsOfSlice, MOST_AXIS_VALUES, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
+import { axisDrift, axisFault, axisValues, cellFindings, compositeRoles, invMercY, mercY, notNumbersText, notNumberWord, readCells, stepsOfSlice, MOST_AXIS_VALUES, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
 import dmiPosition from '../utils/__fixtures__/dmi-position-grid.json';
 import dwdArea from '../utils/__fixtures__/dwd-area-multipolygonseries.json';
@@ -7,6 +7,7 @@ import fmiPosition from '../utils/__fixtures__/fmi-position-pointseries.json';
 import fmiSeries from '../utils/__fixtures__/fmi-location-pointseries-5d.json';
 import hidrografico from '../utils/__fixtures__/hidrografico-collection-parameters.json';
 import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
+import { COVJSON } from '../standards';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -840,7 +841,8 @@ describe('readCells: polygons', () => {
     expect(g.bbox).toEqual([10, 50, 12, 51]);
     expect(Array.from(g.pts.slice(0, 4))).toEqual([10, 50, 11, 50]);
     expect(cells.parameters[0].data[0]).toBe(5);
-    expect(cells.parameters[0].rawAt(1, 0)).toEqual({ value: null, index: 1, pointer: '/ranges/CAPE/values/1', coverage: null });
+    // In a collection, under its one coverage
+    expect(cells.parameters[0].rawAt(1, 0)).toEqual({ value: null, index: 1, pointer: '/coverages/0/ranges/CAPE/values/1', coverage: null });
     expect(notesOf(cells)[0]).toBe('Sent as 2 polygons on a composite axis, triangles of the model’s own grid. Each is drawn as it is');
   });
 
@@ -913,7 +915,7 @@ describe('readCells: notes', () => {
 
   it('doesn’t suspect a zero of being a code', () => {
     const notes = drawn(grid({ x: counting(200), y: [60], values: [...new Array(100).fill(0), ...counting(100, 1)], id: 'rain', unit: 'mm' })).notes;
-    expect(notes).toContainEqual({ level: 'info', text: '0 mm is in 100 of 200 rain values (50%), at the bottom of the range', parameter: 'rain' });
+    expect(notes).toContainEqual({ level: 'info', text: '0 mm is in 100 of 200 rain values (50%), at the bottom of the range', parameter: 'rain', checks: 'info', at: 0 });
   });
 
   it('says a parameter is all null, and doesn’t go on about it', () => {
@@ -1034,5 +1036,99 @@ describe('readCells: points that aren’t numbers', () => {
     const [parameter] = drawn(repeated).parameters;
     expect(parameter.figures).toMatchObject({ numbers: 1, nulls: 1, notNumbers: 1 });
     expect(parameter.notNumbersAreText).toBe(true);
+  });
+});
+
+describe('cellFindings: what Checks says of the picture', () => {
+  const findingsOf = (json: unknown) => cellFindings(readCells(json));
+  const find = (json: unknown, text: RegExp) => findingsOf(json).find(finding => text.test(finding.message));
+  const inCollection = (coverage: Json, top: Json = {}) => ({ type: 'CoverageCollection', coverages: [coverage], ...top });
+  const DAY = ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z', '2026-11-07T08:00:00Z'];
+
+  it('has nothing to say of what wasn’t drawn', () => {
+    expect(cellFindings(null)).toEqual([]);
+    expect(findingsOf({ type: 'Feature' })).toEqual([]);
+  });
+
+  it('makes an error of x and y with no coordinate system, pointing at the referencing that should have one, with its rule', () => {
+    expect(find(grid({ referencing: [] }), /referencing says nothing/)).toEqual({
+      message: "referencing says nothing about x and y. They're taken as lon/lat, since they fit", severity: 'error', path: '/domain/referencing', rule: COVJSON.domainTypes,
+    });
+    const none = grid() as Json;
+    delete none.domain.referencing;
+    expect(find(none, /referencing says nothing/)?.path).toBe('/domain');
+    // The collection's own, which the coverage shares
+    expect(find(inCollection(none, { referencing: [] }), /referencing says nothing/)?.path).toBe('/referencing');
+    expect(find(inCollection(grid({ referencing: [] })), /referencing says nothing/)?.path).toBe('/coverages/0/domain/referencing');
+    expect(find(grid(), /referencing says nothing/)).toBeUndefined();
+  });
+
+  it('makes an error of x or y beyond degrees', () => {
+    expect(find(grid({ x: [200, 300, 400] }), /beyond what degrees/)).toMatchObject({ severity: 'error', path: '/domain/axes' });
+  });
+
+  it('notes what the picture guesses, each at its first value', () => {
+    const field = counting(200).map(i => 290 + i * 0.01);
+    expect(find(grid({ x: counting(202), y: [60], values: [...field, -1e34, -1e34] }), /fill value/)).toMatchObject({ severity: 'info', path: '/ranges/temperature/values/200' });
+    expect(find(grid({ x: counting(200), y: [60], values: [...counting(100, 1), ...new Array(100).fill(-32)], unit: 'dBZ', id: 'reflectivity' }), /may be a code/))
+      .toMatchObject({ severity: 'info', path: '/ranges/reflectivity/values/100' });
+    expect(find(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 2, null, null, 5, 6] }), /all null/)).toMatchObject({ severity: 'info', path: '/ranges/temperature/values/2' });
+    expect(find(grid({ x: [1, 2], y: [60], values: [null, 'a'] }), /no numbers/)).toMatchObject({ message: 'temperature has no numbers: 1 value is text', severity: 'info', path: '/ranges/temperature/values/1' });
+    const uneven = counting(200).map(i => 24 + i * 0.0057 + (i > 100 ? 0.002 : 0));
+    expect(find(grid({ x: uneven, y: [61, 60], values: new Array(400).fill(1) }), /steps aren't even/)).toMatchObject({ severity: 'info', path: '/domain/axes/x/values' });
+  });
+
+  it('points a unit that looks wrong at its unit, where the parameter is defined', () => {
+    expect(find(grid(), /look like °C/)).toMatchObject({ severity: 'info', path: '/parameters/temperature/unit' });
+    expect(find(inCollection(grid()), /look like °C/)?.path).toBe('/coverages/0/parameters/temperature/unit');
+    const shared = grid() as Json;
+    const { parameters } = shared;
+    delete shared.parameters;
+    expect(find(inCollection(shared, { parameters }), /look like °C/)?.path).toBe('/parameters/temperature/unit');
+  });
+
+  it('points a grid’s values in a collection at its coverage', () => {
+    const cells = drawn(inCollection(grid({ x: [1, 2], y: [60], values: [1, 2] })));
+    expect(cells.parameters[0].rawAt(1, 0).pointer).toBe('/coverages/0/ranges/temperature/values/1');
+    expect(drawn(triangles([1, 2])).parameters[0].rawAt(0, 0).pointer).toBe('/coverages/0/ranges/CAPE/values/0');
+  });
+
+  it('makes an issue of points that repeat a place, at the first that does, and notes points that make a grid', () => {
+    const repeated = pointCollection([pointCoverage(24, 60, { values: { temperature: [1] } }), pointCoverage(25, 61, { values: { temperature: [2] } }), pointCoverage(24, 60, { values: { temperature: [3] } })]);
+    expect(find(repeated, /repeat/)).toMatchObject({ severity: 'warning', path: '/coverages/2' });
+    // The first that repeats, of several
+    const twice = pointCollection([...[1, 2, 3].map(value => pointCoverage(24, 60, { values: { temperature: [value] } })), pointCoverage(25, 61, { values: { temperature: [4] } })]);
+    expect(find(twice, /repeat/)?.path).toBe('/coverages/1');
+    // On a composite axis, at the point
+    const points = JSON.parse(JSON.stringify(polytopeArea));
+    points.coverages[0].domain.axes.composite.values[3] = points.coverages[0].domain.axes.composite.values[1];
+    expect(find(points, /repeat/)?.path).toBe('/coverages/0/domain/axes/composite/values/3');
+    expect(find(pointLattice([1, 2], [60, 61]), /line up as a 2 × 2 grid/)).toEqual(expect.objectContaining({ severity: 'info' }));
+    expect(find(pointLattice([1, 2], [60, 61]), /line up/)?.path).toBeUndefined();
+  });
+
+  it('notes a composite axis read by name, citing the rule the schema finds broken', () => {
+    expect(find(polytopeArea, /read by name/)).toMatchObject({ severity: 'info', path: '/coverages/0/domain/axes/composite/coordinates', rule: COVJSON.multiPoint });
+    const series = JSON.parse(JSON.stringify(polytopeArea));
+    series.domainType = 'MultiPointSeries';
+    expect(find(series, /read by name/)?.rule).toEqual(COVJSON.multiPointSeries);
+    series.domainType = 'Custom';
+    expect(find(series, /read by name/)?.rule).toBeUndefined();
+  });
+
+  it('knows where a composite axis’s parameter is defined, for a finding about its unit', () => {
+    expect(drawn(polytopeArea).parameters[0].definedAt).toBe('/parameters/2t');
+    const own = JSON.parse(JSON.stringify(polytopeArea));
+    own.coverages[0].parameters = own.parameters;
+    delete own.parameters;
+    expect(drawn(own).parameters[0].definedAt).toBe('/coverages/0/parameters/2t');
+  });
+
+  it('leaves how it’s drawn to the picture, and nulls to the summary', () => {
+    const said = (json: unknown) => findingsOf(json).map(finding => finding.message).join('\n');
+    expect(said(triangles([1, 2]))).not.toMatch(/Sent as/);
+    expect(said(grid({ x: [1, 2], y: [60], values: [1, 2] }))).not.toMatch(/only for show/);
+    expect(said(grid({ x: [1, 2], y: [60], values: [null, null] }))).not.toMatch(/are null/);
+    expect(said(pointCollection([pointCoverage(24, 60, { values: { temperature: [1] } }), pointCoverage(25, 62, { values: { temperature: [2] } })]))).not.toMatch(/drawn at its own place/);
   });
 });

@@ -397,6 +397,11 @@ describe('longestReadout', () => {
     expect(longestReadout(cells, cells.parameters[0]).pointer).toBe('/ranges/temperature/values/2999');
   });
 
+  it('keeps room for a grid’s path under its coverage, in a collection', () => {
+    const cells = drawn({ type: 'CoverageCollection', coverages: [grid({ x: counting(150), y: counting(20).map(i => 60 - i), values: new Array(3000).fill(1) })] });
+    expect(longestReadout(cells, cells.parameters[0]).pointer).toBe('/coverages/0/ranges/temperature/values/2999');
+  });
+
   it('keeps room for every point, as coverages', () => {
     const cells = drawn(pointCollection(counting(120).map(i => pointCoverage(20 + i * 0.0137, 50 + (i * 7) % 11 * 0.21, { values: { a: [i] } }))));
     const g = cells.geometry;

@@ -5,10 +5,16 @@ import ResponsePane from './ResponsePane';
 import type { ResponseDetails } from './api/sendRequest';
 import { RequestUrlContext } from './contexts/RequestUrlContext';
 import type { Collection } from './types/api';
+import { INITIAL_CHOICES, ResponseCellsContext, createHoverStore, pictureOf } from './contexts/responseCells';
+import { readCells } from './coverage/coverageCells';
+import { grid } from './coverage/cellsTestData';
 
 // The open collection, which each test can set
 const open = vi.hoisted(() => ({ collection: null as Partial<Collection> | null }));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedCollection: open.collection }) }));
+// The picture, where a test gives the pane one, asks which panes are open, and can open a request
+vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ isMobile: false, isOpen: { map: true }, showPane: () => {} }) }));
+vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
 // A summary that fails on a response marked for it, as a reader with a bug would
 vi.mock('./coverage/coverageSummary', async importOriginal => {
   const actual = await importOriginal<typeof import('./coverage/coverageSummary')>();
@@ -241,6 +247,24 @@ describe('ResponsePane', () => {
     const html = render({ data: 'hello world', contentType: 'text/plain', response: OK });
     expect(html).toContain('aria-label="Copy the response"');
     expect(html).not.toContain('role="toolbar"');
+  });
+
+  it('counts what the picture found on the Checks tab, with what the summary found', () => {
+    // x and y with no coordinate system: an error only the picture finds
+    const json = grid({ referencing: [] });
+    const props = { data: JSON.stringify(json), contentType: 'application/prs.coverage+json', response: OK };
+    const reading = readCells(json);
+    const withPicture = renderToStaticMarkup(
+      <ResponseCellsContext.Provider value={{
+        reading, picture: pictureOf(reading, INITIAL_CHOICES), choices: INITIAL_CHOICES, choose: () => {}, lit: null, hover: createHoverStore(), url: URL_, openInRaw: () => {}, drawAnyway: () => {},
+      }}>
+        <RequestUrlContext.Provider value={{ requestUrl: URL_, isEdited: false, editUrl: () => {}, discardEdits: () => {}, pinUrl: () => {}, unpinUrl: () => {} }}>
+          <ResponsePane open onClose={() => {}} url={URL_} isLoading={false} error={null} {...props} />
+        </RequestUrlContext.Provider>
+      </ResponseCellsContext.Provider>,
+    );
+    expect(withPicture).toContain('>1 error<');
+    expect(render(props)).not.toContain('>1 error<');
   });
 
   it('counts the findings on the Checks tab', () => {

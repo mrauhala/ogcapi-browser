@@ -3,6 +3,8 @@ import { formatValue } from './coverageSummary';
 import { rangeMisfit } from './rangeFit';
 import { parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime } from '../utils/utcTime';
+import { COVJSON } from '../standards';
+import type { Rule, ValidationError } from '../types/api';
 
 // A parsed CoverageJSON response in, what can be drawn out, or why not. It reads the response, and assumes nothing
 // about it: real APIs answer an area or a cube with a Grid, with thousands of Point coverages, with stations or with
@@ -67,6 +69,8 @@ interface ParameterBase {
   id: string;
   label: string | null;
   unit: string;
+  // Where the response defines it, for a finding about its unit
+  definedAt: string;
 }
 
 export interface CellParameter extends ParameterBase {
@@ -88,6 +92,13 @@ export interface CellNote {
   level: 'info' | 'warn' | 'error';
   text: string;
   parameter?: string;
+  // How Checks counts it, if it's about the response and not about how it's drawn: a guess or a fact is a note, what
+  // the server should fix an issue, and a rule broken an error
+  checks?: 'info' | 'warning' | 'error';
+  // Where it is: a path, or else its parameter's first such value, by its place in the data, or its unit
+  path?: string;
+  at?: number | 'unit';
+  rule?: Rule;
 }
 
 export interface DrawableCells {
@@ -305,10 +316,28 @@ export function stepsOfSlice(dims: StepAxis[], slice: number): Record<string, nu
 
 // ---- Parameters -------------------------------------------------------------------------------
 
-function parameterBase(id: string, definition: unknown): ParameterBase {
+function parameterBase(id: string, definition: unknown, definedAt = `/parameters/${pointerPart(id)}`): ParameterBase {
   const def = isObj(definition) ? definition : undefined;
   const label = parameterLabel(id, def as Parameters<typeof parameterLabel>[1]);
-  return { id, label: label === id ? null : label, unit: parameterUnit(def as Parameters<typeof parameterUnit>[0]) };
+  return { id, label: label === id ? null : label, unit: parameterUnit(def as Parameters<typeof parameterUnit>[0]), definedAt };
+}
+
+// A coverage's own definition of a parameter comes before the collection's
+const definedIn = (coverage: Json, id: string, prefix: string) =>
+  `${isObj(coverage.parameters) && coverage.parameters[id] !== undefined ? prefix : ''}/parameters/${pointerPart(id)}`;
+
+// What the picture found that Checks should say too, each with where it is in the response
+export function cellFindings(reading: CellsReading | null): ValidationError[] {
+  if (!reading?.drawable) return [];
+  return reading.notes.flatMap(note => {
+    if (!note.checks) return [];
+    const parameter = note.parameter === undefined ? undefined : reading.parameters.find(each => each.id === note.parameter);
+    const path = note.path
+      ?? (parameter && note.at === 'unit' ? `${parameter.definedAt}/unit`
+        : parameter && typeof note.at === 'number' ? parameter.rawAt(note.at % reading.cells, Math.floor(note.at / reading.cells)).pointer ?? undefined
+          : undefined);
+    return [{ message: note.text, severity: note.checks, ...(path ? { path } : {}), ...(note.rule ? { rule: note.rule } : {}) }];
+  });
 }
 
 // ---- Reading a response ---------------------------------------------------------------------
@@ -361,7 +390,7 @@ function readCellsOf(json: unknown, { drawAnyway = false }: { drawAnyway?: boole
     const looksPolygon = Array.isArray(values[0]) && Array.isArray(values[0][0]) && Array.isArray(values[0][0][0]);
     if (coverages.length === 1 && looksPolygon) {
       // One polygon is one place, which a chart says better. DWD answers a position with one
-      return values.length > 1 ? readPolygons(first, type, paramDefs, topRef) : cant(`A ${type || 'polygon'} of one polygon is one place`, 'other-view');
+      return values.length > 1 ? readPolygons(first, type, paramDefs, topRef, isCollection ? '/coverages/0' : '') : cant(`A ${type || 'polygon'} of one polygon is one place`, 'other-view');
     }
     const coordinates = axes.composite.coordinates;
     const roles = compositeRoles(coordinates);
@@ -381,7 +410,7 @@ function readCellsOf(json: unknown, { drawAnyway = false }: { drawAnyway?: boole
   if (lengthOf(first, 'x') === 1 && lengthOf(first, 'y') === 1 && Object.keys(axes).some(name => name !== 'x' && name !== 'y' && lengthOf(first, name) > 1)) {
     return cant('One cell with steps of its own is one place', 'other-view');
   }
-  return readGrid(first, type, paramDefs, topRef);
+  return readGrid(first, type, paramDefs, topRef, isCollection ? '/coverages/0' : '');
 }
 
 // A count's word for what isn't a number: "5 text", "2 not a number"
@@ -424,7 +453,7 @@ function stepAxes(names: string[], axes: Json) {
   return { dims, fixed };
 }
 
-function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown): CellsReading {
+function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown, prefix: string): CellsReading {
   const domain = coverage.domain as Json;
   const axes = isObj(domain.axes) ? domain.axes : {};
   const xRaw = axisValues(axes.x);
@@ -474,7 +503,7 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
   const definitions = { ...paramDefs, ...(isObj(coverage.parameters) ? coverage.parameters : {}) };
   const ranges = isObj(coverage.ranges) ? coverage.ranges : {};
   for (const [id, range] of Object.entries(ranges)) {
-    const base = parameterBase(id, definitions[id]);
+    const base = parameterBase(id, definitions[id], definedIn(coverage, id, prefix));
     const problem = rangeProblem(id, range, axisLen);
     if (problem) {
       broken.push({ ...base, problem });
@@ -508,7 +537,7 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
         const row = Math.floor(cell / nx);
         const col = cell - row * nx;
         const index = offsets[slice] + rowOffsets[row] + colOffsets[col];
-        return { value: values[index], index, pointer: `/ranges/${pointerPart(id)}/values/${index}`, coverage: null };
+        return { value: values[index], index, pointer: `${prefix}/ranges/${pointerPart(id)}/values/${index}`, coverage: null };
       },
       indicesAt(cell, slice) {
         const row = Math.floor(cell / nx);
@@ -520,7 +549,8 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
     }, slices, cells));
   }
   if (parameters.length === 0) return cant(broken[0]?.problem ?? 'The coverage has no ranges');
-  const notes = gridNotes({ xv, yv, crs, nx: nx === 1 && xBounds ? 2 : nx, ny: ny === 1 && yBounds ? 2 : ny, parameters, broken });
+  const referencingAt = domain.referencing !== undefined ? `${prefix}/domain/referencing` : topRef !== undefined ? '/referencing' : `${prefix}/domain`;
+  const notes = gridNotes({ xv, yv, crs, nx: nx === 1 && xBounds ? 2 : nx, ny: ny === 1 && yBounds ? 2 : ny, parameters, broken, prefix, referencingAt });
   return {
     drawable: true, source: 'grid', viewLabel: 'Grid', domainType: type || 'Coverage', geometry, dims, fixed, slices, cells, crs,
     parameters, broken, notes, order: { firstX: ascendingX ? 'left' : 'right', firstY: northFirst ? 'top' : 'bottom' },
@@ -534,6 +564,8 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
 interface PointsSent {
   // "66 points on a composite axis"
   as: string;
+  // Where the kth point is in the response
+  placeAt: (k: number) => string;
   each: 'coverage' | 'point';
   xName: string;
   zName: string;
@@ -626,14 +658,17 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
   });
   const taken = new Uint8Array(slices * cells);
   let repeats = 0;
-  for (const spots of placed) {
+  let firstRepeat = -1;
+  placed.forEach((spots, k) => {
     let again = false;
     for (let i = 0; i < spots.length; i += 2) {
       if (taken[spots[i]]) again = true;
       taken[spots[i]] = 1;
     }
-    if (again) repeats++;
-  }
+    if (!again) return;
+    repeats++;
+    if (firstRepeat < 0) firstRepeat = k;
+  });
 
   const rangeOf = (coverage: Json, id: string) => {
     const range = isObj(coverage.ranges) ? coverage.ranges[id] : null;
@@ -701,13 +736,13 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
   const each = sent?.each ?? 'coverage';
   if (isLattice) {
     const missing = product - n;
-    notes.push({ level: 'info', text: `Sent as ${sentAs}, which line up as a ${count(distinctX.length)} × ${count(distinctY.length)} grid${missing ? `, with ${plural(missing, 'position')} missing` : ''}. A Grid domain would say that in a fraction of the size` });
+    notes.push({ level: 'info', checks: 'info', text: `Sent as ${sentAs}, which line up as a ${count(distinctX.length)} × ${count(distinctY.length)} grid${missing ? `, with ${plural(missing, 'position')} missing` : ''}. A Grid domain would say that in a fraction of the size` });
   } else {
     const { spacing } = geometry as SamplesGeometry;
     notes.push({ level: 'info', text: `Sent as ${sentAs}, with ${count(distinctX.length)} different x and ${count(distinctY.length)} different y, so they aren't on lon/lat lines. Each is drawn at its own place${spacing.regular && spacing.km !== null ? `, about ${formatValue(spacing.km)} km apart` : ''}` });
   }
   if (repeats > 0) {
-    notes.push({ level: 'warn', text: `${count(repeats)} of the ${count(coverages.length)} ${each}s repeat${repeats === 1 ? 's' : ''} a place and time another one has. A number is drawn over a null${disagree ? `, and ${plural(disagree, 'pair')} of numbers disagree, where the first is drawn` : ', and no two numbers disagree'}` });
+    notes.push({ level: 'warn', checks: 'warning', path: sent ? sent.placeAt(firstRepeat) : `/coverages/${firstRepeat}`, text: `${count(repeats)} of the ${count(coverages.length)} ${each}s repeat${repeats === 1 ? 's' : ''} a place and time another one has. A number is drawn over a null${disagree ? `, and ${plural(disagree, 'pair')} of numbers disagree, where the first is drawn` : ', and no two numbers disagree'}` });
   }
   parameters.forEach(parameter => addParameterNotes(notes, parameter));
   return {
@@ -766,7 +801,7 @@ function spacingOf(xs: number[], ys: number[]): SamplesGeometry['spacing'] {
 const isPosition = (position: unknown) => Array.isArray(position) && position.length >= 2 && isNum(position[0]) && isNum(position[1]);
 const isPolygon = (polygon: unknown) => Array.isArray(polygon) && polygon.length > 0 && polygon.every(ring => Array.isArray(ring) && ring.every(isPosition));
 
-function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unknown): CellsReading {
+function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unknown, prefix: string): CellsReading {
   const domain = coverage.domain as Json;
   const axes = domain.axes as Json;
   // A list of more than one, as readCellsOf sends only those
@@ -803,7 +838,7 @@ function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unk
   const broken: BrokenParameter[] = [];
   const definitions = { ...paramDefs, ...(isObj(coverage.parameters) ? coverage.parameters : {}) };
   for (const [id, range] of Object.entries(isObj(coverage.ranges) ? coverage.ranges : {})) {
-    const base = parameterBase(id, definitions[id]);
+    const base = parameterBase(id, definitions[id], definedIn(coverage, id, prefix));
     const problem = rangeProblem(id, range, axisLen);
     if (problem) {
       broken.push({ ...base, problem });
@@ -826,7 +861,7 @@ function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unk
       data,
       rawAt(cell, slice) {
         const index = sliceAt[slice] + cell * stride;
-        return { value: values[index], index, pointer: `/ranges/${pointerPart(id)}/values/${index}`, coverage: null };
+        return { value: values[index], index, pointer: `${prefix}/ranges/${pointerPart(id)}/values/${index}`, coverage: null };
       },
       indicesAt(cell, slice) {
         const steps = stepsOfSlice(dims, slice);
@@ -893,7 +928,13 @@ function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: u
   const notes: CellNote[] = [];
   if (roles.byName) {
     const third = roles.z >= 0 ? `, and ${names[roles.z]}${names[roles.z] === 'z' ? '' : ', the third,'} as z` : '';
-    notes.push({ level: 'warn', text: `The composite axis's coordinates are ${names.join(', ')}, not x, y${roles.z >= 0 ? ', z' : ''}. They're read by name: ${names[roles.x]} as x, ${names[roles.y]} as y${third}` });
+    // CoverageJSON: a MultiPoint's composite axis MUST have the coordinates x, y or x, y, z, in that order. The schema
+    // makes that its error, so this only says how they're read, and where the rule is
+    notes.push({
+      level: 'warn', text: `The composite axis's coordinates are ${names.join(', ')}, not x, y${roles.z >= 0 ? ', z' : ''}. They're read by name: ${names[roles.x]} as x, ${names[roles.y]} as y${third}`,
+      checks: 'info', path: `${prefix}/domain/axes/composite/coordinates`,
+      ...(/^multipoint(series)?$/i.test(type) ? { rule: /series$/i.test(type) ? COVJSON.multiPointSeries : COVJSON.multiPoint } : {}),
+    });
   }
 
   const definitions = { ...paramDefs, ...(isObj(coverage.parameters) ? coverage.parameters : {}) };
@@ -937,7 +978,7 @@ function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: u
     };
   });
   const reading = readPoints(asPoints, type, definitions, domain.referencing ?? topRef, {
-    as: `${plural(n, 'point')} on a composite axis`, each: 'point', xName: names[roles.x], zName: roles.z >= 0 ? names[roles.z] : 'z',
+    as: `${plural(n, 'point')} on a composite axis`, placeAt: k => `${prefix}/domain/axes/composite/values/${k}`, each: 'point', xName: names[roles.x], zName: roles.z >= 0 ? names[roles.z] : 'z',
   });
   if (!reading.drawable) return reading;
   return {
@@ -948,6 +989,7 @@ function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: u
       const at = indices.get(parameter.id)!;
       return {
         ...parameter,
+        definedAt: definedIn(coverage, parameter.id, prefix),
         rawAt(cell, slice) {
           const raw = parameter.rawAt(cell, slice);
           if (raw.coverage === null || raw.index === null) return raw;
@@ -973,23 +1015,37 @@ const FILL_LIKE = new Set([-9999, 9999, -999, 999, -99, -32768, 32767, 65535, -9
 const looksLikeFill = (value: number) => Math.abs(value) >= 1e20 || FILL_LIKE.has(Math.round(value * 10) / 10);
 
 function addParameterNotes(notes: CellNote[], parameter: CellParameter) {
-  const { id, unit, figures } = parameter;
+  const { id, unit, figures, data } = parameter;
+  const cells = data.length / figures.perSlice.length;
+  // Where the first value that passes is, in the data, which cellFindings makes a path of
+  const first = (test: (value: number, at: number) => boolean) => {
+    for (let at = 0; at < data.length; at++) if (test(data[at], at)) return at;
+    return undefined;
+  };
   if (figures.numbers === 0) {
-    notes.push({ level: 'warn', text: figures.notNumbers ? `${id} has no numbers: ${notNumbersText(figures.notNumbers, parameter.notNumbersAreText)}` : `All ${plural(figures.total, 'value')} of ${id} are null`, parameter: id });
+    // All null is the summary's to say, from the response's own values
+    if (figures.notNumbers) notes.push({ level: 'warn', text: `${id} has no numbers: ${notNumbersText(figures.notNumbers, parameter.notNumbersAreText)}`, parameter: id, checks: 'info', at: first((_, at) => parameter.notNumberAt?.[at] === 1) });
+    else notes.push({ level: 'warn', text: `All ${plural(figures.total, 'value')} of ${id} are null`, parameter: id });
     return;
   }
   for (const apart of figures.apart) {
     const value = apart.min === apart.max ? formatValue(apart.min) : `${formatValue(apart.min)} to ${formatValue(apart.max)}`;
     const fill = looksLikeFill(apart.min) ? ', which looks like a fill value' : '';
-    notes.push({ level: 'warn', text: `${id} has ${plural(apart.count, 'value')} of ${value}${fill}, far from the rest (${formatValue(figures.lo!)} to ${formatValue(figures.hi!)})`, parameter: id });
+    notes.push({
+      level: 'warn', text: `${id} has ${plural(apart.count, 'value')} of ${value}${fill}, far from the rest (${formatValue(figures.lo!)} to ${formatValue(figures.hi!)})`, parameter: id,
+      checks: 'info', at: first(each => each >= apart.min && each <= apart.max),
+    });
   }
   const { spike } = figures;
   if (spike && !figures.apart.some(apart => apart.min === spike.value && apart.max === spike.value) && figures.numbers >= 50) {
     const guess = spike.value !== 0 ? '. It may be a code and not a measurement' : '';
-    notes.push({ level: guess ? 'warn' : 'info', text: `${formatValue(spike.value)}${unit ? ` ${unit}` : ''} is in ${count(spike.count)} of ${count(figures.total)} ${id} values (${shareText(spike.count / figures.total)}), at the ${spike.atLow ? 'bottom' : 'top'} of the range${guess}`, parameter: id });
+    notes.push({ level: guess ? 'warn' : 'info', checks: 'info', at: first(each => each === spike.value), text: `${formatValue(spike.value)}${unit ? ` ${unit}` : ''} is in ${count(spike.count)} of ${count(figures.total)} ${id} values (${shareText(spike.count / figures.total)}), at the ${spike.atLow ? 'bottom' : 'top'} of the range${guess}`, parameter: id });
   }
   const empty = figures.perSlice.filter(slice => slice.numbers === 0).length;
-  if (empty > 0 && empty < figures.perSlice.length) notes.push({ level: 'warn', text: `${plural(empty, 'step')} of ${id} ${empty === 1 ? 'is' : 'are'} all null`, parameter: id });
+  if (empty > 0 && empty < figures.perSlice.length) {
+    const firstEmpty = figures.perSlice.findIndex(slice => slice.numbers === 0);
+    notes.push({ level: 'warn', text: `${plural(empty, 'step')} of ${id} ${empty === 1 ? 'is' : 'are'} all null`, parameter: id, checks: 'info', at: firstEmpty * cells });
+  }
   addUnitNote(notes, parameter);
 }
 
@@ -999,7 +1055,7 @@ function addUnitNote(notes: CellNote[], { id, label, unit, figures }: CellParame
   const symbol = unit.toLowerCase();
   const lo = figures.lo!;
   const hi = figures.hi!;
-  const say = (text: string) => notes.push({ level: 'warn', text, parameter: id });
+  const say = (text: string) => notes.push({ level: 'warn', text, parameter: id, checks: 'info', at: 'unit' });
   const values = `its values (${formatValue(lo)} to ${formatValue(hi)})`;
   if (/temperature|(^|[^a-z])t2m|tmp/.test(name)) {
     if (/°?c$|deg_?c|celsius/.test(symbol) && lo > 150) say(`${id} says ${unit}, and ${values} look like kelvin`);
@@ -1012,18 +1068,19 @@ function addUnitNote(notes: CellNote[], { id, label, unit, figures }: CellParame
   if (/humidity/.test(name) && symbol === '%' && hi <= 1.5) say(`${id} says %, and ${values} look like a fraction`);
 }
 
-function gridNotes({ xv, yv, crs, nx, ny, parameters, broken }: {
-  xv: number[]; yv: number[]; crs: CellCrs; nx: number; ny: number; parameters: CellParameter[]; broken: BrokenParameter[];
+function gridNotes({ xv, yv, crs, nx, ny, parameters, broken, prefix, referencingAt }: {
+  xv: number[]; yv: number[]; crs: CellCrs; nx: number; ny: number; parameters: CellParameter[]; broken: BrokenParameter[]; prefix: string; referencingAt: string;
 }): CellNote[] {
   const notes: CellNote[] = broken.map(({ problem }) => ({ level: 'error', text: problem }));
-  if (!crs.declared) notes.push({ level: 'warn', text: `referencing says nothing about x and y. They're taken as ${crs.geographic ? 'lon/lat, since they fit' : 'plain numbers, since they don’t fit lon/lat'}` });
-  if (crs.declared && crs.geographic && !crs.inDegrees) notes.push({ level: 'error', text: 'x or y is beyond what degrees can be, so they may be swapped or not in this CRS' });
+  // CoverageJSON: x, y and z MUST be referenced by a spatial coordinate reference system
+  if (!crs.declared) notes.push({ level: 'warn', text: `referencing says nothing about x and y. They're taken as ${crs.geographic ? 'lon/lat, since they fit' : 'plain numbers, since they don’t fit lon/lat'}`, checks: 'error', path: referencingAt, rule: COVJSON.domainTypes });
+  if (crs.declared && crs.geographic && !crs.inDegrees) notes.push({ level: 'error', text: 'x or y is beyond what degrees can be, so they may be swapped or not in this CRS', checks: 'error', path: `${prefix}/domain/axes` });
   if (crs.geographic) {
     for (const [name, values] of [['x', xv], ['y', yv]] as const) {
       const drift = axisDrift(values);
       // Floating point noise is far below this. A true lon/lat grid has even steps
       if (drift && drift.spread > 0.0005 && drift.strayCells > 0.02) {
-        notes.push({ level: 'warn', text: `The ${name} steps aren't even: ${formatValue(drift.min)}° to ${formatValue(drift.max)}°. A lon/lat grid has even steps, so this may be a projected grid labelled lon/lat, where one axis can't place every row. Check a cell with position` });
+        notes.push({ level: 'warn', text: `The ${name} steps aren't even: ${formatValue(drift.min)}° to ${formatValue(drift.max)}°. A lon/lat grid has even steps, so this may be a projected grid labelled lon/lat, where one axis can't place every row. Check a cell with position`, checks: 'info', path: `${prefix}/domain/axes/${name}/values` });
         break;
       }
     }

@@ -3,6 +3,7 @@ import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { axisFault, axisValues, pointerPart } from './coverageCells';
 import type { ParameterFigures } from './coverageSummary';
+import { COVJSON } from '../standards';
 import {
   askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isNumber, readVerticalAxis, vrsAbout, withUnit,
   type LevelScale, type VerticalAxis,
@@ -388,7 +389,8 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   const outside = interval ? levels.filter(value => value < interval[0] || value > interval[1]) : [];
   if (interval && outside.length) against('warning', `z ${listed(outside)} ${one(outside.length, 'is', 'are')} outside the collection's extent, ${interval[0]} to ${interval[1]}`, zValues);
   else if (interval) against('pass', `Every level is inside the collection's extent, ${interval[0]} to ${interval[1]}`, zValues);
-  if (outOfOrder) note(`Levels aren't in order: ${outOfOrder.values.join(', ')}`, outOfOrder.path);
+  // CoverageJSON: an axis's values MUST be ordered monotonically
+  if (outOfOrder) notes.push({ message: `Levels aren't in order: ${outOfOrder.values.join(', ')}`, path: outOfOrder.path, severity: 'error', rule: COVJSON.domain });
   if (mostLevels !== levels.length) note(`The levels change from time to time: ${levels.length} in all, at most ${mostLevels} at a time`, `${zPath}/values`);
   if (duplicates) issue(`${plural(duplicates, 'value')} sent again for a level already sent. The first is used`, `${prefix(0)}/ranges`);
 

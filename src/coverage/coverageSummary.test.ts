@@ -7,6 +7,8 @@ import mcGfs from './__fixtures__/profiles/mc-gfs-1t-all.json';
 import mcIfsZunsorted from './__fixtures__/profiles/mc-ifs-zunsorted.json';
 import mcIfs1tAll from './__fixtures__/profiles/mc-ifs-1t-all.json';
 import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
+import { COVJSON } from '../standards';
+import { counting } from './cellsTestData';
 
 const hours = (from: number, count: number, step = 1) => Array.from({ length: count }, (_, i) => new Date(Date.UTC(2026, 10, 5, from + i * step)).toISOString().replace('.000', ''));
 const axes = (t: string[], x = 10, y = 50) => ({ x: { values: [x] }, y: { values: [y] }, t: { values: t } });
@@ -607,5 +609,50 @@ describe('summarizeCoverage: every range against its domain', () => {
     const axes = { x: { values: [1, 2] }, y: { values: [2] } };
     const tiled = { type: 'TiledNdArray', axisNames: ['x'], shape: [3], tileSets: [] };
     expect(errors({ type: 'Coverage', domain: { axes }, ranges: { a: tiled } })).toEqual([{ message: 'a: shape says x has 3 values, and the axis has 2', path: '/ranges/a/shape', severity: 'error' }]);
+  });
+});
+
+describe('summarizeCoverage: axes in order', () => {
+  const gridOf = (axes: Record<string, unknown>) => ({
+    type: 'Coverage',
+    domain: { domainType: 'Grid', axes, referencing: [{ coordinates: ['x', 'y'], system: { type: 'GeographicCRS' } }] },
+    parameters: { a: { type: 'Parameter', unit: { symbol: 'K' } } },
+    ranges: { a: { type: 'NdArray', dataType: 'float', axisNames: ['y', 'x'], shape: [2, 3], values: [1, 2, 3, 4, 5, 6] } },
+  });
+  const orderOf = (json: unknown) => summarizeCoverage(json)!.notes.filter(note => /isn't in order/.test(note.message));
+
+  it('makes an error of x or y that turns back, at the value where it does, with its rule', () => {
+    expect(orderOf(gridOf({ x: { values: [1, 3, 2] }, y: { values: [60, 61] } }))).toEqual([
+      { message: "x isn't in order: 2 comes after 3", path: '/domain/axes/x/values/2', severity: 'error', rule: COVJSON.domain },
+    ]);
+    expect(orderOf(gridOf({ x: { values: [1, 2, 3] }, y: { values: [61, 60, 62] } }))[0]).toMatchObject({ message: "y isn't in order: 62 comes after 60", path: '/domain/axes/y/values/2' });
+  });
+
+  it('takes an axis that falls all the way, or stays a step, as in order', () => {
+    expect(orderOf(gridOf({ x: { values: [3, 2, 1] }, y: { values: [61, 60] } }))).toEqual([]);
+    expect(orderOf(gridOf({ x: { values: [1, 1, 2] }, y: { values: [60, 60] } }))).toEqual([]);
+    expect(orderOf(gridOf({ x: { values: [1, 2, 2] }, y: { values: [60, 61] } }))).toEqual([]);
+    // Names have no order this checks
+    expect(orderOf(gridOf({ x: { start: 3, stop: 1, num: 3 }, y: { values: ['a', 'c', 'b'] } }))).toEqual([]);
+  });
+
+  it('checks z where no profile says it', () => {
+    // Too many places for a profile
+    const wide = { ...gridOf({ x: { values: counting(40) }, y: { values: [60, 61] }, z: { values: [500, 1000, 850] } }) };
+    wide.ranges.a = { type: 'NdArray', dataType: 'float', axisNames: ['z', 'y', 'x'], shape: [3, 2, 40], values: counting(240) } as typeof wide.ranges.a;
+    expect(summarizeCoverage(wide)!.profile).toBeNull();
+    expect(orderOf(wide)[0]).toMatchObject({ message: "z isn't in order: 850 comes after 1000", path: '/domain/axes/z/values/2' });
+    // A profile says it in its own words: "Levels aren't in order"
+    expect(orderOf(mcIfsZunsorted)).toEqual([]);
+    expect(summarizeCoverage(mcIfsZunsorted)!.notes.filter(note => /aren't in order/.test(note.message))).toHaveLength(1);
+  });
+
+  it('says the same in many coverages once, with how many more', () => {
+    const turned = (x: number[]) => ({ type: 'Coverage', domain: { domainType: 'Grid', axes: { x: { values: x }, y: { values: [60, 61] } } }, ranges: {} });
+    // Each counted once, however often it turns
+    const collection = { type: 'CoverageCollection', coverages: [turned([1, 2, 3]), turned([1, 3, 2]), turned([1, 3, 2, 1]), turned([5, 7, 6])] };
+    expect(orderOf(collection)).toEqual([
+      { message: "x isn't in order: 2 comes after 3, and likewise in 2 more coverages", path: '/coverages/1/domain/axes/x/values/2', severity: 'error', rule: COVJSON.domain },
+    ]);
   });
 });

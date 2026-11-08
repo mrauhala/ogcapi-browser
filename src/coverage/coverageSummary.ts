@@ -5,6 +5,7 @@ import { axisFault } from './coverageCells';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
 import { rangeMisfit } from './rangeFit';
 import { timeFindings, type TimeContext } from './timeChecks';
+import { COVJSON } from '../standards';
 
 // What a CoverageJSON response holds, worked out once for all the ways of showing it: its shape in
 // a sentence, each parameter's figures, its time series if it has them, and what's worth a note.
@@ -209,6 +210,37 @@ function describeAxes(coverage: Json): string[] {
   return parts;
 }
 
+// CoverageJSON: an axis's values MUST be ordered monotonically, rising or falling. The same in many coverages is said
+// once, with how many more
+function axisOrderFindings(coverages: Json[], prefix: (coverage: number) => string, names: string[]): ValidationError[] {
+  const found = new Map<string, { message: string; path: string; more: number }>();
+  coverages.forEach((coverage, c) => {
+    const axes = axesOf(coverage);
+    for (const name of names) {
+      const values = (axes[name] as Axis | undefined)?.values;
+      if (!Array.isArray(values) || !values.every(value => typeof value === 'number')) continue;
+      const numbers = values as number[];
+      // The way it runs, from its first step that goes anywhere
+      let way = 0;
+      for (let i = 1; i < numbers.length; i++) {
+        const step = Math.sign(numbers[i] - numbers[i - 1]);
+        if (way === 0) {
+          way = step;
+          continue;
+        }
+        if (step === 0 || step === way) continue;
+        const earlier = found.get(name);
+        if (earlier) earlier.more++;
+        else found.set(name, { message: `${name} isn't in order: ${numbers[i]} comes after ${numbers[i - 1]}`, path: `${prefix(c)}/domain/axes/${name}/values/${i}`, more: 0 });
+        break;
+      }
+    }
+  });
+  return [...found.values()].map(({ message, path, more }) => ({
+    message: more ? `${message}, and likewise in ${plural(more, 'more coverage')}` : message, path, severity: 'error', rule: COVJSON.domain,
+  }));
+}
+
 function domainTypeOf(coverages: Json[], json: Json): string {
   const types = new Set(coverages.map(coverage => (isObject(coverage.domain) ? coverage.domain.domainType : undefined) ?? json.domainType));
   if (types.size > 1) return 'Mixed';
@@ -387,6 +419,8 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
 
   notes.push(...rangeFindings(coverages, prefix));
   notes.push(...timeFindings(json, coverages, prefix, context));
+  // t is the time checks', and z the profile's where there is one
+  notes.push(...axisOrderFindings(coverages, prefix, profile ? ['x', 'y'] : ['x', 'y', 'z']));
   if (profile) notes.push(...profile.notes);
   for (const { id, nulls, count, firstNull } of tallies.values()) {
     if (!firstNull || profile) continue;

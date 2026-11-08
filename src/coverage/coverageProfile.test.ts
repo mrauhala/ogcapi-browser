@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { coverageToProfile, MOST_LOCATIONS, type CoverageProfile, type ProfileContext } from './coverageProfile';
+import { COVJSON } from '../standards';
 import extents from './__fixtures__/profiles/vertical-extents.json';
 import mcIfs1tAll from './__fixtures__/profiles/mc-ifs-1t-all.json';
 import fmiEcmwf1tAll from './__fixtures__/profiles/fmi-ecmwf-1t-all.json';
@@ -420,7 +421,8 @@ describe('coverageToProfile: what kind of finding each is', () => {
   it('makes an issue of a level asked for and not sent, and notes levels out of order', () => {
     expect(kinds(profileOf(mcIfsAsked777, MC))["z=777 was asked for, and isn't in the response"]).toBe('warning');
     expect(messages(profileOf(mcIfsAsked777, MC)).some(message => /^Every level asked for/.test(message))).toBe(false);
-    expect(kinds(profileOf(mcIfsZunsorted, MC))["Levels aren't in order: 500, 1000, 850"]).toBe('info');
+    expect(kinds(profileOf(mcIfsZunsorted, MC))["Levels aren't in order: 500, 1000, 850"]).toBe('error');
+    expect(profileOf(mcIfsZunsorted, MC).notes.find(note => note.message.startsWith("Levels aren't in order"))?.rule).toEqual(COVJSON.domain);
   });
 
   it('makes an issue of z with nothing to go on, of a direction against the usual, and of a value sent twice', () => {
