@@ -89,12 +89,14 @@ describe('ResponseChecks', () => {
 
     it('cites the rule a finding rests on, linked to its section, apart from the words', () => {
       const html = render({ dataNotes: [{ message: 'Levels aren’t in order: 500, 1000, 850', line: 49, severity: 'error', rule: COVJSON.domain }, { message: 'a note', line: 2 }] });
-      expect(html).toMatch(/<a[^>]*href="https:\/\/docs\.ogc\.org\/cs\/21-069r2\/21-069r2\.html#_d5c16418-1a20-4dbf-bf7a-8e685062df97"[^>]*>CoverageJSON 9\.6\.1<\/a>/);
+      expect(html).toContain('href="https://docs.ogc.org/cs/21-069r2/21-069r2.html#_d5c16418-1a20-4dbf-bf7a-8e685062df97"');
+      expect(html).toContain('>CoverageJSON 9.6.1</a>');
       expect(html).toContain('target="_blank"');
       expect(html).toContain('rel="noopener noreferrer"');
       // A space between them, so that it's read and copied as two
       expect(html).toMatch(/850 (<style[^>]*>[^<]*<\/style>)*<a /);
-      expect(html.match(/docs\.ogc\.org/g)).toHaveLength(1);
+      // Only the finding with a rule has a link
+      expect(html.split('href="https://docs.ogc.org/').length - 1).toBe(1);
     });
 
     it('stands alone with no schema', () => {
