@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
 import type { ValidationError } from './types/api';
-import { COVJSON, EDR12 } from './standards';
+import { COVJSON, EDR11, EDR12 } from './standards';
 
 const render = (props: Partial<ComponentProps<typeof ResponseChecks>>) => renderToStaticMarkup(
   <ResponseChecks schemaName={null} findings={[]} lines={[]} onGoToLine={() => {}} {...props} />,
@@ -72,6 +72,44 @@ describe('ResponseChecks', () => {
   it('says what the worst finding was on the schema\'s line', () => {
     const html = render({ schemaName: 'CoverageJSON 1.0', findings: [{ ...FINDING, severity: 'info' }, { ...FINDING, severity: 'info' }] });
     expect(html).toContain('CoverageJSON 1.0 schema: 2 notes');
+  });
+
+  describe('the format beyond its schema', () => {
+    const PRS = { message: 'Content-Type is application/prs.coverage+json', severity: 'info' as const, rule: [COVJSON.mediaType, EDR11.covjsonContent] };
+    const STANDALONE = { message: 'The profile says every domain and range is in the response, but t’s range is at a URL', severity: 'error' as const, line: 40, rule: COVJSON.mediaType };
+
+    it('says the media type under the format, after the schema line and before the schema’s findings, with its rules', () => {
+      const html = render({ schemaName: 'CoverageJSON 1.0', findings: [FINDING], formatNotes: [PRS] });
+      const at = (text: string) => html.indexOf(text);
+      expect(at('schema: 1 error')).toBeGreaterThan(at('>The format<'));
+      expect(at('Content-Type is application/prs.coverage+json')).toBeGreaterThan(at('schema: 1 error'));
+      expect(at('>/ranges/t</span>')).toBeGreaterThan(at('Content-Type is'));
+      expect(html).toContain('>CoverageJSON 10</a>');
+      expect(html).toContain('href="https://docs.ogc.org/is/19-086r6/19-086r6.html#req_covjson_content"');
+      expect(html).toContain('>EDR 1.1 /req/covjson/content</a>');
+      // Not under the data, which has nothing here
+      expect(html).not.toContain('>The data<');
+    });
+
+    it('puts the worst first, and gives each its line', () => {
+      const html = render({ schemaName: 'CoverageJSON 1.0', formatNotes: [PRS, STANDALONE] });
+      expect(html.indexOf('The profile says')).toBeLessThan(html.indexOf('Content-Type is'));
+      expect(html).toMatch(/<button[^>]*>line 40<\/button>/);
+      expect(html.split('<button').length - 1).toBe(1);
+    });
+
+    it('is the format’s heading alone, and not "No schema applies"', () => {
+      const html = render({ formatNotes: [PRS] });
+      expect(html).toContain('>The format<');
+      expect(html).toContain('Content-Type is application/prs.coverage+json');
+      expect(html).not.toContain('No schema applies');
+      expect(html).not.toContain('schema:');
+    });
+
+    it('puts the data’s heading apart from it', () => {
+      const html = render({ formatNotes: [PRS], dataNotes: [{ message: 'a note', line: 2 }] });
+      expect(html.indexOf('>The data<')).toBeGreaterThan(html.indexOf('Content-Type is'));
+    });
   });
 
   describe('the data', () => {

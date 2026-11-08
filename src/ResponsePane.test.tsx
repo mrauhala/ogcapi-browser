@@ -148,6 +148,20 @@ describe('ResponsePane', () => {
     expect(html).toContain('>3 notes<');
   });
 
+  // CoverageJSON 10: application/vnd.cov+json
+  it('counts the media type of a CoverageJSON response sent just now', () => {
+    const sent = { data: COVERAGE, response: OK, validationSchemaName: 'CoverageJSON 1.0' };
+    expect(render({ ...sent, contentType: 'application/json' })).toContain('>1 issue<');
+    // A pass counts for nothing
+    expect(render({ ...sent, contentType: 'application/vnd.cov+json' })).toContain('>2 notes<');
+    expect(render({ ...sent, contentType: 'application/prs.coverage+json' })).toContain('>3 notes<');
+  });
+
+  it('leaves the media type be where the response isn’t checked as CoverageJSON', () => {
+    expect(render({ data: COVERAGE, response: OK, contentType: 'application/json' })).toContain('>2 notes<');
+    expect(render({ data: COVERAGE, response: OK, contentType: 'application/json', validationSchemaName: 'EDR Locations FeatureCollection' })).toContain('>2 notes<');
+  });
+
   it('takes the levels that should be there from the open collection, only if the request is for it', () => {
     // 1000 and 850 hPa came back, and the collection also has 925
     const profile = JSON.stringify({

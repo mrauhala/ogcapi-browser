@@ -84,6 +84,8 @@ interface ResponseChecksProps {
   // Each line with findings on it, in the order Raw steps through them
   lines: { line: number; errors: ValidationError[] }[];
   onGoToLine: (lineIndex: number) => void;
+  // What's worth knowing about the format beyond its schema, such as its media type, each where it is in Raw
+  formatNotes?: DataNote[];
   // What's worth knowing about the data itself, each where it is in Raw: what's wrong with it, and what's right
   dataNotes?: DataNote[];
   onGoToNote?: (line: number) => void;
@@ -92,8 +94,8 @@ interface ResponseChecksProps {
 }
 
 // What was checked about this response, and what that found
-export default function ResponseChecks({ schemaName, checkedAs, findings, lines, onGoToLine, dataNotes = [], onGoToNote, collectionId }: ResponseChecksProps) {
-  if (!schemaName && findings.length === 0 && dataNotes.length === 0) {
+export default function ResponseChecks({ schemaName, checkedAs, findings, lines, onGoToLine, formatNotes = [], dataNotes = [], onGoToNote, collectionId }: ResponseChecksProps) {
+  if (!schemaName && findings.length === 0 && formatNotes.length === 0 && dataNotes.length === 0) {
     return (
       <Typography variant="body2" sx={{ color: 'text.secondary', p: 2 }}>
         No schema applies to this response, so there was nothing to check it against.
@@ -102,9 +104,24 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
   }
 
   const count = checksCount(findings);
+  const hasFormat = Boolean(schemaName) || findings.length > 0 || formatNotes.length > 0;
+  const noteItem = (note: DataNote) => (
+    <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
+      {note.message}
+      {/* The rules it rests on, where a standard has one to cite: two where standards differ */}
+      {(note.rule ? [note.rule].flat() : []).map(rule => (
+        <Fragment key={rule.url}>
+          {' '}
+          <Link href={rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+            {rule.label}
+          </Link>
+        </Fragment>
+      ))}
+    </Item>
+  );
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 2 }}>
-      {(schemaName || findings.length > 0) && <Heading>The format</Heading>}
+      {hasFormat && <Heading>The format</Heading>}
       <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
         {schemaName && (
           <Item icon={count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
@@ -116,6 +133,7 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
             )}
           </Item>
         )}
+        {worstFirst(formatNotes).map(noteItem)}
         {findings.slice(0, MOST_SHOWN).map((finding, index) => {
           const lineIndex = lines.findIndex(entry => entry.errors.includes(finding));
           return (
@@ -141,22 +159,9 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
         { heading: `Against the collection${collectionId ? `: ${collectionId}` : ''}`, notes: worstFirst(dataNotes.filter(note => note.source === 'collection')) },
       ].filter(section => section.notes.length > 0).map((section, index) => (
         <Box key={section.heading}>
-          <Heading sx={{ mt: index > 0 || schemaName || findings.length > 0 ? 2 : 0 }}>{section.heading}</Heading>
+          <Heading sx={{ mt: index > 0 || hasFormat ? 2 : 0 }}>{section.heading}</Heading>
           <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
-            {section.notes.map(note => (
-              <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
-                {note.message}
-                {/* The rules it rests on, where a standard has one to cite: two where standards differ */}
-                {(note.rule ? [note.rule].flat() : []).map(rule => (
-                  <Fragment key={rule.url}>
-                    {' '}
-                    <Link href={rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-                      {rule.label}
-                    </Link>
-                  </Fragment>
-                ))}
-              </Item>
-            ))}
+            {section.notes.map(noteItem)}
           </Box>
         </Box>
       ))}

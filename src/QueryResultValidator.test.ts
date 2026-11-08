@@ -59,6 +59,17 @@ describe('QueryResultValidator: CoverageJSON', () => {
     expect(result.errors?.some(error => /must match/.test(error.message))).toBe(false);
   });
 
+  // CoverageJSON 10: application/vnd.cov+json. A wrong type isn't passed over as no schema applying
+  it('knows CoverageJSON by its media type, whatever its type says', async () => {
+    const wrong = JSON.stringify({ type: 'coverage', domain: { type: 'Domain', axes: {} }, ranges: {} });
+    // A media type is the same in any case (RFC 9110)
+    for (const contentType of ['application/vnd.cov+json', 'Application/VND.Cov+JSON', 'application/vnd.cov+json; profile="https://covjson.org/def/core#standalone"', 'application/prs.coverage+json']) {
+      const result = await QueryResultValidator.getInstance().validate(wrong, contentType);
+      expect(result, contentType).toMatchObject({ matched: true, schemaName: 'CoverageJSON 1.0', valid: false });
+    }
+    expect(await QueryResultValidator.getInstance().validate(wrong, 'application/json')).toMatchObject({ matched: false });
+  });
+
   it('says what isn’t JSON', async () => {
     expect(await QueryResultValidator.getInstance().validate('{"type":"Coverage",', 'application/prs.coverage+json')).toMatchObject({ valid: false, errors: [{ message: 'Failed to parse response as JSON' }] });
   });

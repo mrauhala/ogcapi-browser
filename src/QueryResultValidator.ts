@@ -29,8 +29,8 @@ export interface QueryResultValidation {
 const COVJSON_TYPES = ['Coverage', 'CoverageCollection', 'Domain', 'NdArray', 'TiledNdArray'];
 
 function detectCoverageJson(data: string, contentType: string): boolean {
-  // Content-type check
-  if (contentType.includes('covjson') || contentType.includes('coverage+json')) {
+  // Content-type check: CoverageJSON's own, application/vnd.cov+json, or the one it had before OGC, application/prs.coverage+json
+  if (/covjson|coverage\+json|cov\+json/i.test(contentType)) {
     return true;
   }
   // Structural check – look for CoverageJSON type values in the raw string
