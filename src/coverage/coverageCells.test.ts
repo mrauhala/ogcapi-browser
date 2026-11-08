@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { axisDrift, axisValues, compositeRoles, invMercY, mercY, readCells, stepsOfSlice, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
+import { describe, expect, it, vi } from 'vitest';
+import { axisDrift, axisFault, axisValues, compositeRoles, invMercY, mercY, readCells, stepsOfSlice, MOST_AXIS_VALUES, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
 import dmiPosition from '../utils/__fixtures__/dmi-position-grid.json';
 import dwdArea from '../utils/__fixtures__/dwd-area-multipolygonseries.json';
@@ -73,6 +73,88 @@ describe('axisValues', () => {
     expect(axisValues(null)).toBeNull();
     expect(axisValues({ start: 0, stop: 1 })).toBeNull();
     expect(axisValues({ start: 0, stop: 1, num: 0 })).toBeNull();
+  });
+
+  it('takes num only as a whole number of values, up to the most an axis can have', () => {
+    expect(axisValues({ start: 0, stop: 1, num: 2.5 })).toBeNull();
+    expect(axisValues({ start: 0, stop: 1, num: -2 })).toBeNull();
+    expect(axisValues({ start: 0, stop: 1, num: '3' })).toBeNull();
+    expect(axisValues({ start: 0, stop: 1, num: 2 ** 32 })).toBeNull();
+    expect(axisValues({ start: 0, stop: 1, num: MOST_AXIS_VALUES + 1 })).toBeNull();
+    expect(axisValues({ start: '0', stop: 1, num: 2 })).toBeNull();
+  });
+});
+
+describe('axisFault', () => {
+  it('says why an axis of start, stop and num has no values', () => {
+    expect(axisFault('x', { start: 1, stop: 3, num: 2.5 })).toBe("x has num: 2.5, which isn't a whole number of values");
+    expect(axisFault('x', { start: 1, stop: 3, num: 0 })).toBe("x has num: 0, which isn't a whole number of values");
+    expect(axisFault('y', { start: 1, stop: 3, num: '3' })).toBe('y has num: "3", which isn\'t a whole number of values');
+    expect(axisFault('x', { start: 1, stop: 3, num: 2 ** 32 })).toBe('x has num: 4294967296, more values than a response could hold');
+    expect(axisFault('x', { start: 1, stop: 3, num: MOST_AXIS_VALUES })).toBeNull();
+    expect(axisFault('x', { start: 1, num: 3 })).toBe("x has num, but its start and stop aren't both numbers");
+  });
+
+  it('has nothing to say of an axis that has its values, or no num', () => {
+    expect(axisFault('x', { values: [1, 2], num: 2.5 })).toBeNull();
+    expect(axisFault('x', { start: 1, stop: 3 })).toBeNull();
+    expect(axisFault('x', { start: 1, stop: 3, num: 3 })).toBeNull();
+    expect(axisFault('x', null)).toBeNull();
+  });
+});
+
+describe('readCells: a wrong response never breaks it', () => {
+  const withX = (x: unknown) => {
+    const json = grid({ x: [1, 2, 3], y: [20, 21] }) as Json;
+    json.domain.axes.x = x;
+    return json;
+  };
+
+  it('says what’s wrong with num, rather than make an array it can’t', () => {
+    expect(refused(withX({ start: 1, stop: 3, num: 2.5 })).reason).toBe("x has num: 2.5, which isn't a whole number of values");
+    expect(refused(withX({ start: 1, stop: 3, num: 2 ** 32 })).reason).toBe('x has num: 4294967296, more values than a response could hold');
+    // With no num, it's still an axis missing
+    expect(refused(withX({ start: 1, stop: 3 })).reason).toBe('The domain has no x axis to draw along: its axes are x, y');
+    const withY = grid({ x: [1, 2, 3], y: [20, 21] }) as Json;
+    withY.domain.axes.y = { start: 20, stop: 21, num: -1 };
+    expect(refused(withY).reason).toBe("y has num: -1, which isn't a whole number of values");
+  });
+
+  it('draws no polygons where one isn’t rings of positions, and says which', () => {
+    const empty = triangles([5, 6]) as Json;
+    empty.coverages[0].domain.axes.composite.values[1] = [];
+    expect(refused(empty).reason).toBe("Polygon 2 isn't a list of rings of [x, y] positions");
+    const numbers = triangles([5, 6]) as Json;
+    numbers.coverages[0].domain.axes.composite.values[1] = [[11, 50, 12]];
+    expect(refused(numbers).reason).toBe("Polygon 2 isn't a list of rings of [x, y] positions");
+    const words = triangles([5, 6]) as Json;
+    words.coverages[0].domain.axes.composite.values[1] = [[['a', 50], [12, 50], [11.5, 51]]];
+    expect(refused(words).reason).toBe("Polygon 2 isn't a list of rings of [x, y] positions");
+    const firstWrong = triangles([5, 6]) as Json;
+    firstWrong.coverages[0].domain.axes.composite.values[0] = [[[11, 50], [12, 'b'], [11.5, 51]]];
+    expect(refused(firstWrong).reason).toBe("Polygon 1 isn't a list of rings of [x, y] positions");
+    const ringNumber = triangles([5, 6]) as Json;
+    ringNumber.coverages[0].domain.axes.composite.values[1] = [5];
+    expect(refused(ringNumber).reason).toBe("Polygon 2 isn't a list of rings of [x, y] positions");
+    // A hole is a ring too
+    const hole = triangles([5, 6]) as Json;
+    hole.coverages[0].domain.axes.composite.values[1].push([[11.2, 50.2], [11.4, 50.2], [11.3, 50.4], [11.2, 50.2]]);
+    expect(drawn(hole).cells).toBe(2);
+  });
+
+  it('takes a unit or a label that isn’t text as none', () => {
+    const json = grid() as Json;
+    json.parameters.temperature = { type: 'Parameter', unit: { symbol: { value: 1, type: 'x' }, label: { en: 5 } }, observedProperty: { label: { en: 123 } } };
+    const cells = drawn(json);
+    expect(cells.parameters[0]).toMatchObject({ id: 'temperature', unit: '' });
+  });
+
+  it('says a response couldn’t be read, rather than throw, where its reader fails', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const throwing = new Proxy({}, { get: () => { throw new Error('boom'); } });
+    expect(readCells(throwing)).toEqual({ drawable: false, reason: "This response couldn't be read: boom", why: 'cant' });
+    expect(error).toHaveBeenCalledWith('readCells failed on this response:', expect.any(Error));
+    error.mockRestore();
   });
 });
 

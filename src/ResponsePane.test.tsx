@@ -9,6 +9,17 @@ import type { Collection } from './types/api';
 // The open collection, which each test can set
 const open = vi.hoisted(() => ({ collection: null as Partial<Collection> | null }));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedCollection: open.collection }) }));
+// A summary that fails on a response marked for it, as a reader with a bug would
+vi.mock('./coverage/coverageSummary', async importOriginal => {
+  const actual = await importOriginal<typeof import('./coverage/coverageSummary')>();
+  return {
+    ...actual,
+    summarizeCoverage: (json: unknown, context?: Parameters<typeof actual.summarizeCoverage>[1]) => {
+      if ((json as { fails?: boolean } | null)?.fails) throw new Error('Invalid array length');
+      return actual.summarizeCoverage(json, context);
+    },
+  };
+});
 
 const URL_ = 'https://api.example.com/collections/a/position?coords=POINT(1%202)';
 const OK: ResponseDetails = {
@@ -198,6 +209,18 @@ describe('ResponsePane', () => {
     const html = render({ data: JSON.stringify(nulls), contentType: 'application/prs.coverage+json' });
     expect(html).toContain('role="list"');
     expect(html).not.toContain('flagged');
+  });
+
+  it('says so when it fails to read a response, and shows the response as it came, rather than crash', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const html = render({ data: JSON.stringify({ ...JSON.parse(COVERAGE), fails: true }), contentType: 'application/prs.coverage+json', response: OK });
+    expect(selectedTab(html)).toBe('Data');
+    expect(html).toContain('The app failed to read this response as coverage data (Invalid array length). That&#x27;s a fault in the app, not a finding about the response. Raw has it as it came.');
+    expect(html).toContain('>Show Raw<');
+    expect(html).not.toContain('Transforming');
+    expect(error).toHaveBeenCalledWith('summarizeCoverage failed on this response:', expect.any(Error));
+    error.mockRestore();
+    expect(render({ data: COVERAGE, contentType: 'application/prs.coverage+json', response: OK })).not.toContain('The app failed to read');
   });
 
   it('opens on the figures of what is not a time series', () => {

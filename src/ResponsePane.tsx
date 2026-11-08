@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import { useTheme } from '@mui/material/styles';
@@ -102,12 +103,21 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   const checkedAgainst = selectedCollection && url && collectionIdOf(url) === String(selectedCollection.id) ? selectedCollection : null;
   const vertical = checkedAgainst?.extent?.vertical;
   const temporal = checkedAgainst?.extent?.temporal;
-  const coverage = useMemo(() => summarizeCoverage(parsedJson, { url, vertical, temporal }), [parsedJson, url, vertical, temporal]);
+  // A reader that throws is a fault in the app: the pane says so, and shows the response as data, rather than crash
+  const { coverage, coverageFault } = useMemo(() => {
+    try {
+      return { coverage: summarizeCoverage(parsedJson, { url, vertical, temporal }), coverageFault: null };
+    } catch (error) {
+      console.error('summarizeCoverage failed on this response:', error);
+      return { coverage: null, coverageFault: error instanceof Error ? error.message : String(error) };
+    }
+  }, [parsedJson, url, vertical, temporal]);
   const [coverageView, setCoverageView] = useState<CoverageView | null>(null);
 
   const tabs = responseTabs({
     hasResponse: response !== null && !isLoading,
-    hasDataView: coverage !== null || isIWXXM() || imageUrl !== null,
+    // A response the app failed to read opens there too, on the line that says so
+    hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null,
     hasImage: imageUrl !== null,
   });
   const tab = shownTab(preferredTab, tabs);
@@ -316,7 +326,13 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           <CoverageData summary={coverage} view={coverageView} onViewChange={setCoverageView} />
         )}
 
-        {!isLoading && tab === 'data' && data && !coverage && (
+        {!isLoading && tab === 'data' && coverageFault && (
+          <Alert severity="error" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" onClick={showRaw}>Show Raw</Button>}>
+            The app failed to read this response as coverage data ({coverageFault}). That's a fault in the app, not a finding about the response. Raw has it as it came.
+          </Alert>
+        )}
+
+        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && (
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', backgroundColor: 'background.paper' }}>
             {transformedHtml && !isTransforming ? (
               <iframe

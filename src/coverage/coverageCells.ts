@@ -127,16 +127,30 @@ const cant = (reason: string, why: UndrawableCells['why'] = 'cant'): UndrawableC
 
 // ---- Axes ----------------------------------------------------------------------------------
 
+// The most values an axis given by start, stop and num is taken to have. More is no axis: no response can fill it
+export const MOST_AXIS_VALUES = 10_000_000;
+const countable = (num: unknown): num is number => isNum(num) && Number.isInteger(num) && num >= 1 && num <= MOST_AXIS_VALUES;
+
 export function axisValues(axis: unknown): unknown[] | null {
   if (!isObj(axis)) return null;
   if (Array.isArray(axis.values)) return axis.values;
   const { start, stop, num } = axis;
-  if (isNum(start) && isNum(stop) && isNum(num) && num >= 1) {
+  if (isNum(start) && isNum(stop) && countable(num)) {
     const out = new Array<number>(num);
     const step = num > 1 ? (stop - start) / (num - 1) : 0;
     for (let i = 0; i < num; i++) out[i] = start + i * step;
     return out;
   }
+  return null;
+}
+
+// Why an axis given by start, stop and num has no values, if that's how it's given
+export function axisFault(name: string, axis: unknown): string | null {
+  if (!isObj(axis) || Array.isArray(axis.values) || !('num' in axis)) return null;
+  const { start, stop, num } = axis;
+  if (!isNum(num) || !Number.isInteger(num) || num < 1) return `${name} has num: ${JSON.stringify(num)}, which isn't a whole number of values`;
+  if (num > MOST_AXIS_VALUES) return `${name} has num: ${num}, more values than a response could hold`;
+  if (!isNum(start) || !isNum(stop)) return `${name} has num, but its start and stop aren't both numbers`;
   return null;
 }
 
@@ -311,7 +325,18 @@ function valuesIn(coverages: Json[]): number {
   return total;
 }
 
-export function readCells(json: unknown, { drawAnyway = false }: { drawAnyway?: boolean } = {}): CellsReading {
+// A response's cells, or why they can't be drawn. A reader that throws is a bug in it, and is said to be: a response
+// mustn't take the page down with it, since this runs above every error boundary
+export function readCells(json: unknown, options: { drawAnyway?: boolean } = {}): CellsReading {
+  try {
+    return readCellsOf(json, options);
+  } catch (error) {
+    console.error('readCells failed on this response:', error);
+    return cant(`This response couldn't be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function readCellsOf(json: unknown, { drawAnyway = false }: { drawAnyway?: boolean }): CellsReading {
   if (!isObj(json)) return cant('This response is not a coverage', 'other-view');
   const isCollection = json.type === 'CoverageCollection' && Array.isArray(json.coverages);
   if (json.type !== 'Coverage' && !isCollection) return cant('This response is not a coverage', 'other-view');
@@ -373,7 +398,10 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
   const axes = isObj(domain.axes) ? domain.axes : {};
   const xRaw = axisValues(axes.x);
   const yRaw = axisValues(axes.y);
-  if (!xRaw || !yRaw) return cant(`The domain has no ${!xRaw ? 'x' : 'y'} axis to draw along: its axes are ${Object.keys(axes).join(', ') || 'missing'}`);
+  if (!xRaw || !yRaw) {
+    const name = !xRaw ? 'x' : 'y';
+    return cant(axisFault(name, axes[name]) ?? `The domain has no ${name} axis to draw along: its axes are ${Object.keys(axes).join(', ') || 'missing'}`);
+  }
   if (!xRaw.every(isNum) || !yRaw.every(isNum)) return cant(`The ${!xRaw.every(isNum) ? 'x' : 'y'} axis has values that aren't numbers`);
   const xv = xRaw as number[];
   const yv = yRaw as number[];
@@ -715,10 +743,19 @@ function spacingOf(xs: number[], ys: number[]): SamplesGeometry['spacing'] {
 
 // ---- Polygons: DWD's ICON triangles, each cell as it really is -----------------------------------
 
+// A polygon as CoverageJSON has it: rings, the first its outline, each a list of positions of at least x and y
+const isPosition = (position: unknown) => Array.isArray(position) && position.length >= 2 && isNum(position[0]) && isNum(position[1]);
+const isPolygon = (polygon: unknown) => Array.isArray(polygon) && polygon.length > 0 && polygon.every(ring => Array.isArray(ring) && ring.every(isPosition));
+
 function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unknown): CellsReading {
   const domain = coverage.domain as Json;
   const axes = domain.axes as Json;
-  const polygons = (axes.composite as Json).values as number[][][][];
+  // A list of more than one, as readCellsOf sends only those
+  const raw = (axes.composite as Json).values as unknown[];
+  // Half a picture would hide the fault, so one that can't be read draws none
+  const bad = raw.findIndex(polygon => !isPolygon(polygon));
+  if (bad !== -1) return cant(`Polygon ${bad + 1} isn't a list of rings of [x, y] positions`);
+  const polygons = raw as number[][][][];
   const n = polygons.length;
   const axisLen: Record<string, number> = { composite: n };
   for (const name of Object.keys(axes)) if (name !== 'composite') axisLen[name] = axisValues(axes[name])?.length ?? 0;

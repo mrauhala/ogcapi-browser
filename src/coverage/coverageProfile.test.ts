@@ -305,6 +305,11 @@ describe('coverageToProfile: whatever shape it comes in', () => {
     expect(profileOf(repeated).parameters[0].label).toBeNull();
   });
 
+  it('reads no levels from a z whose num isn’t a whole number, rather than break', () => {
+    const json = { type: 'Coverage', domain: { axes: { x: { values: [1] }, y: { values: [2] }, z: { start: 1, stop: 3, num: 2.5 } } }, ranges: { a: { axisNames: ['z'], shape: [3], values: [1, 2, 3] } } };
+    expect(read(json, undefined, 'x')).toMatchObject({ profile: null, message: "z has num: 2.5, which isn't a whole number of values." });
+  });
+
   it('has no cell where there’s no place, time or level', () => {
     const profile = profileOf(mcIfsZunsorted, MC);
     expect(profile.cellOf('t', 1, 0, 0)).toBeNull();

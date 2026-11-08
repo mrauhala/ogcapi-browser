@@ -95,6 +95,12 @@ describe('summarizeCoverage', () => {
     expect(summarizeCoverage(point([1], ['2026-11-05T12:00:00+00:00']))!.series!.times).toEqual([Date.UTC(2026, 10, 5, 12)]);
   });
 
+  it('reads a label or unit that isn’t text as none, rather than break', () => {
+    // As a response can send them, whatever the types say
+    const json = { ...point([1, 2]), parameters: { t2m: { ...temperature, unit: { symbol: { value: 1 } }, observedProperty: { label: { en: 123 } } } } };
+    expect(summarizeCoverage(json)!.parameters[0]).toMatchObject({ id: 't2m', label: null, unit: '' });
+  });
+
   it('has no second name when it would only repeat the id', () => {
     const json = point([1, 2]);
     json.parameters.t2m = { ...temperature, observedProperty: { label: { en: 't2m' } } };

@@ -1,7 +1,7 @@
 import type { ValidationError, Vertical } from '../types/api';
 import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime, utcMoment } from '../utils/utcTime';
-import { axisValues, pointerPart } from './coverageCells';
+import { axisFault, axisValues, pointerPart } from './coverageCells';
 import type { ParameterFigures } from './coverageSummary';
 import {
   askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isNumber, readVerticalAxis, vrsAbout, withUnit,
@@ -113,6 +113,9 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
     const composite = isObject(axes.composite) ? axes.composite : null;
     const z = axisValues(axes.z);
     if (z && !z.every(isNumber)) return none('zNotNumbers', "Its z values aren't numbers.");
+    // A z that's there, given by a num it can't be
+    const zFault = axisFault('z', axes.z);
+    if (zFault) return none('zNotNumbers', `${zFault}.`);
     if (z?.length) anyZ = true;
     if (composite) {
       for (const tuple of tuplesOf(composite)) {

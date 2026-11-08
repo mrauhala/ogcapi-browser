@@ -86,6 +86,23 @@ describe('parameterLabel', () => {
   });
 });
 
+describe('text where text should be', () => {
+  it('takes a unit that isn’t text as none', () => {
+    expect(parameterUnit({ unit: { symbol: 5 } })).toBe('');
+    expect(parameterUnit({ unit: { symbol: { value: 1, type: 'x' } } })).toBe('');
+    expect(parameterUnit({ unit: { symbol: null } })).toBe('');
+    expect(parameterUnit({ unit: { label: { en: 5 } } })).toBe('');
+    expect(parameterUnit({ unit: { label: { fi: 5 } } })).toBe('');
+    expect(parameterUnit({ unit: { symbol: { value: 7 }, label: { en: 'kelvin' } } })).toBe('kelvin');
+  });
+
+  it('takes a label that isn’t text as none, and goes on to the next', () => {
+    expect(parameterLabel('t', { observedProperty: { label: { en: 123 } } })).toBe('t');
+    expect(parameterLabel('t', { observedProperty: { label: { en: 123, fi: 'Lämpötila' } } })).toBe('Lämpötila');
+    expect(parameterLabel('t', { observedProperty: { label: { en: { text: 'x' } } }, description: { en: 'Temperature' } })).toBe('Temperature');
+  });
+});
+
 describe('distinctLabel', () => {
   it('keeps a label that says more than the id', () => {
     expect(distinctLabel('t', 'Temperature')).toBe('Temperature');

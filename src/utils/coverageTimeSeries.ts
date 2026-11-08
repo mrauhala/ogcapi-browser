@@ -47,13 +47,17 @@ export function coverageParameters<P>(
   return { ...collectionParameters, ...coverage.parameters };
 }
 
-type I18nText = { en?: string; fi?: string };
+type I18nText = { en?: unknown; fi?: unknown };
+
+// Text, or nothing: a response can send anything where text should be, a number, an object or null
+const text = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 
 // A parameter's unit as text, or '' if it has none. A symbol may be text or { value, type }, and
 // UCUM's "1" means no unit at all, which beside a value only reads as a mistake.
-export function parameterUnit(parameter?: { unit?: { symbol?: string | { value?: string }; label?: I18nText } }): string {
+export function parameterUnit(parameter?: { unit?: { symbol?: unknown; label?: I18nText } }): string {
   const symbol = parameter?.unit?.symbol;
-  const unit = (typeof symbol === 'string' ? symbol : symbol?.value) ?? parameter?.unit?.label?.en ?? parameter?.unit?.label?.fi ?? '';
+  const fromSymbol = text(symbol) ?? (symbol !== null && typeof symbol === 'object' ? text((symbol as { value?: unknown }).value) : undefined);
+  const unit = fromSymbol ?? text(parameter?.unit?.label?.en) ?? text(parameter?.unit?.label?.fi) ?? '';
   return unit === '1' ? '' : unit;
 }
 
@@ -73,6 +77,6 @@ export function parameterLabel(
     parameter?.observedProperty?.label?.fi,
     parameter?.description?.en,
     parameter?.description?.fi,
-  ];
+  ].map(text);
   return candidates.find(label => label?.trim() && !/^https?:\/\//i.test(label.trim())) ?? id;
 }
