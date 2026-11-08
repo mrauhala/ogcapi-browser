@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.4.0...v0.5.0) (2026-11-08)
+
+
+### Features
+
+* check a CoverageJSON response's media type, and know it by application/vnd.cov+json ([#189](https://github.com/mrauhala/ogcapi-browser/issues/189)) ([3e64147](https://github.com/mrauhala/ogcapi-browser/commit/3e6414729bc9981be8b6f29738d60a34fb7e6c3f))
+* check a response's times against CoverageJSON, the datetime asked for and the collection's extent ([#182](https://github.com/mrauhala/ogcapi-browser/issues/182)) ([c4280e1](https://github.com/mrauhala/ogcapi-browser/commit/c4280e12088b75167b93fbd4eb4315e0e547bdf2))
+* check a response's units, labels and languages, and read a label in any language ([#188](https://github.com/mrauhala/ogcapi-browser/issues/188)) ([0b30f87](https://github.com/mrauhala/ogcapi-browser/commit/0b30f874ae4fd9a69c50901a115f020528c39c08))
+* draw levels at a point as profiles, a panel per parameter, over one time or many ([#183](https://github.com/mrauhala/ogcapi-browser/issues/183)) ([efab740](https://github.com/mrauhala/ogcapi-browser/commit/efab74025fb2a78d1553fe24d8ef996eb846b4d9))
+* read a path response as positions along it, with a sentence, a Table and its checks ([#190](https://github.com/mrauhala/ogcapi-browser/issues/190)) ([8bb70fa](https://github.com/mrauhala/ogcapi-browser/commit/8bb70fa8da42a11fe15b120227d6111f00e1721c))
+* read levels at a point as profiles, and check what a response says of z ([#179](https://github.com/mrauhala/ogcapi-browser/issues/179)) ([f60f5b6](https://github.com/mrauhala/ogcapi-browser/commit/f60f5b6a165c5b7145194c2db55638213530a29a))
+* say in Checks what the picture found, and cite the rule a finding rests on ([#187](https://github.com/mrauhala/ogcapi-browser/issues/187)) ([53dcbc8](https://github.com/mrauhala/ogcapi-browser/commit/53dcbc8c0f7019084ebdc1afc78c326675994214))
+
+
+### Bug Fixes
+
+* a wrong CoverageJSON response never breaks the app ([#185](https://github.com/mrauhala/ogcapi-browser/issues/185)) ([6ded986](https://github.com/mrauhala/ogcapi-browser/commit/6ded986b7524eda7b7f5e09138719855a0f50a02))
+* say only what's true of a coverage, and count text apart from nulls ([#186](https://github.com/mrauhala/ogcapi-browser/issues/186)) ([45f0b50](https://github.com/mrauhala/ogcapi-browser/commit/45f0b5020c0bbfe2ede2f1fa36f3c652ea052b92))
+* take z as EDR 1.1 has it, a list or a repeating interval as well as a level or a range ([#184](https://github.com/mrauhala/ogcapi-browser/issues/184)) ([f4f863a](https://github.com/mrauhala/ogcapi-browser/commit/f4f863af15c1d94f46061ec773211c59e68dd851))
+
 ## [0.4.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.3.0...v0.4.0) (2026-11-07)
 
 
