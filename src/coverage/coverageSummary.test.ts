@@ -312,6 +312,29 @@ describe('summarizeCoverage', () => {
       expect(spans).toEqual(['x 0 to 10', 'y 5 to 0']);
     });
 
+    it('counts no axis whose num can’t be a count, and says it can’t be read', () => {
+      const withAxes = (axes: Record<string, unknown>) => summarizeCoverage({ ...grid, domain: { domainType: 'Grid', axes } })!.shape;
+      expect(withAxes({ x: { start: 0, stop: 10, num: 2.5 }, y: { start: 5, stop: 0, num: 21 } })).toBe("x can't be read, 1 parameter");
+      expect(withAxes({ x: { start: 0, stop: 10, num: 11 }, y: { start: 5, stop: 0, num: 2 ** 32 } })).toBe("y can't be read, 1 parameter");
+      expect(withAxes({ x: { start: 0, stop: 10, num: 0 }, y: { start: 5, stop: 0, num: -1 } })).toBe("x and y can't be read, 1 parameter");
+      expect(withAxes({ x: { start: 0, stop: 10, num: 11 }, y: { start: 5, stop: 0, num: 21 }, z: { start: 1, stop: 3, num: 2.5 } }))
+        .toBe("11 × 21 cells, every 1 × 0.25, z can't be read, 1 parameter");
+      expect(withAxes({ x: { start: 0, stop: 10, num: 11 }, y: { start: 5, stop: 0, num: 21 }, t: { start: 0, stop: 1, num: 1.5 } }))
+        .toBe("11 × 21 cells, every 1 × 0.25, t can't be read, 1 parameter");
+      expect(withAxes({ x: { start: 0, stop: 10, num: 11 }, y: { start: 5, stop: 0, num: 21 }, z: { values: [1, 2, 3] } })).toBe('11 × 21 cells, every 1 × 0.25, 3 levels, 1 parameter');
+    });
+
+    it('gives every axis but time a line, x, y and z first, and lists one of names', () => {
+      const withAxes = (axes: Record<string, unknown>) => summarizeCoverage({ ...grid, domain: { domainType: 'Grid', axes } })!.axes;
+      expect(withAxes({ member: { values: [0, 1] }, x: { values: [1, 2] }, y: { values: [5, 6] }, t: { values: ['2026-11-08T00:00:00Z'] }, z: { values: [850] } }))
+        .toEqual(['x 1 to 2', 'y 5 to 6', 'z 850', 'member 0 to 1']);
+      expect(withAxes({ x: { values: [1, 2] }, y: { values: [5, 6] }, country: { values: ['de', 'gb'] } })).toEqual(['x 1 to 2', 'y 5 to 6', 'country de, gb']);
+      expect(withAxes({ x: { values: [1, 2] }, y: { values: [5, 6] }, country: { values: ['de', 'gb', 'fi', 'se', 'no', 'dk'] } }))
+        .toEqual(['x 1 to 2', 'y 5 to 6', 'country de, gb, fi, se and 2 more']);
+      expect(withAxes({ x: { values: [1, 2] }, y: { values: [5, 6] }, country: { values: ['de', 'gb', 'fi', 'se'] } })).toEqual(['x 1 to 2', 'y 5 to 6', 'country de, gb, fi, se']);
+      expect(withAxes({ x: { values: [1, 2] }, y: { values: [5, 6] }, mixed: { values: ['de', 2] }, composite: { values: [[1, 2]] } })).toEqual(['x 1 to 2', 'y 5 to 6']);
+    });
+
     it('leaves the spacing out when it varies', () => {
       const uneven = { ...grid, domain: { domainType: 'Grid', axes: { x: { values: [0, 1, 3] }, y: { values: [0, 1, 2] } } } };
       expect(summarizeCoverage(uneven)!.shape).toBe('3 × 3 cells, 1 parameter');

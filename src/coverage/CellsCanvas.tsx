@@ -5,6 +5,7 @@ import { useResponseCells } from '../contexts/responseCells';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { sourceCell } from './cellSelection';
 import { lutFor } from './colourScale';
+import { notNumbersText } from './coverageCells';
 import {
   clampView, gridMaps, hitTest, paintAxes, paintGrid, paintGridDetail, paintMarks, paintPolygons, paintSamples, plotLayout, scaleText,
   type PaintedPlot, type PlotView,
@@ -257,7 +258,7 @@ export default function CellsCanvas({ readoutBelow }: { readoutBelow: boolean })
         />
         {nothingToDraw && (
           <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', fontSize: '0.875rem', color: 'text.secondary' }}>
-            All null
+            {picture.figures.notNumbers ? `No numbers: ${notNumbersText(picture.figures.notNumbers, picture.parameter.notNumbersAreText)}` : 'All null'}
           </Box>
         )}
       </Box>

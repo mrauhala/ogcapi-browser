@@ -1,5 +1,5 @@
 import { analyse, type CellFigures } from './cellFigures';
-import { ABOVE_CODE, BELOW_CODE, NULL_CODE, encode, type RampKind } from './colourScale';
+import { ABOVE_CODE, BELOW_CODE, NULL_CODE, TEXT_CODE, encode, type RampKind } from './colourScale';
 import { pointerPart, stepsOfSlice, type CellGeometry, type CellNote, type CellParameter, type DrawableCells, type StepAxis } from './coverageCells';
 import { parseTime, utcMoment } from '../utils/utcTime';
 
@@ -38,7 +38,10 @@ export function figuresInScope(parameter: CellParameter, cells: DrawableCells, s
   }
   const values = new Float32Array(slices.length * cells.cells);
   slices.forEach((slice, i) => values.set(parameter.data.subarray(slice * cells.cells, (slice + 1) * cells.cells), i * cells.cells));
-  const figures = analyse(values, slices.length, cells.cells);
+  const { notNumberAt } = parameter;
+  const marks = notNumberAt ? new Uint8Array(values.length) : null;
+  if (marks && notNumberAt) slices.forEach((slice, i) => marks.set(notNumberAt.subarray(slice * cells.cells, (slice + 1) * cells.cells), i * cells.cells));
+  const figures = analyse(values, slices.length, cells.cells, marks);
   known.set(key, figures);
   return figures;
 }
@@ -75,6 +78,11 @@ export function sourceCell(geometry: CellGeometry, cell: number, flip: Flip): nu
 export function codesFor(parameter: CellParameter, cells: DrawableCells, slice: number, lo: number | null, hi: number | null, flip: Flip): Uint16Array {
   const out = new Uint16Array(cells.cells);
   encode(parameter.data, slice * cells.cells, cells.cells, lo ?? 0, hi ?? 0, out);
+  const { notNumberAt } = parameter;
+  if (notNumberAt) {
+    const from = slice * cells.cells;
+    for (let i = 0; i < out.length; i++) if (notNumberAt[from + i]) out[i] = TEXT_CODE;
+  }
   if (flip === 'none' || cells.geometry.kind !== 'grid') return out;
   const flipped = new Uint16Array(out.length);
   for (let i = 0; i < out.length; i++) flipped[i] = out[sourceCell(cells.geometry, i, flip)];
@@ -84,36 +92,40 @@ export function codesFor(parameter: CellParameter, cells: DrawableCells, slice: 
 export interface Tallies {
   bins: Uint32Array;
   nulls: number;
+  notNumbers: number;
   below: number;
   above: number;
 }
 
-// The legend's bars: a bar per 1/64th of the range, and one each for nulls and what's outside it
+// The legend's bars: a bar per 1/64th of the range, and one each for nulls, what isn't a number and what's outside it
 export function tallies(codes: Uint16Array): Tallies {
   const bins = new Uint32Array(64);
   let nulls = 0;
+  let notNumbers = 0;
   let below = 0;
   let above = 0;
   for (let i = 0; i < codes.length; i++) {
     const code = codes[i];
     if (code < 256) bins[code >> 2]++;
     else if (code === NULL_CODE) nulls++;
+    else if (code === TEXT_CODE) notNumbers++;
     else if (code === BELOW_CODE) below++;
     else if (code === ABOVE_CODE) above++;
   }
-  return { bins, nulls, below, above };
+  return { bins, nulls, notNumbers, below, above };
 }
 
 // How much of each step is there, whatever the other axes are set to, so a bad step shows before you reach it
 export function stepKinds({ dims, slices }: DrawableCells, parameter: CellParameter, dim: StepAxis): ('' | 'some' | 'none')[] {
   const numbers = new Float64Array(dim.values.length);
-  const nulls = new Float64Array(dim.values.length);
+  const gaps = new Float64Array(dim.values.length);
   for (let slice = 0; slice < slices; slice++) {
     const step = stepsOfSlice(dims, slice)[dim.name];
     numbers[step] += parameter.figures.perSlice[slice].numbers;
-    nulls[step] += parameter.figures.perSlice[slice].nulls;
+    // What isn't a number is as much a gap as a null
+    gaps[step] += parameter.figures.perSlice[slice].nulls + parameter.figures.perSlice[slice].notNumbers;
   }
-  return dim.values.map((_, step) => (numbers[step] === 0 ? 'none' : nulls[step] > 0 ? 'some' : ''));
+  return dim.values.map((_, step) => (numbers[step] === 0 ? 'none' : gaps[step] > 0 ? 'some' : ''));
 }
 
 export function stepLabel(cells: DrawableCells, dim: StepAxis, step: number): string {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BELOW_CODE, NULL_CODE, hatchColours, lutFor } from './colourScale';
+import { BELOW_CODE, NULL_CODE, TEXT_CODE, hatchColours, lutFor } from './colourScale';
 import { readCells, type DrawableCells, type GridGeometry } from './coverageCells';
-import { axisToPixels, cellAtPixel, clampView, fullView, gridMaps, hitTest, paintGrid, pixelOf, plotLayout, scaleText, ticks, type PaintedPlot } from './paintCells';
+import {
+  axisToPixels, cellAtPixel, clampView, fullView, gridMaps, hitTest, paintGrid, paintGridDetail, paintPolygons, paintSamples, paintThumb, pixelOf, plotLayout, scaleText, ticks,
+  type CellsPalette, type PaintedPlot,
+} from './paintCells';
 import { grid, pointCollection, pointCoverage, triangles, counting } from './cellsTestData';
 
 const drawn = (json: unknown) => readCells(json) as DrawableCells;
@@ -23,6 +26,22 @@ function fakeContext() {
   };
   return context as typeof context & CanvasRenderingContext2D;
 }
+
+// Any canvas call, kept with the fill colour it was made with
+function recordingContext() {
+  const calls: [string, unknown, ...unknown[]][] = [];
+  const state: Record<string | symbol, unknown> = {};
+  const ctx = new Proxy(state, {
+    get: (target, key) => (key in target ? target[key] : (...args: unknown[]) => { calls.push([String(key), target.fillStyle, ...args]); }),
+    set: (target, key, value) => {
+      target[key] = value;
+      return true;
+    },
+  });
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+const PALETTE: CellsPalette = { mode: 'dark', plot: 'plot', text: 'text', textSecondary: 'secondary', border: 'border', primary: 'primary' };
 
 describe('axisToPixels', () => {
   const evenEdges = (n: number, pixels: number) => Float64Array.from({ length: n + 1 }, (_, i) => (i / n) * pixels);
@@ -94,6 +113,29 @@ describe('painting a grid', () => {
     const map = fakeContext();
     paintGrid(map, 0, 0, 10, 10, g, Uint16Array.from([NULL_CODE]), lut, gridMaps(g, view(g), 10, 10), { scale: 1, mode: 'dark', highlight: null, nullClear: true });
     expect(new Set(new Uint32Array(map.image!.data.buffer))).toEqual(new Set([0]));
+  });
+
+  it('hatches what isn’t a number as it does a null, and lights the two apart', () => {
+    const g = geometry(2, 1);
+    const paint = (highlight: Parameters<typeof paintGrid>[9]['highlight'], nullClear = false) => {
+      const ctx = fakeContext();
+      paintGrid(ctx, 0, 0, 2, 1, g, Uint16Array.from([TEXT_CODE, NULL_CODE]), lut, gridMaps(g, view(g), 2, 1), { scale: 1, mode: 'dark', highlight, nullClear });
+      return [ctx.pixel(0, 0), ctx.pixel(1, 0)].map(pixel => hatchColours('dark').includes(pixel) ? 'hatched' : pixel === 0 ? 'hole' : 'faded');
+    };
+    expect(paint(null)).toEqual(['hatched', 'hatched']);
+    expect(paint({ kind: 'text' })).toEqual(['hatched', 'faded']);
+    expect(paint({ kind: 'null' })).toEqual(['faded', 'hatched']);
+    expect(paint(null, true)).toEqual(['hole', 'hole']);
+  });
+
+  it('writes text in a cell as it was sent, cut short, and null as a word', () => {
+    const g = geometry(3, 1);
+    const { ctx, calls } = recordingContext();
+    const values = ['rain', 'snowstorm', null];
+    paintGridDetail(ctx, { plotX: 0, plotY: 0, plotW: 300, plotH: 100, v: view(g) } as Parameters<typeof paintGridDetail>[1], g, gridMaps(g, view(g), 300, 100),
+      Uint16Array.from([TEXT_CODE, TEXT_CODE, NULL_CODE]), lut, cell => values[cell], 1, PALETTE);
+    const written = calls.filter(([name]) => name === 'fillText');
+    expect(written.map(([, colour, text]) => [text, colour])).toEqual([['"rain"', 'secondary'], ['"snows…', 'secondary'], ['null', 'secondary']]);
   });
 
   it('fades a null while something else is lit', () => {
@@ -316,5 +358,37 @@ describe('scaleText', () => {
     expect(scaleText({ box, maps: null, codes: new Uint16Array(2), scale: 1 }, polygons)).toBe('Each polygon as the response gives it');
     const points = drawn(pointCollection([[0, 0], [0.01, 0.01], [3, 3], [3.5, 9], [10, 1], [11, 12], [15, 15], [15.1, 15], [20, 2]].map(([x, y]) => pointCoverage(20 + x, 50 + y, { values: { a: [1] } }))));
     expect(scaleText({ box: plotLayout(points, 500, null, 500), maps: null, codes: new Uint16Array(9), scale: 1 }, points)).toBe('Each dot is a point. A dot has no area');
+  });
+});
+
+describe('painting what isn’t a number', () => {
+  it('fills a polygon of text as it does a null, and leaves both out on the map', () => {
+    const cells = drawn(triangles(['a', null]));
+    const box = { plotX: 0, plotY: 0, plotW: 100, plotH: 100, v: fullView(cells) };
+    const codes = Uint16Array.from([TEXT_CODE, NULL_CODE]);
+    const lut = lutFor('sequential', 'dark', null);
+    const pane = recordingContext();
+    paintPolygons(pane.ctx, box, cells.geometry as Parameters<typeof paintPolygons>[2], cells.crs, codes, lut, 1, PALETTE);
+    expect(pane.calls.filter(([name]) => name === 'fill').map(([, colour]) => colour)).toEqual(['#3a3a3a', '#3a3a3a']);
+    const map = recordingContext();
+    paintPolygons(map.ctx, box, cells.geometry as Parameters<typeof paintPolygons>[2], cells.crs, codes, lut, 1, PALETTE, true);
+    expect(map.calls.filter(([name]) => name === 'fill')).toEqual([]);
+  });
+
+  it('marks a point of text as it does a null', () => {
+    const cells = drawn(pointCollection([pointCoverage(24, 60, { values: { a: ['x'] } }), pointCoverage(25, 61, { values: { a: [null] } }), pointCoverage(26, 62, { values: { a: [3] } })]));
+    const box = { plotX: 0, plotY: 0, plotW: 100, plotH: 100, v: fullView(cells) };
+    const codes = Uint16Array.from([TEXT_CODE, NULL_CODE, 0]);
+    const { ctx, calls } = recordingContext();
+    paintSamples(ctx, box, cells.geometry as Parameters<typeof paintSamples>[2], cells.crs, codes, lutFor('sequential', 'dark', null), 1, PALETTE, null);
+    expect(calls.filter(([name]) => name === 'strokeRect')).toHaveLength(2);
+  });
+
+  it('draws a point of text in its thumbnail as it does a null', () => {
+    const cells = drawn(pointCollection([pointCoverage(24, 60, { values: { a: ['x'] } }), pointCoverage(25, 61, { values: { a: [3] } })]));
+    const { ctx, calls } = recordingContext();
+    const canvas = { width: 0, height: 0, getContext: () => ctx } as unknown as HTMLCanvasElement;
+    paintThumb(canvas, cells, Uint16Array.from([TEXT_CODE, 0]), lutFor('sequential', 'dark', null), 40, 30, 1, PALETTE);
+    expect(calls.filter(([name]) => name === 'fillRect').map(([, colour]) => colour)).toEqual(['plot', 'secondary', expect.stringMatching(/^rgb/)]);
   });
 });

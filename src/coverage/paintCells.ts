@@ -1,5 +1,5 @@
 import {
-  NULL_CODE, fadedNullColour, hatchColours, lutCss, medianCode, type Highlight, type ThemeMode,
+  NULL_CODE, TEXT_CODE, fadedNullColour, hatchColours, lutCss, medianCode, type Highlight, type ThemeMode,
 } from './colourScale';
 import { invMercY, mercY, type CellCrs, type DrawableCells, type GridGeometry, type PolygonsGeometry, type SamplesGeometry } from './coverageCells';
 
@@ -105,6 +105,7 @@ export function paintGrid(
   const period = Math.round(5 * scale);
   const band = Math.max(1, Math.round(period * 0.4));
   const nullLit = !highlight || highlight.kind === 'null';
+  const textLit = !highlight || highlight.kind === 'text';
   const nullFaded = fadedNullColour(mode);
   for (let y = 0; y < H; y++) {
     const rowFrom = py.start[y];
@@ -131,9 +132,10 @@ export function paintGrid(
           }
         }
       }
-      if (best === NULL_CODE) {
+      // What isn't a number looks as a null does, until it's drawn as what it is, and lights apart
+      if (best === NULL_CODE || best === TEXT_CODE) {
         if (nullClear) continue;
-        out[line + x] = nullLit ? ((x + y) % period < band ? hatchA : hatchB) : nullFaded;
+        out[line + x] = (best === NULL_CODE ? nullLit : textLit) ? ((x + y) % period < band ? hatchA : hatchB) : nullFaded;
       } else {
         out[line + x] = lut[best];
       }
@@ -368,9 +370,11 @@ export function paintGridDetail(
         const code = codes[cell];
         const x = ox + (ex[col] + ex[col + 1]) / 2;
         const y = oy + (ey[row] + ey[row + 1]) / 2;
-        if (code === NULL_CODE) {
+        if (code === NULL_CODE || code === TEXT_CODE) {
           ctx.fillStyle = palette.textSecondary;
-          ctx.fillText('null', x, y);
+          // Text as it is, cut to what a number would take
+          const text = code === NULL_CODE ? 'null' : JSON.stringify(valueAt(cell)) ?? '';
+          ctx.fillText(text.length > 7 ? `${text.slice(0, 6)}…` : text, x, y);
           continue;
         }
         const colour = lut[code];
@@ -422,7 +426,7 @@ export function paintSamples(
       ctx.fillStyle = surface;
       ctx.fill();
     }
-    if (code === NULL_CODE) {
+    if (code === NULL_CODE || code === TEXT_CODE) {
       ctx.strokeStyle = palette.textSecondary;
       ctx.lineWidth = scale;
       ctx.strokeRect(x - s / 2 + 0.5, y - s / 2 + 0.5, s - 1, s - 1);
@@ -465,9 +469,10 @@ export function paintPolygons(
   const toPixel = (x: number, y: number) => pixelOf(box, crs, x, y, scale);
   for (let i = 0; i < g.cells; i++) {
     const code = codes[i];
-    if (code === NULL_CODE && nullClear) continue;
+    const noNumber = code === NULL_CODE || code === TEXT_CODE;
+    if (noNumber && nullClear) continue;
     polygonPath(ctx, g, i, toPixel);
-    ctx.fillStyle = code === NULL_CODE ? (palette.mode === 'dark' ? '#3a3a3a' : '#cfcfcf') : lutCss(lut, code);
+    ctx.fillStyle = noNumber ? (palette.mode === 'dark' ? '#3a3a3a' : '#cfcfcf') : lutCss(lut, code);
     ctx.fill();
     ctx.strokeStyle = palette.plot;
     ctx.lineWidth = scale * 0.5;
@@ -616,7 +621,7 @@ export function paintThumb(
   }
   for (let i = 0; i < g.cells; i++) {
     const [x, y] = pixelOf(box, cells.crs, g.xs[i], g.ys[i], scale);
-    ctx.fillStyle = codes[i] === NULL_CODE ? palette.textSecondary : lutCss(lut, codes[i]);
+    ctx.fillStyle = codes[i] === NULL_CODE || codes[i] === TEXT_CODE ? palette.textSecondary : lutCss(lut, codes[i]);
     ctx.fillRect(x - scale, y - scale, 2 * scale, 2 * scale);
   }
 }

@@ -15,7 +15,7 @@ import CellReadout from './CellReadout';
 import CellsCanvas from './CellsCanvas';
 import { notesFor, sliceIndex, type Flip, type RangeMode, type RangeScope } from './cellSelection';
 import type { RampKind } from './colourScale';
-import type { CellNote } from './coverageCells';
+import { notNumberWord, type CellNote } from './coverageCells';
 import { formatValue } from './coverageSummary';
 import ParameterPicker from './ParameterPicker';
 import StepBars from './StepBars';
@@ -186,11 +186,11 @@ function CellStats() {
       {without && <div>{without}</div>}
       {cells.slices > 1 && (
         <Box sx={{ color: 'text.secondary' }}>
-          All {cells.slices} steps: {figures.numbers && figures.min !== null && figures.max !== null ? `${span(figures.min, figures.max)}${unit}, ` : ''}{figures.nulls.toLocaleString('en-US')} null
+          All {cells.slices} steps: {figures.numbers && figures.min !== null && figures.max !== null ? `${span(figures.min, figures.max)}${unit}, ` : ''}{figures.nulls.toLocaleString('en-US')} null{figures.notNumbers ? `, ${figures.notNumbers.toLocaleString('en-US')} ${notNumberWord(parameter)}` : ''}
         </Box>
       )}
-      <Box sx={{ fontFamily: 'inherit', color: here.nulls ? 'primary.main' : 'text.secondary' }}>
-        {cells.cells.toLocaleString('en-US')} {noun}{cells.cells === 1 ? '' : 's'}, {here.nulls.toLocaleString('en-US')} null{parameter.notNumbers ? `, ${parameter.notNumbers.toLocaleString('en-US')} not a number` : ''}
+      <Box sx={{ fontFamily: 'inherit', color: here.nulls || here.notNumbers ? 'primary.main' : 'text.secondary' }}>
+        {cells.cells.toLocaleString('en-US')} {noun}{cells.cells === 1 ? '' : 's'}, {here.nulls.toLocaleString('en-US')} null{here.notNumbers ? `, ${here.notNumbers.toLocaleString('en-US')} ${notNumberWord(parameter)}` : ''}
       </Box>
     </Box>
   );

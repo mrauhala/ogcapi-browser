@@ -1,6 +1,7 @@
 import type { ValidationError } from '../types/api';
 import { axisLength, coverageParameters, distinctLabel, isTimeSeriesCoverage, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime, utcMoment } from '../utils/utcTime';
+import { axisFault } from './coverageCells';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
 import { rangeMisfit } from './rangeFit';
 import { timeFindings, type TimeContext } from './timeChecks';
@@ -144,12 +145,20 @@ function axisStep(axis: Axis | undefined): number | null {
   return even && step > 0 ? Number(step.toPrecision(10)) : null;
 }
 
-// Where an axis runs, if its values are numbers
+// Past this an axis of names says how many more
+const MOST_NAMES_LISTED = 4;
+
+// Where an axis runs, if its values are numbers, or what they are, if they're names: "country de, gb"
 function axisSpan(name: string, axis: Axis | undefined): string | null {
   if (!axis) return null;
   if (typeof axis.start === 'number' && typeof axis.stop === 'number') return `${name} ${axis.start} to ${axis.stop}`;
   const { values } = axis;
-  if (!Array.isArray(values) || values.length === 0 || !values.every(value => typeof value === 'number')) return null;
+  if (!Array.isArray(values) || values.length === 0) return null;
+  if (values.every(value => typeof value === 'string')) {
+    const more = values.length - MOST_NAMES_LISTED;
+    return `${name} ${values.slice(0, MOST_NAMES_LISTED).join(', ')}${more > 0 ? ` and ${more} more` : ''}`;
+  }
+  if (!values.every(value => typeof value === 'number')) return null;
   const numbers = values as number[];
   const min = numbers.reduce((a, b) => Math.min(a, b));
   const max = numbers.reduce((a, b) => Math.max(a, b));
@@ -170,10 +179,15 @@ function isInDegrees(coverage: Json): boolean {
 function describeAxes(coverage: Json): string[] {
   const axes = axesOf(coverage);
   const length = (name: string) => axisLength(axes[name] as Parameters<typeof axisLength>[0]);
+  // An axis whose num can't be a count of values isn't counted: what it claims to have isn't there
+  const unreadable = (name: string) => axisFault(name, axes[name]) !== null;
   const x = length('x');
   const y = length('y');
   const parts: string[] = [];
-  if (x !== undefined && y !== undefined && x > 1 && y > 1) {
+  const unread = ['x', 'y'].filter(unreadable);
+  if (unread.length) {
+    parts.push(`${unread.join(' and ')} can't be read`);
+  } else if (x !== undefined && y !== undefined && x > 1 && y > 1) {
     const stepX = axisStep(axes.x);
     const stepY = axisStep(axes.y);
     const unit = isInDegrees(coverage) ? '°' : '';
@@ -187,9 +201,11 @@ function describeAxes(coverage: Json): string[] {
   const composite = length('composite');
   if (composite !== undefined) parts.push(plural(composite, 'position'));
   const z = length('z');
-  if (z !== undefined && z > 1) parts.push(plural(z, 'level'));
+  if (unreadable('z')) parts.push("z can't be read");
+  else if (z !== undefined && z > 1) parts.push(plural(z, 'level'));
   const t = length('t');
-  if (t !== undefined) parts.push(plural(t, 'time'));
+  if (unreadable('t')) parts.push("t can't be read");
+  else if (t !== undefined) parts.push(plural(t, 'time'));
   return parts;
 }
 
@@ -421,7 +437,8 @@ export function summarizeCoverage(json: unknown, context: SummaryContext = {}): 
     domainType: domainTypeOf(coverages, json),
     shape: profileShape ?? [...(one ? describeAxes(one) : [plural(coverages.length, 'coverage')]), parameterCount].join(', '),
     timeText: profileTimes ? describeTimes(profileTimes) : time ? describeTimes([...new Set(time.parsed)].sort((a, b) => a - b)) : null,
-    axes: one ? ['x', 'y', 'z'].flatMap(name => axisSpan(name, axesOf(one)[name]) ?? []) : [],
+    // Every axis but time, said elsewhere, and the composite's places: x, y and z first, then the rest as sent
+    axes: one ? [...new Set(['x', 'y', 'z', ...Object.keys(axesOf(one))])].filter(name => name !== 't' && name !== 'composite').flatMap(name => axisSpan(name, axesOf(one)[name]) ?? []) : [],
     parameters: [...tallies.values()].map(toFigures),
     series: null,
     profile,

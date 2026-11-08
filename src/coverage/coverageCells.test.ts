@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { axisDrift, axisFault, axisValues, compositeRoles, invMercY, mercY, readCells, stepsOfSlice, MOST_AXIS_VALUES, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
+import { axisDrift, axisFault, axisValues, compositeRoles, invMercY, mercY, notNumbersText, notNumberWord, readCells, stepsOfSlice, MOST_AXIS_VALUES, MOST_VALUES_DRAWN, type DrawableCells, type GridGeometry, type SamplesGeometry, type PolygonsGeometry, type UndrawableCells } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
 import dmiPosition from '../utils/__fixtures__/dmi-position-grid.json';
 import dwdArea from '../utils/__fixtures__/dwd-area-multipolygonseries.json';
@@ -187,6 +187,12 @@ describe('readCells: which responses it takes', () => {
     expect(refused(grid({ domainType: 'Point', x: [24], y: [60] })).reason).toBe('A Point is one place');
   });
 
+  it('goes by the axes, not the name: a PointSeries with two x or two y is two places', () => {
+    const twoX = drawn(grid({ domainType: 'PointSeries', x: [24, 25], y: [60], t: DAY, values: [1, 2, 3, 4, 5, 6] }));
+    expect([twoX.cells, twoX.slices, twoX.domainType]).toEqual([2, 3, 'PointSeries']);
+    expect(drawn(grid({ domainType: 'Point', x: [24], y: [60, 61], values: [1, 2] })).cells).toBe(2);
+  });
+
   it('draws a Grid of one cell, which is a shape a server chose to send', () => {
     expect(drawn(grid({ x: [24], y: [60] })).cells).toBe(1);
   });
@@ -315,11 +321,25 @@ describe('readCells: a grid, read through its own axis order', () => {
     expect(Array.from(drawn(source).parameters[0].data)).toEqual([1, 3, 2, 4]);
   });
 
+  it('marks nothing where every value is a number or null', () => {
+    const [parameter] = drawn(grid({ x: [1, 2], y: [6, 5], values: [1, null, 3, 4] })).parameters;
+    expect(parameter.notNumberAt).toBeNull();
+    expect(parameter.notNumbersAreText).toBe(false);
+  });
+
+  it('says a value that is there but is not text is not a number', () => {
+    const [parameter] = drawn(grid({ x: [1, 2], y: [6, 5], values: [1, 'n/a', false, 4] })).parameters;
+    expect(parameter.figures).toMatchObject({ nulls: 0, notNumbers: 2 });
+    expect(parameter.notNumbersAreText).toBe(false);
+  });
+
   it('marks what is not a number as such, and keeps it as sent', () => {
     const cells = drawn(grid({ x: [1, 2], y: [6, 5], values: [1, null, 'n/a', 4] }));
     const [parameter] = cells.parameters;
     expect(Array.from(parameter.data).map(value => (value !== value ? 'gap' : value))).toEqual([1, 'gap', 'gap', 4]);
-    expect(parameter.notNumbers).toBe(1);
+    expect(parameter.figures).toMatchObject({ nulls: 1, notNumbers: 1 });
+    expect(Array.from(parameter.notNumberAt!)).toEqual([0, 0, 1, 0]);
+    expect(parameter.notNumbersAreText).toBe(true);
     expect(parameter.rawAt(2, 0).value).toBe('n/a');
     expect(parameter.rawAt(1, 0).value).toBeNull();
   });
@@ -598,7 +618,7 @@ describe('readCells: points', () => {
 
   it('turns down coverages with axes of their own', () => {
     const multi = pointCollection([grid({ x: [1, 2], y: [60, 61], values: [1, 2, 3, 4] }), pointCoverage(1, 2, { values: { a: [1] } })]);
-    expect(refused(multi).reason).toBe('2 coverages with axes of their own: the Table has them, one by one');
+    expect(refused(multi).reason).toBe("2 coverages with axes of their own aren't drawn as one picture");
   });
 
   it('turns down a place that is not numbers', () => {
@@ -824,6 +844,22 @@ describe('readCells: polygons', () => {
     expect(notesOf(cells)[0]).toBe('Sent as 2 polygons on a composite axis, triangles of the model’s own grid. Each is drawn as it is');
   });
 
+  it('says triangles only when every polygon is one, without holes', () => {
+    const plain = 'Sent as 2 polygons on a composite axis. Each is drawn as it is';
+    const fourCorners = triangles([5, 6]) as Json;
+    fourCorners.coverages[0].domain.axes.composite.values[1] = [[[11, 50], [12, 50], [12, 51], [11, 51], [11, 50]]];
+    expect(notesOf(drawn(fourCorners))[0]).toBe(plain);
+    const holed = triangles([5, 6]) as Json;
+    holed.coverages[0].domain.axes.composite.values[1].push([[11.2, 50.2], [11.4, 50.2], [11.3, 50.4], [11.2, 50.2]]);
+    expect(notesOf(drawn(holed))[0]).toBe(plain);
+  });
+
+  it('marks a polygon whose value is text', () => {
+    const [parameter] = drawn(triangles(['a', null, 3, 4], ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z'])).parameters;
+    expect(Array.from(parameter.notNumberAt!)).toEqual([1, 0, 0, 0]);
+    expect(parameter.figures.perSlice.map(slice => [slice.nulls, slice.notNumbers])).toEqual([[1, 1], [0, 0]]);
+  });
+
   it('reads a t axis over them, in the array’s order', () => {
     const cells = drawn(triangles([1, 2, 3, 4], ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z']));
     expect(cells.dims.map(dim => dim.name)).toEqual(['t']);
@@ -886,7 +922,9 @@ describe('readCells: notes', () => {
   });
 
   it('says a parameter has no numbers when what it has is text', () => {
-    expect(notesOf(drawn(grid({ x: [1, 2], y: [60], values: ['a', 'b'] })))).toContain("temperature has no numbers: 2 values aren't numbers");
+    expect(notesOf(drawn(grid({ x: [1, 2], y: [60], values: ['a', 'b'] })))).toContain('temperature has no numbers: 2 values are text');
+    expect(notesOf(drawn(grid({ x: [1, 2], y: [60], values: ['a', null] })))).toContain('temperature has no numbers: 1 value is text');
+    expect(notesOf(drawn(grid({ x: [1, 2], y: [60], values: [true, 'b'] })))).toContain("temperature has no numbers: 2 values aren't numbers");
   });
 
   it('says which steps are all null', () => {
@@ -955,5 +993,46 @@ describe('stepsOfSlice', () => {
     expect(stepsOfSlice(dims, 0)).toEqual({ t: 0, z: 0 });
     expect(stepsOfSlice(dims, 1)).toEqual({ t: 0, z: 1 });
     expect(stepsOfSlice(dims, 5)).toEqual({ t: 2, z: 1 });
+  });
+});
+
+describe('the words for what isn’t a number', () => {
+  it('says text where every one is a string', () => {
+    expect(notNumberWord({ notNumbersAreText: true })).toBe('text');
+    expect(notNumberWord({ notNumbersAreText: false })).toBe('not a number');
+    expect(notNumbersText(5, true)).toBe('5 values are text');
+    expect(notNumbersText(1, true)).toBe('1 value is text');
+    expect(notNumbersText(2, false)).toBe("2 values aren't numbers");
+    expect(notNumbersText(1, false)).toBe("1 value isn't a number");
+  });
+});
+
+describe('readCells: points that aren’t numbers', () => {
+  it('marks no place that no coverage has: it’s missing, not text', () => {
+    // b is in three of the four coverages: the fourth place has no value of b at all
+    const gap = pointCollection([
+      pointCoverage(1, 60, { values: { a: [1], b: [1] } }), pointCoverage(2, 60, { values: { a: [2], b: [2] } }),
+      pointCoverage(1, 61, { values: { a: [3], b: ['x'] } }), pointCoverage(2, 61, { values: { a: [4] } }),
+    ]);
+    const cells = drawn(gap);
+    expect(cells.cells).toBe(4);
+    const parameter = cells.parameters.find(each => each.id === 'b')!;
+    const absent = counting(4).filter(cell => parameter.rawAt(cell, 0).absent);
+    expect(absent).toHaveLength(1);
+    expect(parameter.notNumberAt![absent[0]]).toBe(0);
+    expect(parameter.figures).toMatchObject({ numbers: 2, nulls: 1, notNumbers: 1 });
+    expect(Array.from(parameter.notNumberAt!).filter(Boolean)).toHaveLength(1);
+  });
+
+  it('marks a point whose value is text, and not one where another coverage has a number', () => {
+    const repeated = pointCollection([
+      pointCoverage(24, 60, { values: { a: ['x'] } }),
+      pointCoverage(24, 60, { values: { a: [5] } }),
+      pointCoverage(25, 61, { values: { a: ['y'] } }),
+      pointCoverage(26, 62, { values: { a: [null] } }),
+    ]);
+    const [parameter] = drawn(repeated).parameters;
+    expect(parameter.figures).toMatchObject({ numbers: 1, nulls: 1, notNumbers: 1 });
+    expect(parameter.notNumbersAreText).toBe(true);
   });
 });

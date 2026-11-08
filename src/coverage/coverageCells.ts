@@ -73,7 +73,9 @@ export interface CellParameter extends ParameterBase {
   // Per step, per cell, in the geometry's order. NaN for what isn't a number
   data: Float32Array;
   figures: CellFigures;
-  notNumbers: number;
+  // The cells whose NaN is a value that isn't a number, or null if there's none. Text, if every one is a string
+  notNumberAt: Uint8Array | null;
+  notNumbersAreText: boolean;
   rawAt: (cell: number, slice: number) => CellRaw;
   indicesAt: (cell: number, slice: number) => [string, number][];
 }
@@ -371,14 +373,43 @@ function readCellsOf(json: unknown, { drawAnyway = false }: { drawAnyway?: boole
   const allPoints = coverages.every(coverage => isObj(coverage.domain) && lengthOf(coverage, 'x') === 1 && lengthOf(coverage, 'y') === 1);
   if (coverages.length > 1) {
     if (allPoints) return readPoints(coverages, type, paramDefs, topRef);
-    return cant(`${plural(coverages.length, 'coverage')} with axes of their own: the Table has them, one by one`);
+    return cant(`${plural(coverages.length, 'coverage')} with axes of their own aren't drawn as one picture`);
   }
-  // One place is a chart's, not a picture's, whatever it's called: DMI answers a position with a Grid of one cell, over time
-  if (ONE_PLACE.test(type)) return cant(`A ${type} is one place`, 'other-view');
+  // One place is a chart's, not a picture's, whatever it's called: DMI answers a position with a Grid of one cell, over time.
+  // The axes decide, not the name: a PointSeries with two x is two places
+  if (ONE_PLACE.test(type) && lengthOf(first, 'x') <= 1 && lengthOf(first, 'y') <= 1) return cant(`A ${type} is one place`, 'other-view');
   if (lengthOf(first, 'x') === 1 && lengthOf(first, 'y') === 1 && Object.keys(axes).some(name => name !== 'x' && name !== 'y' && lengthOf(first, name) > 1)) {
     return cant('One cell with steps of its own is one place', 'other-view');
   }
   return readGrid(first, type, paramDefs, topRef);
+}
+
+// A count's word for what isn't a number: "5 text", "2 not a number"
+export const notNumberWord = (parameter: Pick<CellParameter, 'notNumbersAreText'>) => (parameter.notNumbersAreText ? 'text' : 'not a number');
+
+// "5 values are text", "1 value isn't a number"
+export function notNumbersText(count: number, text: boolean): string {
+  const verb = count === 1 ? (text ? 'is text' : "isn't a number") : text ? 'are text' : "aren't numbers";
+  return `${plural(count, 'value')} ${verb}`;
+}
+
+// What every reader ends with: its figures, and the cells whose value is there but isn't a number, read from what each
+// cell holds, so that text isn't counted as a null
+function finished(parameter: Omit<CellParameter, 'figures' | 'notNumberAt' | 'notNumbersAreText'>, slices: number, cells: number): CellParameter {
+  const { data, rawAt } = parameter;
+  let notNumberAt: Uint8Array | null = null;
+  let text = true;
+  for (let slice = 0; slice < slices; slice++) {
+    for (let cell = 0; cell < cells; cell++) {
+      const at = slice * cells + cell;
+      if (data[at] === data[at]) continue;
+      const { value } = rawAt(cell, slice);
+      if (value === null || value === undefined) continue;
+      (notNumberAt ??= new Uint8Array(data.length))[at] = 1;
+      if (typeof value !== 'string') text = false;
+    }
+  }
+  return { ...parameter, notNumberAt, notNumbersAreText: notNumberAt !== null && text, figures: analyse(data, slices, cells, notNumberAt) };
 }
 
 function stepAxes(names: string[], axes: Json) {
@@ -456,7 +487,6 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
     const strideY = strides.y ?? 0;
     const data = new Float32Array(slices * cells);
     const values = theRange.values as unknown[];
-    let notNumbers = 0;
     const rowOffsets = Int32Array.from(rowAxis, row => row * strideY);
     const colOffsets = Int32Array.from(colAxis, col => col * strideX);
     const offsets = sliceOffsets(dims, strides);
@@ -467,20 +497,13 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
         const rowOffset = sliceOffset + rowOffsets[row];
         for (let col = 0; col < nx; col++) {
           const value = values[rowOffset + colOffsets[col]];
-          if (typeof value === 'number') {
-            data[at++] = value;
-          } else {
-            if (value !== null && value !== undefined) notNumbers++;
-            data[at++] = NaN;
-          }
+          data[at++] = typeof value === 'number' ? value : NaN;
         }
       }
     }
-    parameters.push({
+    parameters.push(finished({
       ...base,
       data,
-      figures: analyse(data, slices, cells),
-      notNumbers,
       rawAt(cell, slice) {
         const row = Math.floor(cell / nx);
         const col = cell - row * nx;
@@ -494,7 +517,7 @@ function readGrid(coverage: Json, type: string, paramDefs: Json, topRef: unknown
         const names = Array.isArray(theRange.axisNames) ? (theRange.axisNames as string[]) : Object.keys(at);
         return names.filter(name => at[name] !== undefined || fixed[name] !== undefined).map(name => [name, at[name] ?? 0]);
       },
-    });
+    }, slices, cells));
   }
   if (parameters.length === 0) return cant(broken[0]?.problem ?? 'The coverage has no ranges');
   const notes = gridNotes({ xv, yv, crs, nx: nx === 1 && xBounds ? 2 : nx, ny: ny === 1 && yBounds ? 2 : ny, parameters, broken });
@@ -632,7 +655,6 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
     const data = new Float32Array(slices * cells).fill(NaN);
     const owner = new Int32Array(slices * cells).fill(-1);
     const ownerAt = new Int32Array(slices * cells).fill(-1);
-    let notNumbers = 0;
     coverages.forEach((coverage, k) => {
       const values = rangeOf(coverage, id);
       if (!values) return;
@@ -654,15 +676,12 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
             owner[at] = k;
             ownerAt[at] = index;
           }
-          if (value !== null && value !== undefined) notNumbers++;
         }
       }
     });
-    parameters.push({
+    parameters.push(finished({
       ...parameterBase(id, paramDefs[id]),
       data,
-      figures: analyse(data, slices, cells),
-      notNumbers,
       rawAt(cell, slice) {
         const k = owner[slice * cells + cell];
         if (k < 0) return { value: undefined, index: null, pointer: null, coverage: null, absent: true };
@@ -673,7 +692,7 @@ function readPoints(coverages: Json[], type: string, paramDefs: Json, topRef: un
         const k = owner[slice * cells + cell];
         return k < 0 ? [] : [['coverage', k]];
       },
-    });
+    }, slices, cells));
   }
   if (parameters.length === 0) return cant('The coverages have no ranges');
   const notes: CellNote[] = [];
@@ -796,23 +815,15 @@ function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unk
     const stride = strides.composite ?? 1;
     const sliceAt = sliceOffsets(dims, strides);
     const data = new Float32Array(slices * n);
-    let notNumbers = 0;
     for (let slice = 0; slice < slices; slice++) {
       for (let i = 0; i < n; i++) {
         const value = values[sliceAt[slice] + i * stride];
-        if (typeof value === 'number') {
-          data[slice * n + i] = value;
-        } else {
-          if (value !== null && value !== undefined) notNumbers++;
-          data[slice * n + i] = NaN;
-        }
+        data[slice * n + i] = typeof value === 'number' ? value : NaN;
       }
     }
-    parameters.push({
+    parameters.push(finished({
       ...base,
       data,
-      figures: analyse(data, slices, n),
-      notNumbers,
       rawAt(cell, slice) {
         const index = sliceAt[slice] + cell * stride;
         return { value: values[index], index, pointer: `/ranges/${pointerPart(id)}/values/${index}`, coverage: null };
@@ -821,11 +832,12 @@ function readPolygons(coverage: Json, type: string, paramDefs: Json, topRef: unk
         const steps = stepsOfSlice(dims, slice);
         return [...dims.map((dim): [string, number] => [dim.name, steps[dim.name]]), ['composite', cell]];
       },
-    });
+    }, slices, n));
   }
   if (!parameters.length) return cant(broken[0]?.problem ?? 'The coverage has no ranges');
-  const corners = offsets[1] - 1;
-  const notes: CellNote[] = [{ level: 'info', text: `Sent as ${plural(n, 'polygon')} on a composite axis${corners === 3 ? ', triangles of the model’s own grid' : ''}. Each is drawn as it is` }];
+  // Triangles only if every one is: an outline of three corners, closed, and no holes
+  const triangles = polygons.every(polygon => polygon.length === 1 && polygon[0].length === 4);
+  const notes: CellNote[] = [{ level: 'info', text: `Sent as ${plural(n, 'polygon')} on a composite axis${triangles ? ', triangles of the model’s own grid' : ''}. Each is drawn as it is` }];
   parameters.forEach(parameter => addParameterNotes(notes, parameter));
   return {
     drawable: true, source: 'polygons', viewLabel: 'Cells', domainType: type,
@@ -961,9 +973,9 @@ const FILL_LIKE = new Set([-9999, 9999, -999, 999, -99, -32768, 32767, 65535, -9
 const looksLikeFill = (value: number) => Math.abs(value) >= 1e20 || FILL_LIKE.has(Math.round(value * 10) / 10);
 
 function addParameterNotes(notes: CellNote[], parameter: CellParameter) {
-  const { id, unit, figures, notNumbers } = parameter;
+  const { id, unit, figures } = parameter;
   if (figures.numbers === 0) {
-    notes.push({ level: 'warn', text: notNumbers ? `${id} has no numbers: ${plural(notNumbers, 'value')} aren't numbers` : `All ${plural(figures.total, 'value')} of ${id} are null`, parameter: id });
+    notes.push({ level: 'warn', text: figures.notNumbers ? `${id} has no numbers: ${notNumbersText(figures.notNumbers, parameter.notNumbersAreText)}` : `All ${plural(figures.total, 'value')} of ${id} are null`, parameter: id });
     return;
   }
   for (const apart of figures.apart) {

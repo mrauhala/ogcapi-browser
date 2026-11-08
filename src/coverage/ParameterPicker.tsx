@@ -87,7 +87,7 @@ export default function ParameterPicker() {
                   {each.unit && <Box sx={{ fontSize: '0.6875rem', color: 'text.secondary' }}>{each.unit}</Box>}
                 </Box>
                 <Box sx={{ fontSize: '0.6875rem', color: none ? 'warning.main' : 'text.secondary', whiteSpace: 'nowrap' }}>
-                  {none ? 'All null' : share > 0 ? `${shareText(share)} null` : ''}
+                  {none ? (each.figures.notNumbers ? 'No numbers' : 'All null') : share > 0 ? `${shareText(share)} null` : ''}
                 </Box>
               </MenuItem>
             );

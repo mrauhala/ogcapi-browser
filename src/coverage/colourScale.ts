@@ -7,6 +7,8 @@ export type ThemeMode = 'light' | 'dark';
 export const NULL_CODE = 256;
 export const BELOW_CODE = 257;
 export const ABOVE_CODE = 258;
+// A value that's there but isn't a number: text, or what no range should hold. Painted as a null is, and counted apart
+export const TEXT_CODE = 259;
 
 // Outside the range, never clamped: clamping would hide exactly what this view is for
 export const OUTSIDE: [number, number, number] = [255, 45, 149];
@@ -67,7 +69,7 @@ export function medianCode(codes: Uint16Array): number {
 // Which cells are lit, from the legend. The rest fade
 export type Highlight =
   | { kind: 'bin'; from: number; to: number; bin: number }
-  | { kind: 'null' | 'below' | 'above' };
+  | { kind: 'null' | 'text' | 'below' | 'above' };
 
 export const abgr = (r: number, g: number, b: number, a = 255) => ((a << 24) | (b << 16) | (g << 8) | r) >>> 0;
 

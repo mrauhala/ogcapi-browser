@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
 import { useResponseCells } from '../contexts/responseCells';
 import CellThumb from './CellThumb';
+import { notNumberWord } from './coverageCells';
 import { formatValue } from './coverageSummary';
 
 const MONO = { fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '17px' };
@@ -29,8 +30,8 @@ export default function CellsFigures({ onOpen }: { onOpen: () => void }) {
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '0 8px' }}>
                 <Box sx={{ ...MONO, overflowWrap: 'anywhere' }}>{parameter.id}</Box>
-                <Box sx={{ fontSize: '0.75rem', lineHeight: '17px', color: empty ? 'warning.main' : figures.nulls ? 'primary.main' : 'text.secondary' }}>
-                  {empty ? 'All null' : `${figures.total.toLocaleString('en-US')} values, ${figures.nulls.toLocaleString('en-US')} null`}
+                <Box sx={{ fontSize: '0.75rem', lineHeight: '17px', color: empty ? 'warning.main' : figures.nulls || figures.notNumbers ? 'primary.main' : 'text.secondary' }}>
+                  {empty ? (figures.notNumbers ? 'No numbers' : 'All null') : `${figures.total.toLocaleString('en-US')} values, ${figures.nulls.toLocaleString('en-US')} null${figures.notNumbers ? `, ${figures.notNumbers.toLocaleString('en-US')} ${notNumberWord(parameter)}` : ''}`}
                 </Box>
               </Box>
               {parameter.label && <Box sx={{ fontSize: '0.75rem', lineHeight: '17px', color: 'text.secondary' }}>{parameter.label}</Box>}

@@ -4,7 +4,7 @@ import {
   sliceIndex, sortedCells, sourceCell, stepCaption, stepKinds, stepLabel, stepOf, tallies,
 } from './cellSelection';
 import { analyse } from './cellFigures';
-import { ABOVE_CODE, BELOW_CODE, NULL_CODE } from './colourScale';
+import { ABOVE_CODE, BELOW_CODE, NULL_CODE, TEXT_CODE } from './colourScale';
 import { readCells, type DrawableCells, type GridGeometry } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
 
@@ -53,6 +53,11 @@ describe('steps', () => {
     expect(stepKinds(cells, parameter, cells.dims[0])).toEqual(['some', 'none', '']);
     expect(stepKinds(cells, parameter, cells.dims[1])).toEqual(['some', 'some']);
   });
+
+  it('marks a step with text as it does one with nulls', () => {
+    const cells = drawn(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 2, 3, 'x', 'y', 'z'] }));
+    expect(stepKinds(cells, cells.parameters[0], cells.dims[0])).toEqual(['', 'some', 'none']);
+  });
 });
 
 describe('what the colours cover', () => {
@@ -84,6 +89,18 @@ describe('what the colours cover', () => {
     const cells = drawn(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 2, 3, 4, 5, 6] }));
     const figures = figuresInScope(cells.parameters[0], cells, 'this', { t: 1 });
     expect([figures.min, figures.max]).toEqual([3, 4]);
+  });
+
+  it('keeps what isn’t a number in its place within a level over several times', () => {
+    // t slowest, then z: the first level is steps 0 and 2
+    const cells = drawn(grid({ x: [1, 2], y: [60], t: DAY.slice(0, 2), z: [1000, 500], values: ['a', 1, 2, 3, 4, 5, 6, 7] }));
+    expect(figuresInScope(cells.parameters[0], cells, 'this', { t: 0, z: 0 })).toMatchObject({ total: 4, numbers: 3, nulls: 0, notNumbers: 1 });
+  });
+
+  it('keeps what isn’t a number apart within a scope', () => {
+    const cells = drawn(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 'a', 'b', null, 5, 6] }));
+    expect(figuresInScope(cells.parameters[0], cells, 'this', { t: 0 })).toMatchObject({ numbers: 1, nulls: 0, notNumbers: 1 });
+    expect(figuresInScope(cells.parameters[0], cells, 'this', { t: 1 })).toMatchObject({ numbers: 0, nulls: 1, notNumbers: 1 });
   });
 
   it('takes the whole parameter for all, and works each scope out once', () => {
@@ -166,16 +183,22 @@ describe('codesFor', () => {
     const cells = drawn(grid({ x: [1, 2], y: [60], values: [null, null] }));
     expect(Array.from(codesFor(cells.parameters[0], cells, 0, null, null, 'none'))).toEqual([NULL_CODE, NULL_CODE]);
   });
+
+  it('codes what isn’t a number apart from a null, at the step it’s given', () => {
+    const cells = drawn(grid({ x: [1, 2, 3], y: [60], t: DAY.slice(0, 2), values: [0, 'a', null, 'b', 10, 0] }));
+    expect(Array.from(codesFor(cells.parameters[0], cells, 0, 0, 10, 'none'))).toEqual([0, TEXT_CODE, NULL_CODE]);
+    expect(Array.from(codesFor(cells.parameters[0], cells, 1, 0, 10, 'none'))).toEqual([TEXT_CODE, 255, 0]);
+  });
 });
 
 describe('tallies', () => {
   it('counts a bar per 1/64th of the range, and each kind apart', () => {
-    const counted = tallies(Uint16Array.from([0, 3, 4, 255, NULL_CODE, NULL_CODE, BELOW_CODE, ABOVE_CODE, ABOVE_CODE, ABOVE_CODE]));
+    const counted = tallies(Uint16Array.from([0, 3, 4, 255, NULL_CODE, NULL_CODE, TEXT_CODE, BELOW_CODE, ABOVE_CODE, ABOVE_CODE, ABOVE_CODE, TEXT_CODE, TEXT_CODE, TEXT_CODE]));
     expect(counted.bins[0]).toBe(2);
     expect(counted.bins[1]).toBe(1);
     expect(counted.bins[63]).toBe(1);
     expect(counted.bins).toHaveLength(64);
-    expect([counted.nulls, counted.below, counted.above]).toEqual([2, 1, 3]);
+    expect([counted.nulls, counted.notNumbers, counted.below, counted.above]).toEqual([2, 4, 1, 3]);
   });
 });
 

@@ -205,6 +205,16 @@ describe('ValueLegend', () => {
     expect(shown).toContain('25% null 1');
   });
 
+  it('gives text its own bar, apart from nulls', () => {
+    expect(words(within(grid({ x: counting(4), y: [60], values: [1, 2, 'a', null] }), <ValueLegend />))).toContain('25% null 1 25% text 1');
+    expect(words(shownSay(within(grid({ x: counting(6), y: [60], values: ['a', 'b', 'c', 'd', 'e', null] }), <ValueLegend />)))).toBe('17% null 1 83% text 5');
+  });
+
+  it('has only the text bar where every value is text, and calls what isn’t text not a number', () => {
+    expect(words(shownSay(within(grid({ x: counting(2), y: [60], values: ['a', 'b'] }), <ValueLegend />)))).toBe('100% text 2');
+    expect(words(shownSay(within(grid({ x: counting(2), y: [60], values: [true, 'b'] }), <ValueLegend />)))).toBe('100% not a number 2');
+  });
+
   it('has only the null bar for all null, and no hint', () => {
     const shown = words(shownSay(within(grid({ x: counting(2), y: [60], values: [null, null] }), <ValueLegend />)));
     expect(shown).toBe('100% null 2');
@@ -308,6 +318,19 @@ describe('CellsView', () => {
     expect(words(view(grid()))).not.toContain('All null');
   });
 
+  it('says what there is over a picture of text, not that it’s null', () => {
+    const shown = words(view(grid({ x: [1, 2], y: [60], values: ['a', 'b'] })));
+    expect(shown).toContain('No numbers: 2 values are text');
+    expect(shown).not.toContain('All null');
+  });
+
+  it('counts text apart from nulls, at this step and over all of them', () => {
+    const shown = words(view(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 'a', 'b', null, 5, 'c'] }), { choices: { steps: { t: 1 } } }));
+    expect(shown).toContain('All 3 steps: 1 to 5 K, 1 null, 3 text');
+    expect(shown).toContain('2 cells, 1 null, 1 text');
+    expect(words(view(grid({ x: [1, 2], y: [60], values: [1, 2] })))).toContain('2 cells, 0 null');
+  });
+
   it('gives this step’s figures, and all steps’ too', () => {
     const shown = words(view(grid({ x: [1, 2], y: [60], t: DAY, values: [1, 2, 3, null, 5, 6] }), { choices: { steps: { t: 1 } } }));
     expect(shown).toContain('3 K, mean 3');
@@ -327,7 +350,7 @@ describe('CellsView', () => {
 
   it('counts points as points, and what isn’t a number', () => {
     const points = pointCollection(counting(9).map(i => pointCoverage(20 + i, 50 + (i * 7) % 9, { values: { temperature: [i === 0 ? 'x' : i] } })));
-    expect(words(view(points))).toContain('9 points, 1 null, 1 not a number');
+    expect(words(view(points))).toContain('9 points, 0 null, 1 text');
   });
 
   it('lists the notes', () => {
@@ -374,6 +397,11 @@ describe('CellsFigures', () => {
     expect(list(grid({ x: [1, 2], y: [60], values: [null, null] }))).toBe('temperature All null');
   });
 
+  it('says no numbers where there’s text, and counts it apart', () => {
+    expect(list(grid({ x: [1, 2], y: [60], values: ['a', null] }))).toBe('temperature No numbers');
+    expect(list(grid({ x: [1, 2, 3], y: [60], values: [1, 'a', null] }))).toBe('temperature 3 values, 1 null, 1 text 1 K, mean 1');
+  });
+
   it('says there’s no unit', () => {
     expect(list(grid({ x: [1, 2], y: [60], values: [1, 3], unit: '' }))).toContain('(no unit)');
   });
@@ -409,6 +437,10 @@ describe('ResponseCellsBar', () => {
 
   it('says only the outline is drawn for all null', () => {
     expect(words(bar(grid({ x: [1, 2], y: [60], values: [null, null] })))).toContain('All null: only the outline is drawn');
+  });
+
+  it('says there are no numbers, not that it’s null, for text', () => {
+    expect(words(bar(grid({ x: [1, 2], y: [60], values: ['a', null] })))).toContain('No numbers: only the outline is drawn');
   });
 
   it('offers to go to the data only when it’s out of view', () => {

@@ -3,6 +3,8 @@
 export interface SliceFigures {
   numbers: number;
   nulls: number;
+  // There, but not numbers: text, as a range of strings has
+  notNumbers: number;
   min: number | null;
   max: number | null;
   mean: number | null;
@@ -27,6 +29,7 @@ export interface CellFigures {
   total: number;
   numbers: number;
   nulls: number;
+  notNumbers: number;
   mean: number | null;
   perSlice: SliceFigures[];
   min: number | null;
@@ -166,12 +169,14 @@ function recount(figures: CellFigures, found: Found, numbers: Float32Array) {
   figures.hi = hi;
 }
 
-export function analyse(data: Float32Array, slices: number, cells: number): CellFigures {
+// notNumberAt marks the cells whose NaN is a value that isn't a number, so that it isn't counted as a null
+export function analyse(data: Float32Array, slices: number, cells: number, notNumberAt: Uint8Array | null = null): CellFigures {
   const total = data.length;
   const numbers = new Float32Array(total);
   let n = 0;
   let sum = 0;
   let nulls = 0;
+  let notNumbers = 0;
   const perSlice: SliceFigures[] = new Array(slices);
   let trueMin = Infinity;
   let trueMax = -Infinity;
@@ -181,11 +186,13 @@ export function analyse(data: Float32Array, slices: number, cells: number): Cell
     let min = Infinity;
     let max = -Infinity;
     let sliceNulls = 0;
+    let sliceNotNumbers = 0;
     const offset = s * cells;
     for (let i = 0; i < cells; i++) {
       const value = data[offset + i];
       if (value !== value) {
-        sliceNulls++;
+        if (notNumberAt?.[offset + i]) sliceNotNumbers++;
+        else sliceNulls++;
         continue;
       }
       numbers[n++] = value;
@@ -195,15 +202,16 @@ export function analyse(data: Float32Array, slices: number, cells: number): Cell
       if (value > max) max = value;
     }
     nulls += sliceNulls;
+    notNumbers += sliceNotNumbers;
     sum += sliceSum;
     if (count) {
       if (min < trueMin) trueMin = min;
       if (max > trueMax) trueMax = max;
     }
-    perSlice[s] = { numbers: count, nulls: sliceNulls, min: count ? min : null, max: count ? max : null, mean: count ? sliceSum / count : null };
+    perSlice[s] = { numbers: count, nulls: sliceNulls, notNumbers: sliceNotNumbers, min: count ? min : null, max: count ? max : null, mean: count ? sliceSum / count : null };
   }
   const figures: CellFigures = {
-    total, numbers: n, nulls, mean: n ? sum / n : null, perSlice,
+    total, numbers: n, nulls, notNumbers, mean: n ? sum / n : null, perSlice,
     min: null, max: null, spike: null, apart: [], lo: null, hi: null, oneValue: false,
   };
   if (n === 0) return figures;

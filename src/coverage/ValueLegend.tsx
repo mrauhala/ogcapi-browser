@@ -5,6 +5,7 @@ import { useElementWidth } from '../hooks/useElementWidth';
 import { shareText, type SetApart } from './cellFigures';
 import { tallies } from './cellSelection';
 import { OUTSIDE_CSS, lutCss, lutFor, rampGradient, type Highlight } from './colourScale';
+import { notNumberWord } from './coverageCells';
 import { formatValue } from './coverageSummary';
 import { ticks } from './paintCells';
 import { isTouch } from './touch';
@@ -34,8 +35,9 @@ export default function ValueLegend() {
   const lut = useMemo(() => lutFor(ramp, palette.mode, null), [ramp, palette.mode]);
   if (!picture || !counted) return null;
   const { figures, parameter, codes, lo, hi } = picture;
-  const { bins, nulls, below, above } = counted;
-  const most = Math.max(1, ...bins, nulls, below, above);
+  const { bins, nulls, notNumbers, below, above } = counted;
+  const most = Math.max(1, ...bins, nulls, notNumbers, below, above);
+  const notNumbersSay = notNumberWord(parameter);
   const unit = parameter.unit ? ` ${parameter.unit}` : '';
   const total = codes.length;
 
@@ -54,8 +56,8 @@ export default function ValueLegend() {
       const count = bins[highlight.bin];
       return `${formatValue(from)} to ${formatValue(to)}${unit}: ${plural(count)} (${shareText(count / total)})`;
     }
-    const count = highlight.kind === 'null' ? nulls : highlight.kind === 'below' ? below : above;
-    const word = highlight.kind === 'null' ? 'null' : highlight.kind === 'below' ? 'below the scale' : 'above the scale';
+    const count = highlight.kind === 'null' ? nulls : highlight.kind === 'text' ? notNumbers : highlight.kind === 'below' ? below : above;
+    const word = highlight.kind === 'null' ? 'null' : highlight.kind === 'text' ? notNumbersSay : highlight.kind === 'below' ? 'below the scale' : 'above the scale';
     return `${word}: ${plural(count)} (${shareText(count / total)})`;
   };
 
@@ -76,7 +78,9 @@ export default function ValueLegend() {
     ? Math.round(((spike.value - lo) / (hi - lo)) * 255) >> 2
     : null;
 
-  const column = (kind: 'null' | 'below' | 'above', label: string, count: number) => {
+  // What isn't a number is drawn as a null is, so its bar looks the same; its label says which it is
+  const hatched = (kind: Highlight['kind']) => kind === 'null' || kind === 'text';
+  const column = (kind: 'null' | 'text' | 'below' | 'above', label: string, count: number) => {
     const highlight: Highlight = { kind };
     return (
       <Box
@@ -97,14 +101,14 @@ export default function ValueLegend() {
           <Box sx={{
             width: '100%',
             height: barHeight(count, most),
-            ...(kind === 'null' ? {
+            ...(hatched(kind) ? {
               backgroundImage: `repeating-linear-gradient(-45deg, ${palette.mode === 'dark' ? '#5a5a5a' : '#a8a8a8'} 0 1.5px, ${palette.mode === 'dark' ? '#222' : '#ececec'} 1.5px 5px)`,
             } : { backgroundColor: OUTSIDE_CSS }),
           }} />
         </Box>
         <Box sx={{
           height: 8,
-          ...(kind === 'null' ? {
+          ...(hatched(kind) ? {
             backgroundImage: `repeating-linear-gradient(-45deg, ${palette.mode === 'dark' ? '#5a5a5a' : '#a8a8a8'} 0 1.5px, ${palette.mode === 'dark' ? '#222' : '#ececec'} 1.5px 5px)`,
           } : { backgroundColor: OUTSIDE_CSS }),
         }} />
@@ -129,7 +133,8 @@ export default function ValueLegend() {
   return (
     <Box sx={{ mx: 1.75, mt: 1 }}>
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
-        {(nulls > 0 || noNumbers) && column('null', 'null', nulls)}
+        {(nulls > 0 || (noNumbers && notNumbers === 0)) && column('null', 'null', nulls)}
+        {notNumbers > 0 && column('text', notNumbersSay, notNumbers)}
         {below > 0 && column('below', belowLabel, below)}
         {!noNumbers && flat && (
           <Box sx={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 0.75, fontFamily: 'monospace', fontSize: '0.8125rem' }}>

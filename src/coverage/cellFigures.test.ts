@@ -21,14 +21,21 @@ describe('analyse', () => {
     expect(figures).toMatchObject({ total: 6, numbers: 3, nulls: 3, min: 1, max: 4 });
     expect(figures.mean).toBeCloseTo(7 / 3, 8);
     expect(figures.perSlice).toEqual([
-      { numbers: 2, nulls: 1, min: 1, max: 2, mean: 1.5 },
-      { numbers: 1, nulls: 2, min: 4, max: 4, mean: 4 },
+      { numbers: 2, nulls: 1, notNumbers: 0, min: 1, max: 2, mean: 1.5 },
+      { numbers: 1, nulls: 2, notNumbers: 0, min: 4, max: 4, mean: 4 },
     ]);
   });
 
   it('has nothing to say of all null but that', () => {
     expect(figuresOf([null, null])).toMatchObject({ numbers: 0, nulls: 2, mean: null, min: null, max: null, lo: null, hi: null, oneValue: false, spike: null, apart: [] });
-    expect(figuresOf([null, null]).perSlice[0]).toEqual({ numbers: 0, nulls: 2, min: null, max: null, mean: null });
+    expect(figuresOf([null, null]).perSlice[0]).toEqual({ numbers: 0, nulls: 2, notNumbers: 0, min: null, max: null, mean: null });
+  });
+
+  it('counts what isn’t a number apart from nulls, overall and per step', () => {
+    const data = Float32Array.from([1, NaN, NaN, NaN, NaN, 4]);
+    const figures = analyse(data, 2, 3, Uint8Array.from([0, 1, 0, 1, 1, 0]));
+    expect(figures).toMatchObject({ total: 6, numbers: 2, nulls: 1, notNumbers: 3, min: 1, max: 4 });
+    expect(figures.perSlice.map(slice => [slice.numbers, slice.nulls, slice.notNumbers])).toEqual([[1, 1, 1], [1, 0, 2]]);
   });
 
   it('knows one value when it sees it, and doesn’t call it a spike', () => {

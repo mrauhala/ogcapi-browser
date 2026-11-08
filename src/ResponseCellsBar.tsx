@@ -29,7 +29,7 @@ export default function ResponseCellsBar({ shows, outOfView, onGoToData }: { sho
       <Box sx={{ minWidth: 120 }}>
         <Box sx={{ ...MONO, whiteSpace: 'nowrap' }}>{parameter.id}{parameter.unit ? ` ${parameter.unit}` : ''}</Box>
         {lo === null || hi === null ? (
-          <Box sx={{ fontSize: '0.6875rem', color: 'text.secondary' }}>All null: only the outline is drawn</Box>
+          <Box sx={{ fontSize: '0.6875rem', color: 'text.secondary' }}>{picture.figures.notNumbers ? 'No numbers' : 'All null'}: only the outline is drawn</Box>
         ) : (
           <>
             <Box sx={{ height: 6, mt: 0.25, backgroundImage: rampGradient(choices.ramp, palette.mode) }} />
