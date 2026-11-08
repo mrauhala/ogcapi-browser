@@ -6,6 +6,10 @@ service follows the standards.
 
 **Use it online:** https://ogcapi-browser.meteo.fi (also at https://mrauhala.github.io/ogcapi-browser/)
 
+![The browser with MeteoCore's ECMWF IFS forecast: the query on the left, the temperature at 850 hPa over the Nordic countries on the map, and the same grid in the Data tab](docs/images/grid.webp)
+
+*An area query on MeteoCore: the temperature at 850 hPa, drawn on the map and in the Data tab. [Open it in the app](https://ogcapi-browser.meteo.fi/#request=https%3A%2F%2Fmeteocore.app.meteo.fi%2Fedr%2Fcollections%2Fecmwf-ifs-pressure%2Farea%3Fcoords%3DPOLYGON%28%285%2054%2C32%2054%2C32%2071%2C5%2071%2C5%2054%29%29%26z%3D850%26parameter-name%3Dt).*
+
 ## Features
 
 - **Services:** 20 presets (EDR services such as FMI, DMI, DWD, Met Office, MeteoCore, Meteogate
@@ -36,6 +40,14 @@ service follows the standards.
 
     Figures sum up each parameter, a Table lists the values where there are several, and a
     response the app can't read says why rather than breaking.
+
+    ![Levels at a point as profiles: FMI's humidity and temperature from 1000 to 50 hPa over Helsinki, a panel each, on a log pressure axis](docs/images/profile.webp)
+
+    *Levels at a point on FMI Open Data, a profile per parameter. [Open it in the app](https://ogcapi-browser.meteo.fi/#request=https%3A%2F%2Fopendata.fmi.fi%2Fedr%2Fcollections%2Fecmwf_painepinta%2Fposition%3Fcoords%3DPOINT%2824.94%2060.17%29%26parameter-name%3Dtemperature%2Chumidity).*
+
+    ![A time series as a chart per parameter: MeteoCore's relative humidity, temperature and wind speed at 850 hPa over Helsinki, 85 times](docs/images/series.webp)
+
+    *A point over time on MeteoCore, a chart per parameter with its figures. [Open it in the app](https://ogcapi-browser.meteo.fi/#request=https%3A%2F%2Fmeteocore.app.meteo.fi%2Fedr%2Fcollections%2Fecmwf-ifs-pressure%2Fposition%3Fcoords%3DPOINT%2824.94%2060.17%29%26z%3D850%26parameter-name%3Dt%2Cr%2Cws).*
   - **IWXXM** rendered for reading, **images**, and **feature tables**. Features items can be
     filtered by their queryables.
 - **Checks:** what's wrong with a response and what's right. Each finding is an error, an issue, a
@@ -54,6 +66,10 @@ service follows the standards.
     collection's extent.
   - **Where two standards differ,** as EDR 1.2 and CoverageJSON do on UCUM's URI and the media
     type, it says so and cites both.
+
+  ![The Checks tab for FMI's profile: the schema and media type passed under the format; issues, notes and passes under the data, each with its line in Raw; and what was checked against the collection](docs/images/checks.webp)
+
+  *Checks for the same FMI profile: two issues with z, notes, and what passed, against the response and its collection. [Open it in the app](https://ogcapi-browser.meteo.fi/#request=https%3A%2F%2Fopendata.fmi.fi%2Fedr%2Fcollections%2Fecmwf_painepinta%2Fposition%3Fcoords%3DPOINT%2824.94%2060.17%29%26parameter-name%3Dtemperature%2Chumidity), then Checks.*
 - **The API as loaded:** its landing page, conformance, OpenAPI document and collections, each with
   the response it came from.
 - **Search:** a command palette (`/`) across collections and items.
@@ -61,6 +77,10 @@ service follows the standards.
 ## Running it
 
 **Online:** https://ogcapi-browser.meteo.fi. Every merge to `main` deploys it.
+
+<img src="docs/images/phone.webp" alt="The same area query on a phone: the request line, the Data tab with the grid of temperatures, and the panes as buttons at the bottom" width="260">
+
+*On a phone, each pane fills the screen in turn.*
 
 **With npx**, no clone needed (requires Node.js):
 
