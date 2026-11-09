@@ -84,3 +84,19 @@ export function zoomToOverview(view: View, extents: Bbox[] | null, locationExten
   else if (locationExtent?.every(coord => isFinite(coord))) zoomToLocations(view, locationExtent);
   else zoomToWorld(view);
 }
+
+// What the query covers, with room above for the collection's card and below for the query's. A single point gets
+// about 110 km around it
+export function zoomToQuery(view: View, [west, south, east, north]: [number, number, number, number]): void {
+  if (west === east && south === north) {
+    zoomToPoint(view, [west, south]);
+    return;
+  }
+  const extent = [...fromLonLat([west, south]), ...fromLonLat([east, north])];
+  if (!extent.every(coord => isFinite(coord))) return;
+  try {
+    view.fit(extent, { padding: [130, 60, 170, 60], duration: 600, maxZoom: 12 });
+  } catch (error) {
+    console.error('Error fitting the query to the map view:', error, extent);
+  }
+}

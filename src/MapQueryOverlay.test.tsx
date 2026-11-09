@@ -12,11 +12,12 @@ interface Options {
   selection?: MapSelection;
   location?: { name: string; onInfo: () => void };
   onUndo?: () => void;
+  onZoom?: () => void;
 }
 
-const render = (queryType: string, { hasGeometry = false, isDrawing = false, isMobile = false, selection = points, location, onUndo }: Options = {}) => renderToStaticMarkup(
+const render = (queryType: string, { hasGeometry = false, isDrawing = false, isMobile = false, selection = points, location, onUndo, onZoom }: Options = {}) => renderToStaticMarkup(
   <PanesProvider value={{ isOpen: { api: false, request: false, map: true, response: false }, isMobile, togglePane: () => {}, showPane: () => {}, showMap: () => {} }}>
-    <MapQueryOverlay queryType={queryType} hasGeometry={hasGeometry} isDrawing={isDrawing} onClear={() => {}} onUndo={onUndo} radiusLabel="10 km" selection={selection} location={location}>
+    <MapQueryOverlay queryType={queryType} hasGeometry={hasGeometry} isDrawing={isDrawing} onClear={() => {}} onUndo={onUndo} onZoom={onZoom} radiusLabel="10 km" selection={selection} location={location}>
       <input aria-label="Radius" />
     </MapQueryOverlay>
   </PanesProvider>
@@ -132,5 +133,12 @@ describe('MapQueryOverlay', () => {
     const places = render('position', { hasGeometry: true, selection: points });
     expect(places).toContain('1. Lat: 60°, Lon: 25°');
     expect(places).not.toContain('A. Lat');
+  });
+
+  it('offers to zoom to the query once it has something on the map', () => {
+    const zoom = () => {};
+    expect(render('area', { hasGeometry: true, onZoom: zoom })).toContain('>Zoom to</button>');
+    expect(render('area', { hasGeometry: false, isDrawing: true, onZoom: zoom })).not.toContain('Zoom to');
+    expect(render('area', { hasGeometry: true })).not.toContain('Zoom to');
   });
 });

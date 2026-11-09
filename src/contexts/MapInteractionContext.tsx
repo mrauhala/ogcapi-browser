@@ -19,6 +19,9 @@ interface MapInteractionContextValue {
   // takes another kind of geometry clears the drawn geometry.
   dataQuery: string;
   setDataQuery: (queryType: string) => void;
+  // Asks the map to put the query in view once its geometry is in place, as when a link opens one
+  queryZoom: number;
+  zoomToQueryWhenPlaced: () => void;
   // Current OL view extent (EPSG:3857) and viewport size, updated on map move/resize.
   viewExtent: [number, number, number, number] | null;
   setViewExtent: (extent: [number, number, number, number] | null) => void;
@@ -39,6 +42,8 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
   const dataQueryRef = useRef('');
   const [viewExtent, setViewExtent] = useState<[number, number, number, number] | null>(null);
   const [viewSize, setViewSize] = useState<[number, number] | null>(null);
+  const [queryZoom, setQueryZoom] = useState(0);
+  const zoomToQueryWhenPlaced = useCallback(() => setQueryZoom(count => count + 1), []);
 
   // Points stay when switching position ↔ radius, a line trajectory ↔ corridor
   const setDataQuery = useCallback((queryType: string) => {
@@ -72,11 +77,13 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
     setRadiusUnits,
     dataQuery,
     setDataQuery,
+    queryZoom,
+    zoomToQueryWhenPlaced,
     viewExtent,
     setViewExtent,
     viewSize,
     setViewSize,
-  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize]);
+  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize, queryZoom, zoomToQueryWhenPlaced]);
 
   return (
     <MapInteractionContext.Provider value={value}>
