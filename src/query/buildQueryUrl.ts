@@ -53,9 +53,10 @@ export function buildQueryUrl(model: QueryModel): string | null {
     else params.delete('parameter-name');
     setDimension(params, 'datetime', model.datetime);
     // A level range goes in once both ends are picked: EDR 1.1 has only min/max, and 1.2 adds ../level and level/..,
-    // so 850/ is neither, and 850/.. would choose the end for the user. The form says what's missing meanwhile.
+    // so 850/ is neither, and 850/.. would choose the end for the user. The same for a custom dimension's range. The
+    // form says what's missing meanwhile.
     setDimension(params, 'z', selectsData ? wholeValue(model.vertical) : '');
-    Object.entries(model.customDims).forEach(([id, text]) => setDimension(params, id, selectsData ? text : ''));
+    Object.entries(model.customDims).forEach(([id, text]) => setDimension(params, id, selectsData ? wholeValue(text) : ''));
 
     const { points, polygons } = model;
     if (queryType === 'position' && points.length > 0) {
