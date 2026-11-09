@@ -188,6 +188,12 @@ describe('buildQueryUrl', () => {
     expect(new URL(position({ vertical: '850/300' })).searchParams.get('z')).toBe('850/300');
   });
 
+  it('puts no custom dimension in the URL for a range of it with one end picked', () => {
+    expect(new URL(position({ customDims: { member: '2/' } })).searchParams.has('member')).toBe(false);
+    expect(new URL(position({ customDims: { member: '/4' } })).searchParams.has('member')).toBe(false);
+    expect(new URL(position({ customDims: { member: '2/4' } })).searchParams.get('member')).toBe('2/4');
+  });
+
   it('sends a time range open at an end, which EDR allows for datetime', () => {
     expect(new URL(position({ datetime: '2026-10-05T00:00:00Z/..' })).searchParams.get('datetime')).toBe('2026-10-05T00:00:00Z/..');
   });
