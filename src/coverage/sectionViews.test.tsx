@@ -41,7 +41,7 @@ vi.mock('@mui/x-data-grid', () => ({
 }));
 // The mocked table's rows, each as its cells' text, without the styles emotion writes in on the server
 const tableRows = (html: string) => [...html.matchAll(/<tr>(.*?)<\/tr>/g)]
-  .map(([, row]) => [...row.matchAll(/<td>(.*?)<\/td>/g)].map(([, cell]) => cell.replace(/<style[^>]*>.*?<\/style>/g, '').replace(/<[^>]+>/g, '')));
+  .map(([, row]) => [...row.matchAll(/<td>(.*?)<\/td>/g)].map(([, cell]) => words(cell)));
 
 const urlOf = (json: unknown) => /^GET (\S+),/.exec((json as { _comment: string })._comment)?.[1] ?? '';
 // FMI's 3 levels, with 333 hPa asked for too, which isn't sent
@@ -340,9 +340,10 @@ describe('the domain probes along a path', () => {
   ];
 
   for (const [name, options, toggles, rows] of probes) {
-    it(`shows ${name} as ${toggles.replace('*', '')}, opening on ${toggles.split(' ').find(label => label.endsWith('*'))!.slice(0, -1)}`, () => {
+    it(`shows ${name} as ${toggles.split('*').join('')}, opening on ${toggles.split(' ').find(label => label.endsWith('*'))!.slice(0, -1)}`, () => {
       const json = pathSection(options);
-      expect(toggle(data(json, null, PATH_URL))).toMatch(new RegExp(`^${toggles.replace('*', '\\*')}`));
+      // Its toggles first, compared as text
+      expect(toggle(data(json, null, PATH_URL)).slice(0, toggles.length)).toBe(toggles);
       const reading = readResponseCells(json, { url: PATH_URL });
       if (rows === null) {
         expect(reading).toMatchObject({ drawable: false, why: 'other-view' });
