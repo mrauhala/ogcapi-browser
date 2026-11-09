@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cellRows, codesFor, colourRange, figuresInScope, longestReadout, longestStepCaption, notSentWords, notesFor, opensAsPicture, positionUrl, scopeOf,
-  sectionPlace, sectionRowCells, sliceIndex, sortedCells, sourceCell, stepCaption, stepKinds, stepLabel, stepOf, tallies,
+  cellRows, codesFor, colourRange, figuresInScope, longestReadout, longestStepCaption, notSentWords, notesFor, opensAsPicture, positionUrl,
+  scopeOf, sectionPlace, sectionRowCells, sliceIndex, sortedCells, sourceCell, stepCaption, stepKinds, stepLabel, stepOf, tallies, type Flip,
 } from './cellSelection';
 import { analyse } from './cellFigures';
 import { ABOVE_CODE, ABSENT_CODE, BELOW_CODE, NULL_CODE, TEXT_CODE } from './colourScale';
@@ -379,6 +379,19 @@ describe('the table', () => {
   it('shows what’s drawn when flipped: the place drawn, with the value and indices it came from', () => {
     const [row] = cellRows(cells(), 0, 1, null, 0, 'ns');
     expect(row).toEqual({ id: 0, yi: 1, xi: 0, y: 61, x: 24, p0: -1e34 });
+  });
+
+  it('sorts what’s drawn when flipped: the same rows as unsorted, each value beside the place it’s drawn at', () => {
+    const c = cells();
+    const order = sortedCells(c.parameters[0], c, 0, 1);
+    const ids: Record<Flip, number[]> = { none: [2, 0, 3, 1], ns: [0, 2, 1, 3], ew: [3, 1, 2, 0] };
+    for (const flip of ['none', 'ns', 'ew'] as const) {
+      const asDrawn = new Map(cellRows(c, 0, 100, null, 0, flip).map(row => [row.id, row]));
+      const sorted = cellRows(c, 0, 100, order, 0, flip);
+      expect(sorted.map(row => row.p0)).toEqual([-1e34, 3, 7, null]);
+      expect(sorted.map(row => row.id)).toEqual(ids[flip]);
+      expect(sorted).toEqual(sorted.map(row => asDrawn.get(row.id)));
+    }
   });
 
   it('has a column per parameter', () => {

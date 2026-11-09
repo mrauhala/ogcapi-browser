@@ -339,15 +339,17 @@ function sectionRows(cells: DrawableCells, from: number, to: number, order: Uint
 }
 
 // A table page's rows, in exact values: rows are built only for the page, so a million cells cost one page. A section
-// has a row for each cell anything was sent for, in the order given or the path's own
+// has a row for each cell anything was sent for, in the order given or the path's own. An order is of the cells the
+// values are in, as sortedCells gives it; without one, the rows go as drawn
 export function cellRows(cells: DrawableCells, from: number, to: number, order: Uint32Array | null, slice: number, flip: Flip): Record<string, unknown>[] {
   if (cells.section) return sectionRows(cells, from, to, order ?? sectionRowCells(cells, slice), slice, flip);
   const g = cells.geometry;
   const end = Math.min(to, cells.cells);
   const rows: Record<string, unknown>[] = [];
   for (let i = from; i < end; i++) {
-    const cell = order ? order[i] : i;
-    const source = sourceCell(g, cell, flip);
+    // A flip is its own undoing, so the same mirror takes a drawn cell to its values and the values to where they're drawn
+    const source = order ? order[i] : sourceCell(g, i, flip);
+    const cell = order ? sourceCell(g, source, flip) : i;
     const row: Record<string, unknown> = { id: cell };
     if (g.kind === 'grid') {
       const at = Object.fromEntries(cells.parameters[0].indicesAt(source, slice));
