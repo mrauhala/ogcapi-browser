@@ -8,6 +8,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import { useTheme } from '@mui/material/styles';
 import { usePanes } from '../contexts/PanesContext';
 import { useResponseCells } from '../contexts/responseCells';
 import { useElementWidth } from '../hooks/useElementWidth';
@@ -18,14 +19,17 @@ import type { RampKind } from './colourScale';
 import { notNumberWord, type CellNote } from './coverageCells';
 import { formatValue } from './coverageSummary';
 import ParameterPicker from './ParameterPicker';
+import { AxisWords, MissingLevelsWords } from './ProfilePanel';
 import StepBars from './StepBars';
 import ValueLegend from './ValueLegend';
+import { isEvenlySpaced, type LevelSpacing } from './verticalAxis';
 
 // From here, as with the map closed, the readout and the rest go beside the picture, all in sight at once
 const WIDE_PANE = 880;
 const SIDE_COLUMN = 400;
 const MONO = { fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '18px' };
-const SMALL_TOGGLE = { '& .MuiToggleButton-root': { height: 26, px: 1, py: 0, textTransform: 'none', fontSize: '0.75rem' } };
+const TOGGLE = { height: 26, px: 1, py: 0, textTransform: 'none', fontSize: '0.75rem' } as const;
+const SMALL_TOGGLE = { '& .MuiToggleButton-root': TOGGLE };
 const NOTE_ICONS = {
   warn: <WarningAmberIcon fontSize="small" color="warning" aria-label="Worth a look" />,
   error: <ErrorOutlineIcon fontSize="small" color="error" aria-label="Wrong" />,
@@ -36,6 +40,8 @@ function MapChoice() {
   const { picture, choices, choose } = useResponseCells();
   const { isMobile, isOpen, showPane } = usePanes();
   if (!picture) return null;
+  // A path on lon/lat isn't drawn on the map as a plane, and the map shows where it was asked for already
+  if (picture.cells.section?.data.crs.geographic) return null;
   if (!picture.cells.crs.geographic) {
     return <Box title="The response's x and y aren't in a CRS the map can place" sx={{ fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>Can't go on the map</Box>;
   }
@@ -49,6 +55,67 @@ function MapChoice() {
       slotProps={{ typography: { sx: { fontSize: '0.8125rem', whiteSpace: 'nowrap' } } }}
       sx={{ m: 0 }}
     />
+  );
+}
+
+// A section's levels as the profile's: spaced by value, linear or log, or each the same height, and turned over to
+// compare. Each lays the plane out again, so a zoom is let go of. Flip keeps the pin on the same level
+function LevelControls() {
+  const { picture, choices, choose } = useResponseCells();
+  const section = picture?.cells.section;
+  const g = picture?.cells.geometry;
+  if (!section || g?.kind !== 'grid') return null;
+  const { flip, pin } = choices;
+  const levels = section.data.levels.map(Number);
+  const mirrored = (cell: number | null) => (cell === null ? null : (g.ny - 1 - Math.floor(cell / g.nx)) * g.nx + (cell % g.nx));
+  return (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1 }}>
+      <Box sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>Levels</Box>
+      <ToggleButtonGroup
+        exclusive
+        size="small"
+        value={section.spacing}
+        aria-label="Spacing of the levels"
+        sx={SMALL_TOGGLE}
+        onChange={(_event, next: LevelSpacing | null) => {
+          if (next) choose({ levelSpacing: next, zoom: null });
+        }}
+      >
+        <ToggleButton value="log" disabled={!section.canLog} title={section.canLog ? 'A log axis' : 'A log axis needs every level above zero'}>Log</ToggleButton>
+        <ToggleButton value="linear">Linear</ToggleButton>
+        {!isEvenlySpaced(levels) && <ToggleButton value="even" title="Each level the same height: for reading level by level">Even</ToggleButton>}
+      </ToggleButtonGroup>
+      <ToggleButton
+        size="small"
+        value="flip"
+        selected={flip === 'ns'}
+        onChange={() => choose({ flip: flip === 'ns' ? 'none' : 'ns', zoom: null, pin: mirrored(pin) })}
+        title="Turn the axis over, to compare"
+        sx={TOGGLE}
+      >
+        Flip
+      </ToggleButton>
+    </Box>
+  );
+}
+
+// Above a section: what z is and which level is at the top, as the profile says it, and what's odd about its levels
+function SectionWords() {
+  const { picture } = useResponseCells();
+  const theme = useTheme();
+  const section = picture?.cells.section;
+  const g = picture?.cells.geometry;
+  const z = section?.data.z;
+  if (!section || !z || g?.kind !== 'grid') return null;
+  const { data } = section;
+  return (
+    <Box sx={{ px: 1.75, pb: 0.75, fontSize: '0.75rem', lineHeight: '17px' }}>
+      <AxisWords axis={z} spacing={section.spacing} flipped={section.flipped} top={formatValue(g.ys[0])} />
+      {data.notBack.length > 0 && (
+        <Box sx={{ color: theme.palette.mode === 'dark' ? 'warning.light' : 'warning.dark' }}><MissingLevelsWords missing={data.notBack} from="request" /></Box>
+      )}
+      {data.kind === 'track' && <Box sx={{ color: 'text.secondary' }}>One level per position: a track through the air, not a full section.</Box>}
+    </Box>
   );
 }
 
@@ -133,7 +200,8 @@ function CellControls() {
           </ToggleButtonGroup>
         </Box>
       )}
-      {cells.geometry.kind === 'grid' && cells.geometry.cells > 1 && (
+      {/* North and south mean nothing on a section's plane */}
+      {cells.geometry.kind === 'grid' && cells.geometry.cells > 1 && !cells.section && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, mt: 1 }}>
           <Box sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>Try it</Box>
           <ToggleButtonGroup
@@ -152,6 +220,7 @@ function CellControls() {
           </ToggleButtonGroup>
         </Box>
       )}
+      <LevelControls />
     </Box>
   );
 }
@@ -180,6 +249,11 @@ function CellStats() {
     if (count) without = `Without what's far off: ${span(figures.lo, figures.hi)}${unit}, mean ${formatValue(sum / count)}`;
   }
   const noun = cells.geometry.kind === 'samples' ? 'point' : 'cell';
+  // A level not sent and a track's other levels are cells with nothing in them: how many there are says little
+  const sent = here.numbers + here.nulls + here.notNumbers;
+  const counted = parameter.absentAt && sent < cells.cells
+    ? `${sent.toLocaleString('en-US')} of ${cells.cells.toLocaleString('en-US')} cells sent`
+    : `${cells.cells.toLocaleString('en-US')} ${noun}${cells.cells === 1 ? '' : 's'}`;
   return (
     <Box sx={{ ...MONO, px: 1.75, mt: 1 }}>
       <div>{here.numbers && here.min !== null && here.max !== null && here.mean !== null ? `${span(here.min, here.max)}${unit}, mean ${formatValue(here.mean)}` : 'No numbers'}</div>
@@ -190,7 +264,7 @@ function CellStats() {
         </Box>
       )}
       <Box sx={{ fontFamily: 'inherit', color: here.nulls || here.notNumbers ? 'primary.main' : 'text.secondary' }}>
-        {cells.cells.toLocaleString('en-US')} {noun}{cells.cells === 1 ? '' : 's'}, {here.nulls.toLocaleString('en-US')} null{here.notNumbers ? `, ${here.notNumbers.toLocaleString('en-US')} ${notNumberWord(parameter)}` : ''}
+        {counted}, {here.nulls.toLocaleString('en-US')} null{here.notNumbers ? `, ${here.notNumbers.toLocaleString('en-US')} ${notNumberWord(parameter)}` : ''}
       </Box>
     </Box>
   );
@@ -215,7 +289,7 @@ function CellNotes() {
 
 // The picture of the cells, and everything to read it with. It all comes from the one response
 export default function CellsView() {
-  const { choices } = useResponseCells();
+  const { choices, picture } = useResponseCells();
   const [setRoot, width] = useElementWidth();
   const wide = width >= WIDE_PANE;
   return (
@@ -228,7 +302,9 @@ export default function CellsView() {
             <MapChoice />
           </Box>
           <StepBars />
-          {choices.flip !== 'none' && (
+          <SectionWords />
+          {/* A section's Flip turns its axis over, labels and all, and says so in the words above */}
+          {choices.flip !== 'none' && !picture?.cells.section && (
             <Box sx={{ display: 'flex', gap: 1, mx: 1.75, my: 0.5, px: 1, py: 0.5, border: '1px solid', borderColor: 'warning.main', borderRadius: 1, fontSize: '0.8125rem' }}>
               <WarningAmberIcon fontSize="small" color="warning" />
               <span>Drawn flipped {choices.flip === 'ns' ? 'north to south' : 'east to west'}, on the map too. This is not what the response says</span>

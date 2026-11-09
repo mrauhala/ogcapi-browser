@@ -263,7 +263,8 @@ describe('toSection: notes on the path', () => {
     expect(messages(sectionOf(json))).toContain('Position 13 repeats position 12');
     expect(pathNotes(sectionOf(json)).find(note => /repeats/.test(note.message))!.path).toBe('/domain/axes/composite/values/12');
     tuples[20] = [...tuples[19]];
-    expect(messages(sectionOf(json))).toContain('Position 13 repeats position 12, and 1 more position repeats the one before it');
+    // A response read once is read again only as a new object
+    expect(messages(sectionOf(copy(json)))).toContain('Position 13 repeats position 12, and 1 more position repeats the one before it');
   });
 
   it('doesn’t call a path sent as its vertices alone uneven, since that spacing is the request’s', () => {
@@ -405,11 +406,12 @@ describe('toSection: why a path can’t be read', () => {
     const radar = copy(mcRadarFikorZ);
     radar.ranges.DBZH.axisNames = ['composite'];
     expect(reasonOf(toSection(radar))).toBe('/ranges/DBZH/axisNames has no z, and z has 39 values');
+    // A response read once is read again only as a new object
     radar.ranges.DBZH.axisNames = ['composite', 'height'];
-    expect(reasonOf(toSection(radar))).toBe(`/ranges/DBZH/axisNames has "height", which isn't an axis of the domain`);
+    expect(reasonOf(toSection(copy(radar)))).toBe(`/ranges/DBZH/axisNames has "height", which isn't an axis of the domain`);
     radar.ranges.DBZH.axisNames = ['composite', 'z'];
     radar.ranges.DBZH.shape = [39, 257];
-    expect(reasonOf(toSection(radar))).toBe('/ranges/DBZH/shape is [39,257], and its axes, composite, z, have 257, 39');
+    expect(reasonOf(toSection(copy(radar)))).toBe('/ranges/DBZH/shape is [39,257], and its axes, composite, z, have 257, 39');
   });
 
   it('says which tuple or z isn’t a number', () => {
@@ -486,5 +488,115 @@ describe('toSection: where a rule draws its line', () => {
     const coverages = [1000, 850, 700, 500].flatMap(level => T.map((t, i) => coverage(level, t, level !== 500 ? [1, 2, 3] : i === 0 ? [null, null, null] : null)));
     const notes = messages(sectionOf({ type: 'CoverageCollection', coverages }));
     expect(notes).toEqual(['a is null at every position on 1 level: 500']);
+  });
+});
+
+describe('toSection: the lowest beam, from MeteoCore’s meteocore:beamCoverage.floor', () => {
+  const BEAM = 'meteocore:beamCoverage';
+  // fikor-z as a collection of two times, each with its own floor, as a radar sends every time asked
+  const twoTimes = () => {
+    const [a, b] = [copy(mcRadarFikorZ), copy(mcRadarFikorZ)];
+    for (const tuple of b.domain.axes.composite.values) tuple[0] = '2026-11-06T23:10:00+00:00';
+    b.domain[BEAM].floor = b.domain[BEAM].floor.map((height: number) => height + 10);
+    const coverage = (json: Json) => ({ type: 'Coverage', domain: json.domain, ranges: json.ranges });
+    return { type: 'CoverageCollection', domainType: 'Section', parameters: a.parameters, coverages: [coverage(b), coverage(a)] } as Json;
+  };
+
+  it('reads a height per position, with where each is in the response', () => {
+    const { beamFloor, beamFloorFault } = sectionOf(mcRadarFikorZ);
+    expect(beamFloorFault).toBeNull();
+    expect(beamFloor!.values).toHaveLength(1);
+    expect(beamFloor!.values[0]).toHaveLength(257);
+    expect(beamFloor!.values[0][0]).toBe(790.3053048271686);
+    expect(beamFloor!.values[0].every(Number.isFinite)).toBe(true);
+    expect(beamFloor!.pathAt(0, 0)).toBe(`/domain/${BEAM}/floor/0`);
+    expect(beamFloor!.pathAt(0, 256)).toBe(`/domain/${BEAM}/floor/256`);
+    expect(beamFloor!.pathAt(0, 257)).toBeNull();
+    expect(beamFloor!.pathAt(1, 0)).toBeNull();
+  });
+
+  it('has none, and says nothing, where the response has none', () => {
+    for (const json of [fmiEc2param, mcIfsLsz, mcSingleNoz]) expect(sectionOf(json)).toMatchObject({ beamFloor: null, beamFloorFault: null });
+  });
+
+  it('keeps each time’s own floor, since it changes with time', () => {
+    const section = sectionOf(twoTimes(), urlOf(mcRadarFikorZ as Json));
+    expect(section.frames.map(frame => frame.raw)).toEqual(['2026-11-06T23:05:00+00:00', '2026-11-06T23:10:00+00:00']);
+    const { values, pathAt } = section.beamFloor!;
+    expect(values[0][0]).toBe(790.3053048271686);
+    expect(values[1][0]).toBe(790.3053048271686 + 10);
+    // The later time is the first coverage
+    expect(pathAt(0, 12)).toBe(`/coverages/1/domain/${BEAM}/floor/12`);
+    expect(pathAt(1, 12)).toBe(`/coverages/0/domain/${BEAM}/floor/12`);
+  });
+
+  it('leaves a gap where a height isn’t a number', () => {
+    const json = copy(mcRadarFikorZ);
+    json.domain[BEAM].floor[3] = null;
+    const { values, pathAt } = sectionOf(json).beamFloor!;
+    expect(values[0][3]).toBeNaN();
+    expect(pathAt(0, 3)).toBeNull();
+    expect(values[0][4]).toBe((mcRadarFikorZ as Json).domain[BEAM].floor[4]);
+  });
+
+  it('says why one that’s there isn’t drawn', () => {
+    const fault = (change: (json: Json) => void, from: () => Json = () => copy(mcRadarFikorZ)) => {
+      const json = from();
+      change(json);
+      const section = sectionOf(json, urlOf(mcRadarFikorZ as Json));
+      expect(section.beamFloor).toBeNull();
+      return section.beamFloorFault;
+    };
+    expect(fault(json => json.domain[BEAM].floor.pop())).toBe(`/domain/${BEAM}/floor has 256 values, and composite has 257 positions, so the lowest beam isn't drawn`);
+    expect(fault(json => { json.domain[BEAM] = {}; })).toBe(`/domain/${BEAM}/floor isn't a list of heights, so the lowest beam isn't drawn`);
+    expect(fault(json => { delete json.coverages[1].domain[BEAM]; }, twoTimes)).toBe(`/coverages/1 has no ${BEAM}, where the rest of the response has one, so the lowest beam isn't drawn`);
+    expect(fault(json => { json.domain.referencing[2].system.cs.csAxes[0] = { name: { en: 'Elevation angle' }, direction: 'up', unit: { symbol: '°' } }; }))
+      .toBe(`${BEAM}.floor is read as a height, and z here is an elevation angle, so the lowest beam isn't drawn`);
+  });
+
+  it('isn’t a note on the response: it’s a vendor’s member, and only the picture uses it', () => {
+    const json = copy(mcRadarFikorZ);
+    json.domain[BEAM].floor.pop();
+    expect(sectionOf(json).notes.some(note => note.message.includes(BEAM))).toBe(false);
+  });
+
+  it('finds a later time’s height in the list where its tuple is, with the times in one coverage’s tuples', () => {
+    const json = copy(mcRadarFikorZ);
+    const { composite } = json.domain.axes;
+    const floor: number[] = json.domain[BEAM].floor;
+    composite.values = [...composite.values, ...composite.values.map(([, x, y]: unknown[]) => ['2026-11-06T23:10:00+00:00', x, y])];
+    json.domain[BEAM].floor = [...floor, ...floor.map(height => height + 10)];
+    json.ranges.DBZH.shape = [514, 39];
+    json.ranges.DBZH.values = [...json.ranges.DBZH.values, ...json.ranges.DBZH.values];
+    const { frames, beamFloor } = sectionOf(json, urlOf(mcRadarFikorZ as Json));
+    expect(frames).toHaveLength(2);
+    expect(beamFloor!.values[1][12]).toBe(floor[12] + 10);
+    // Position 13 at the later time is tuple 270, not 13
+    expect(beamFloor!.pathAt(1, 12)).toBe(`/domain/${BEAM}/floor/${257 + 12}`);
+    expect(at(json, beamFloor!.pathAt(1, 12)!)).toBe(beamFloor!.values[1][12]);
+  });
+
+  it('keeps the first height a position is given at a time, as with the values', () => {
+    const [a, b] = [copy(mcRadarFikorZ), copy(mcRadarFikorZ)];
+    b.domain[BEAM].floor = b.domain[BEAM].floor.map((height: number) => height + 10);
+    const coverage = (json: Json) => ({ type: 'Coverage', domain: json.domain, ranges: json.ranges });
+    const json = { type: 'CoverageCollection', domainType: 'Section', parameters: a.parameters, coverages: [coverage(a), coverage(b)] };
+    const { frames, beamFloor } = sectionOf(json, urlOf(mcRadarFikorZ as Json));
+    expect(frames).toHaveLength(1);
+    expect(beamFloor!.values[0][0]).toBe(790.3053048271686);
+    expect(beamFloor!.pathAt(0, 0)).toBe(`/coverages/0/domain/${BEAM}/floor/0`);
+  });
+});
+
+describe('toSection: one reading per response and request', () => {
+  it('gives the same reading for the same response and URL, and reads again for another of either', () => {
+    const json = copy(mcRadarFikorZ);
+    const url = urlOf(json);
+    const first = toSection(json, url);
+    expect(toSection(json, url)).toBe(first);
+    expect(toSection(copy(json), url)).not.toBe(first);
+    const other = toSection(json, 'https://x/trajectory?coords=LINESTRING(20.5%2060.1,22.8%2060.2)&z=0,244.8978320025398');
+    expect(other).not.toBe(first);
+    expect(other).toMatchObject({ kind: 'section', colCount: 257 });
   });
 });

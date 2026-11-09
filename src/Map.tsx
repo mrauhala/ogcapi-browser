@@ -176,6 +176,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
               : {
                 title: 'Selected Points',
                 items: clickedCoords.map(([lon, lat]) => `Lat: ${lat.toFixed(6)}°, Lon: ${lon.toFixed(6)}°`),
+                lettered: geometryKind === 'line',
               }}
             location={dataQuery === 'locations' && selectedFeature ? {
               name: String(selectedFeature.properties?.name || selectedFeature.properties?.title || selectedFeature.id || 'Location'),

@@ -3,9 +3,10 @@ import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import { useOpenRequest } from '../contexts/OpenRequestContext';
 import { useResponseCells } from '../contexts/responseCells';
-import { longestReadout, positionUrl, sourceCell } from './cellSelection';
+import { longestReadout, notSentWords, positionUrl, sectionPlace, sourceCell } from './cellSelection';
 import { OUTSIDE_CSS } from './colourScale';
 import type { DrawableCells } from './coverageCells';
+import SectionPathInset from './SectionPathInset';
 import { isTouch } from './touch';
 
 const MONO = { fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: '18px' };
@@ -19,12 +20,14 @@ interface LinesProps {
   under: string;
   pinned: boolean;
   where: string;
+  // A section's position as sent, with its time and the lowest beam
+  place?: string | null;
   pointer: string | null;
   actions: ReactNode;
 }
 
 // The readout's lines. The same for what's shown and for the room kept for it, so that the two wrap alike
-function ReadoutLines({ value, under, pinned, where, pointer, actions }: LinesProps) {
+function ReadoutLines({ value, under, pinned, where, place, pointer, actions }: LinesProps) {
   return (
     <>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '2px 10px' }}>
@@ -33,6 +36,7 @@ function ReadoutLines({ value, under, pinned, where, pointer, actions }: LinesPr
         {pinned && <Box sx={{ ml: 'auto', fontSize: '0.75rem', color: 'primary.main' }}>Pinned</Box>}
       </Box>
       <Box sx={{ ...MONO, overflowWrap: 'anywhere' }}>{where}</Box>
+      {place && <Box sx={{ ...MONO, overflowWrap: 'anywhere' }}>{place}</Box>}
       {pointer && <Box sx={{ ...MONO, color: 'text.secondary', overflowWrap: 'anywhere' }}>{pointer}</Box>}
       {actions}
     </>
@@ -72,6 +76,7 @@ export default function CellReadout() {
   if (!picture || !cells || !parameter || !longest) return null;
   const { slice, codes } = picture;
   const g = cells.geometry;
+  const { section } = cells;
   const chosen = hovered?.cell ?? pin;
   // A hover from the response before this one, for the moment until it's cleared
   const cell = chosen !== null && chosen < cells.cells ? chosen : null;
@@ -89,11 +94,13 @@ export default function CellReadout() {
     const source = sourceCell(g, cell, flip);
     const raw = parameter.rawAt(source, slice);
     const indices = parameter.indicesAt(source, slice).map(([name, index]) => `${name} ${index}`).join(', ');
+    // A section says where along the path, and at which level, rather than indices
+    const spot = sectionPlace(cells, source, slice);
     const pinned = pin === cell;
     const toPosition = pinned ? positionUrl(url, cells, parameter, cell, steps) : null;
     shown = (
       <ReadoutLines
-        value={raw.absent ? <Box component="span" sx={NULL_WORD}>No point here in the response</Box>
+        value={raw.absent ? <Box component="span" sx={NULL_WORD}>{spot ? notSentWords(spot.notBack) : 'No point here in the response'}</Box>
           : raw.value === null || raw.value === undefined ? <Box component="span" sx={NULL_WORD}>null</Box>
             : typeof raw.value !== 'number' ? <>{JSON.stringify(raw.value)} <Box component="span" sx={NULL_WORD}>not a number</Box></>
               : (
@@ -104,7 +111,8 @@ export default function CellReadout() {
               )}
         under={hovered && hovered.under > 1 ? `one of ${hovered.under} under this pixel` : ''}
         pinned={pinned}
-        where={`${indices ? `[${indices}] ` : ''}${placeOf(g, cell)}`}
+        where={spot ? spot.where : `${indices ? `[${indices}] ` : ''}${placeOf(g, cell)}`}
+        place={spot?.place}
         pointer={raw.pointer}
         actions={pinned && (
           <Box sx={ACTION_ROW}>
@@ -129,21 +137,33 @@ export default function CellReadout() {
     );
   }
 
+  const inset = section?.data.crs.geographic ?? false;
+  const lines = (
+    <Box sx={{ display: 'grid', ...(inset ? { flex: 1, minWidth: 0 } : {}) }}>
+      <Box aria-hidden sx={{ gridArea: '1 / 1', visibility: 'hidden' }}>
+        <ReadoutLines
+          value={longest.value}
+          under={longest.under}
+          pinned
+          where={longest.where}
+          place={longest.place}
+          pointer={longest.pointer}
+          actions={(
+            <Box sx={ACTION_ROW}>
+              <Box sx={action}>Unpin</Box><Box sx={action}>Copy path</Box><Box sx={action}>Open in Raw</Box>
+              {!section && <Box sx={action}>Check with position</Box>}
+            </Box>
+          )}
+        />
+      </Box>
+      <Box aria-live="polite" sx={{ gridArea: '1 / 1', minWidth: 0 }}>{shown}</Box>
+    </Box>
+  );
+
   return (
     <Box data-cell-readout sx={{ mx: 1.75, mt: 1, px: 1.5, py: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-      <Box sx={{ display: 'grid' }}>
-        <Box aria-hidden sx={{ gridArea: '1 / 1', visibility: 'hidden' }}>
-          <ReadoutLines
-            value={longest.value}
-            under={longest.under}
-            pinned
-            where={longest.where}
-            pointer={longest.pointer}
-            actions={<Box sx={ACTION_ROW}><Box sx={action}>Unpin</Box><Box sx={action}>Copy path</Box><Box sx={action}>Open in Raw</Box><Box sx={action}>Check with position</Box></Box>}
-          />
-        </Box>
-        <Box aria-live="polite" sx={{ gridArea: '1 / 1', minWidth: 0 }}>{shown}</Box>
-      </Box>
+      {/* A section's path in small beside the lines, which wrap at the same width whatever they show */}
+      {inset ? <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>{lines}<SectionPathInset /></Box> : lines}
       {filledIn && <Box sx={{ mt: 0.5, fontSize: '0.75rem', lineHeight: '18px', color: 'text.secondary' }}>In the request line, not sent. Sending it replaces this response.</Box>}
     </Box>
   );

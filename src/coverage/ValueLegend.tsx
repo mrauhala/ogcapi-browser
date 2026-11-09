@@ -34,12 +34,14 @@ export default function ValueLegend() {
   const counted = useMemo(() => (picture ? tallies(picture.codes) : null), [picture]);
   const lut = useMemo(() => lutFor(ramp, palette.mode, null), [ramp, palette.mode]);
   if (!picture || !counted) return null;
-  const { figures, parameter, codes, lo, hi } = picture;
-  const { bins, nulls, notNumbers, below, above } = counted;
+  const { figures, parameter, codes, lo, hi, cells } = picture;
+  const { bins, nulls, notNumbers, below, above, absent } = counted;
   const most = Math.max(1, ...bins, nulls, notNumbers, below, above);
   const notNumbersSay = notNumberWord(parameter);
   const unit = parameter.unit ? ` ${parameter.unit}` : '';
-  const total = codes.length;
+  // Shares of what was sent: a level not sent, or a track's other levels, aren't values
+  const total = Math.max(1, codes.length - absent);
+  const floor = cells.section?.data.beamFloor;
 
   const noNumbers = figures.numbers === 0;
   const flat = figures.oneValue && range !== 'set';
@@ -197,6 +199,13 @@ export default function ValueLegend() {
         <Box aria-hidden sx={{ gridArea: '1 / 1', visibility: 'hidden' }}>{hint}</Box>
         <Box sx={{ gridArea: '1 / 1', minWidth: 0 }}>{say}</Box>
       </Box>
+      {/* The line over the cells, as it's drawn: white on a dark edge */}
+      {floor && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: '0.75rem', lineHeight: '18px', color: 'text.secondary' }}>
+          <Box component="span" aria-hidden sx={{ flexShrink: 0, width: 14, height: 2, backgroundColor: '#fff', border: '1px solid rgba(0,0,0,.85)' }} />
+          <span>lowest beam, as meteocore:beamCoverage.floor gives it</span>
+        </Box>
+      )}
     </Box>
   );
 }

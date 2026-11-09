@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { INITIAL_CHOICES, afterNewResponse, createHoverStore, pictureOf } from './responseCells';
-import { readCells } from '../coverage/coverageCells';
+import { readCells, type DrawableCells, type GridGeometry } from '../coverage/coverageCells';
 import { grid } from '../coverage/cellsTestData';
+import { readResponseCells } from '../coverage/sectionCells';
+import fmiEc2param from '../coverage/__fixtures__/sections/fmi-ec-2param.json';
 
 describe('afterNewResponse', () => {
   const before = {
@@ -16,6 +18,7 @@ describe('afterNewResponse', () => {
     setHi: 2,
     scope: 'this' as const,
     flip: 'ns' as const,
+    levelSpacing: 'even' as const,
     zoom: { x0: 0, x1: 1, y0: 1, y1: 0 },
     pin: 7,
     litPinned: { kind: 'null' as const },
@@ -27,7 +30,7 @@ describe('afterNewResponse', () => {
   });
 
   it('drops what was about the last one, the flip above all', () => {
-    expect(afterNewResponse(before)).toMatchObject({ range: 'auto', setLo: null, setHi: null, scope: null, flip: 'none', zoom: null, pin: null, litPinned: null, litHover: null });
+    expect(afterNewResponse(before)).toMatchObject({ range: 'auto', setLo: null, setHi: null, scope: null, flip: 'none', levelSpacing: null, zoom: null, pin: null, litPinned: null, litHover: null });
   });
 });
 
@@ -62,6 +65,41 @@ describe('pictureOf', () => {
     expect(Array.from(pictureOf(two(), { ...INITIAL_CHOICES, flip: 'ew' })!.codes)).toEqual([85, 0]);
     expect(pictureOf(two(), { ...INITIAL_CHOICES, range: 'set', setLo: 5, setHi: 6 })).toMatchObject({ lo: 5, hi: 6 });
     expect(pictureOf(two(), { ...INITIAL_CHOICES, scope: 'this', steps: { t: 1 } })).toMatchObject({ scope: 'this', lo: 20, hi: 30 });
+  });
+});
+
+describe('pictureOf, along a path', () => {
+  const FMI_URL = 'https://opendata.fmi.fi/edr/collections/ecmwf_painepinta/trajectory?coords=LINESTRING(24%2060,25%2061,26%2062)&z=1000,850,500&f=CoverageJSON';
+  const reading = () => readResponseCells(fmiEc2param, { url: FMI_URL }) as DrawableCells;
+  const gridOf = (cells: DrawableCells) => cells.geometry as GridGeometry;
+
+  it('draws the plane as it was read, with its levels as their kind has them', () => {
+    const cells = reading();
+    expect(pictureOf(cells, INITIAL_CHOICES)!.cells).toBe(cells);
+  });
+
+  it('lays the levels out as chosen, and the same way each time', () => {
+    const cells = reading();
+    const even = pictureOf(cells, { ...INITIAL_CHOICES, levelSpacing: 'even' })!;
+    expect(even.cells.section).toMatchObject({ spacing: 'even', flipped: false });
+    expect([...gridOf(even.cells).yEdges]).not.toEqual([...gridOf(cells).yEdges]);
+    expect(pictureOf(cells, { ...INITIAL_CHOICES, levelSpacing: 'even' })!.cells).toBe(even.cells);
+  });
+
+  it('turns the levels over with Flip, labels and all, and reads each value from where it was', () => {
+    const cells = reading();
+    const plain = pictureOf(cells, INITIAL_CHOICES)!;
+    const flipped = pictureOf(cells, { ...INITIAL_CHOICES, flip: 'ns' })!;
+    expect(gridOf(flipped.cells).ys).toEqual([1000, 850, 500]);
+    expect(gridOf(flipped.cells).yEdges[0]).toBeCloseTo(1 - gridOf(cells).yEdges[3], 12);
+    // The top row's codes are the bottom row's, as sent
+    expect([...flipped.codes.subarray(0, 3)]).toEqual([...plain.codes.subarray(6, 9)]);
+    expect(flipped.cells.section!.flipped).toBe(true);
+  });
+
+  it('leaves a grid as it was read, whatever the spacing chosen', () => {
+    const cells = readCells(grid());
+    expect(pictureOf(cells, { ...INITIAL_CHOICES, levelSpacing: 'even' })!.cells).toBe(cells);
   });
 });
 

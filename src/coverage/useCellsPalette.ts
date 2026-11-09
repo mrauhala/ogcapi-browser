@@ -12,5 +12,7 @@ export function useCellsPalette(): CellsPalette {
     textSecondary: palette.text.secondary,
     border: palette.divider,
     primary: palette.primary.main,
+    // As the profile's labels for a level asked for and not sent
+    warning: palette.mode === 'dark' ? palette.warning.light : palette.warning.dark,
   }), [palette]);
 }

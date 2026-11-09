@@ -15,7 +15,7 @@ import {
   CHARACTER, MIN_PANEL, PLOT_FOOT, PLOT_TOP, canJoin, firstTimeWithNumbers, headLines, linesOf, nearestRow, panelsOf,
   readoutOf, rowAfter, shortValue, timeCaption, timeKinds, timeLabel, valueScale,
 } from './profilePlot';
-import { LevelPill, PanelCrosshair, ProfilePanel, ProfileZAxis, type PlotFrame } from './ProfilePanel';
+import { AxisWords, LevelPill, MissingLevelsWords, PanelCrosshair, ProfilePanel, ProfileZAxis, type PlotFrame } from './ProfilePanel';
 import { StepBar } from './StepBars';
 import { isEvenlySpaced, levelPosition, pickLevelLabels, type LevelSpacing } from './verticalAxis';
 
@@ -31,23 +31,6 @@ const TOOL = { height: 24, px: 1, py: 0, textTransform: 'none', fontSize: '0.75r
 
 // A level pointed at or kept, and in which parameter's panel
 interface Pick { row: number; parameter: string | null }
-
-const DIRECTION_SOURCE = { response: 'response', usual: 'assumed', none: 'assumed' } as const;
-
-function AxisWords({ profile, spacing, flipped, top }: { profile: CoverageProfile; spacing: LevelSpacing; flipped: boolean; top: number }) {
-  const { axis } = profile;
-  const nothing = axis.kind === 'unknown' && !axis.unit;
-  const name = nothing ? 'z' : axis.unit ? `${axis.name}, ${axis.unit}` : axis.name;
-  return (
-    <Box sx={{ flex: '1 1 200px', minWidth: 0, fontSize: '0.75rem', lineHeight: '17px' }}>
-      <Box component="span" sx={{ fontWeight: 500 }}>{name}</Box>
-      {nothing && <Box component="span" sx={{ color: 'warning.main' }}> (no name or unit in the response)</Box>}
-      <Box component="span" sx={{ color: axis.directionSource === 'none' && !flipped ? 'warning.main' : 'text.secondary' }}>
-        {`. ${top} at the top (${flipped ? 'flipped here' : DIRECTION_SOURCE[axis.directionSource]})${spacing === 'even' ? ', each level the same height' : ''}`}
-      </Box>
-    </Box>
-  );
-}
 
 export default function ProfileView({ profile }: { profile: CoverageProfile }) {
   const theme = useTheme();
@@ -158,7 +141,7 @@ export default function ProfileView({ profile }: { profile: CoverageProfile }) {
   return (
     <Box ref={root} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
       <Box sx={{ flexShrink: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', px: 1.75, py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
-        <AxisWords profile={profile} spacing={spacing} flipped={flipped} top={top} />
+        <AxisWords axis={profile.axis} spacing={spacing} flipped={flipped} top={top} />
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
           <ToggleButtonGroup
             exclusive
@@ -215,7 +198,7 @@ export default function ProfileView({ profile }: { profile: CoverageProfile }) {
       )}
       {missing.length > 0 && (
         <Box sx={{ flexShrink: 0, px: 1.75, py: 0.5, borderTop: '1px solid', borderColor: 'divider', fontSize: '0.75rem', lineHeight: '17px', color: theme.palette.mode === 'dark' ? 'warning.light' : 'warning.dark' }}>
-          {`${[...missing].sort((a, b) => a - b).join(', ')} ${missing.length === 1 ? "isn't" : "aren't"} in the response, though ${profile.missingFrom === 'request' ? 'asked for' : "in the collection's extent"}.`}
+          <MissingLevelsWords missing={missing} from={profile.missingFrom} />
         </Box>
       )}
       <Box ref={setScroller} sx={{ flex: `1 0 ${SHORTEST_PLOT}px`, minHeight: SHORTEST_PLOT, overflowX: 'auto', overflowY: 'hidden', borderTop: '1px solid', borderColor: 'divider', overscrollBehaviorX: 'contain' }}>

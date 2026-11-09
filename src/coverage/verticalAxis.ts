@@ -163,6 +163,29 @@ export function levelPosition(levels: number[], { spacing, direction, flipped = 
   };
 }
 
+// Where any value sits on the axis levelPosition draws, between levels too, as a radar's lowest beam does. Linear and
+// log place it by its value. Even spacing places each level a step apart, so a value between two goes between them in
+// proportion, and one beyond the ends goes on at the end step
+export function valuePosition(levels: number[], { spacing, direction, flipped = false }: { spacing: LevelSpacing; direction: Direction; flipped?: boolean }): (value: number) => number {
+  if (spacing !== 'even') return levelPosition(levels, { spacing, direction, flipped });
+  const down = (direction === 'down') !== flipped;
+  const sorted = [...levels].sort((a, b) => a - b);
+  const last = sorted.length - 1;
+  return value => {
+    if (last < 1) return 0.5;
+    // The step it's in: the last whose lower level is at or below it, and the first or last step beyond the ends
+    let low = 0;
+    let high = last - 1;
+    while (low < high) {
+      const middle = (low + high + 1) >> 1;
+      if (sorted[middle] <= value) low = middle;
+      else high = middle - 1;
+    }
+    const at = (low + (value - sorted[low]) / (sorted[low + 1] - sorted[low])) / last;
+    return down ? at : 1 - at;
+  };
+}
+
 const ROUNDNESS = [1000, 500, 100, 50, 10, 5, 1, 0.5, 0.1, 0.05, 0.01];
 const roundness = (level: number) => {
   const at = ROUNDNESS.findIndex(step => Math.abs(level / step - Math.round(level / step)) < 1e-9);

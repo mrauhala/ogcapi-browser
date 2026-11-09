@@ -319,7 +319,8 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
   // One value for each parameter says it all in the figures
   const hasSeriesTable = series !== null && (canChart || series.locations.length > 1);
   const cells = reading?.drawable ? reading : null;
-  // Along a path: its table now, and its picture to come. Or why it can't be read
+  // Along a path: its picture and the cells' Table for a section or a track, its own table for a line. Or why it can't
+  // be read
   const section = summary.section && summary.section.kind !== 'cant' ? summary.section : null;
   const pathFault = summary.section?.kind === 'cant' ? summary.section.reason : null;
   const hasTable = profile !== null || hasSeriesTable || cells !== null || section !== null;
@@ -394,7 +395,7 @@ export default function CoverageData({ summary, view, onViewChange }: CoverageDa
         <Legend locations={series.locations} colours={lineColours(series.locations.length, theme)} />
       )}
       {shown === 'cells' ? <CellsView />
-        : shown === 'table' ? (profile ? <ProfileTable profile={profile} /> : hasSeriesTable ? <CoverageTable series={series} /> : section ? <SectionTable section={section} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
+        : shown === 'table' ? (profile ? <ProfileTable profile={profile} /> : hasSeriesTable ? <CoverageTable series={series} /> : section && cells?.source !== 'section' ? <SectionTable section={section} /> : <CellsTable onOpenCell={() => onViewChange('cells')} />)
           : profile ? <ProfileView profile={profile} />
           : canChart ? <ChartedRows series={series} />
             : cells ? <CellsFigures onOpen={() => onViewChange('cells')} />

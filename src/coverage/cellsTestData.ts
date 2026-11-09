@@ -97,6 +97,60 @@ export const triangles = (values: unknown[], t?: string[]): Json => ({
   }],
 });
 
+const TIME = { coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'Gregorian' } };
+const PRESSURE = { coordinates: ['z'], system: { type: 'VerticalCRS', cs: { csAxes: [{ name: { en: 'Pressure' }, direction: 'down', unit: { symbol: 'hPa' } }] } } };
+const HEIGHT = { coordinates: ['z'], system: { type: 'VerticalCRS', cs: { csAxes: [{ name: { en: 'Height' }, direction: 'up', unit: { symbol: 'm' } }] } } };
+
+interface PathSectionOptions {
+  // Positions along the path, evenly from 20 E 60 N to 30 E 65 N
+  n: number;
+  // A z axis on each coverage, in metres up, with a value at each position and level
+  levels?: number[];
+  // Each position at a level of its own, in hPa in the tuples: 1000, 950, 900...
+  levelInTuples?: boolean;
+  // A time per position in the tuples, 2 minutes apart, rather than one for all
+  timeAlong?: boolean;
+  // A collection with a coverage per level, each with a z axis of that one level in hPa, as MeteoCore sends a trajectory
+  coveragePerLevel?: number[];
+  // A collection of this many of the same coverage
+  copies?: number;
+}
+
+// A path's answer in the shapes the domain probes made: a Section with a z axis, a Trajectory with z in its tuples or a
+// coverage per level, or none. Each value is its place and level, 270 + x/10 + y/100 + z/1000, so a misplaced one shows
+export function pathSection({ n, levels, levelInTuples = false, timeAlong = false, coveragePerLevel, copies = 1 }: PathSectionOptions): Json {
+  const value = (x: number, y: number, z = 0) => Math.round((270 + x / 10 + y / 100 + z / 1000) * 1000) / 1000;
+  const positions = counting(n).map(i => [Number((20 + (i * 10) / Math.max(n - 1, 1)).toFixed(4)), Number((60 + (i * 5) / Math.max(n - 1, 1)).toFixed(4))]);
+  const timeOf = (i: number) => (timeAlong ? `2026-11-07T${String(Math.floor((i * 2) / 60)).padStart(2, '0')}:${String((i * 2) % 60).padStart(2, '0')}:00Z` : '2026-11-07T00:00:00Z');
+  const tuples = positions.map(([x, y], i) => [timeOf(i), x, y, ...(levelInTuples ? [1000 - i * 50] : [])]);
+  const coverage = (z: number[] | null): Json => ({
+    type: 'Coverage',
+    domain: {
+      type: 'Domain',
+      domainType: levels ? 'Section' : 'Trajectory',
+      axes: {
+        composite: { dataType: 'tuple', coordinates: ['t', 'x', 'y', ...(levelInTuples ? ['z'] : [])], values: tuples },
+        ...(z ? { z: { values: z } } : {}),
+      },
+    },
+    ranges: {
+      temperature: levels
+        ? { type: 'NdArray', dataType: 'float', axisNames: ['composite', 'z'], shape: [n, levels.length], values: positions.flatMap(([x, y]) => levels.map(level => value(x, y, level))) }
+        : { type: 'NdArray', dataType: 'float', axisNames: ['composite'], shape: [n], values: positions.map(([x, y], i) => value(x, y, levelInTuples ? 1000 - i * 50 : z?.[0])) },
+    },
+  });
+  const referencing = [CRS84[0], TIME, levels ? HEIGHT : PRESSURE];
+  const parameters = { temperature: { type: 'Parameter', observedProperty: { label: { en: 'Air temperature' } }, unit: { symbol: 'K' } } };
+  const coverages = coveragePerLevel ? coveragePerLevel.map(level => coverage([level])) : counting(copies).map(() => coverage(levels ?? null));
+  if (coverages.length === 1) {
+    const [only] = coverages;
+    return { ...only, domain: { ...(only.domain as Json), referencing }, parameters };
+  }
+  return { type: 'CoverageCollection', domainType: levels ? 'Section' : 'Trajectory', parameters, referencing, coverages };
+}
+
+export const PATH_URL = 'https://example.org/edr/collections/c/trajectory?coords=LINESTRING(20%2060,30%2065)&parameter-name=temperature&f=CoverageJSON';
+
 // Only what shows: the text between tags, without emotion's styles. Read tag by tag, rather than cut out by a pattern
 export const words = (html: string) => {
   let inStyle = false;

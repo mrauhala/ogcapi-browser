@@ -146,7 +146,8 @@ export function extentOf(cells: DrawableCells): Extent {
   return [x0 * METRES_PER_DEGREE, y1 * METRES_PER_DEGREE, x1 * METRES_PER_DEGREE, y0 * METRES_PER_DEGREE];
 }
 
-export const canGoOnMap = (cells: DrawableCells) => cells.crs.geographic && opensAsPicture(cells);
+// A section's plane is distance along a path by level, which has no place on the map
+export const canGoOnMap = (cells: DrawableCells) => cells.source !== 'section' && cells.crs.geographic && opensAsPicture(cells);
 
 // The latest response's cells as one map layer. It's one slot, not a stack, and it never moves the map: if the data's
 // out of view, the bar offers to go there, since jumping by itself would hide an offset
