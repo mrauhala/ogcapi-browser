@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertLength, pickUnit, rangeFor, unitToMeters } from './units';
+import { convertLength, keptUnit, rangeFor, unitToMeters } from './units';
 
 describe('length units', () => {
   it('knows the units servers list, whatever their spelling', () => {
@@ -24,10 +24,15 @@ describe('length units', () => {
     expect(rangeFor('furlong')).toEqual(rangeFor('km'));
   });
 
-  it('picks the current unit if offered, else km, else the first', () => {
-    expect(pickUnit(['km', 'mi'], 'mi')).toBe('mi');
-    expect(pickUnit(['m', 'km', 'miles'], 'mi')).toBe('km');
-    expect(pickUnit(['m'], 'km')).toBe('m');
-    expect(pickUnit([], 'km')).toBe('km');
+  it('keeps a chosen unit the next query offers, and picks none of its own', () => {
+    expect(keptUnit(['km', 'mi'], 'mi')).toBe('mi');
+    expect(keptUnit(['m', 'km', 'miles'], 'mi')).toBe('');
+    expect(keptUnit(['m'], 'km')).toBe('');
+    expect(keptUnit(['km', 'mi'], '')).toBe('');
+  });
+
+  it('keeps any unit for a query that lists none', () => {
+    expect(keptUnit([], 'km')).toBe('km');
+    expect(keptUnit([], '')).toBe('');
   });
 });

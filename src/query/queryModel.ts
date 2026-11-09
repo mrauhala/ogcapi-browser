@@ -24,7 +24,7 @@ export interface QueryModelInput {
   polygons: [number, number][][]; // drawn areas
   bbox: BBox | null; // the box drawn or typed for cube queries: west, south, east, north (lon/lat)
   bboxAsCoords: boolean; // also send the box as a coords polygon, for servers whose API docs require it
-  radius: { value: number; units: string };
+  radius: { value: number | null; units: string }; // null and '' until chosen
   queryParams: Record<string, string>; // parameters of the query type, e.g. corridor-width; empty ones aren't sent
   locationFeature: LocationFeature | null; // selected location feature, for locations queries
 }

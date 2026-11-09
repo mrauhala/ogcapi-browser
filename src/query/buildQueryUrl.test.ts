@@ -136,7 +136,13 @@ describe('buildQueryUrl serializes exactly like the previous URL builder', () =>
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.start])),
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.end])),
           );
-          expect(buildQueryUrl(model)).toBe(legacy);
+          // One difference, on purpose: a radius chosen before any point goes in, as it was chosen
+          const expected = new URL(legacy);
+          if (queryKey === 'radius' && points.length === 0) {
+            expected.searchParams.set('within', '25');
+            expected.searchParams.set('within-units', 'km');
+          }
+          expect(buildQueryUrl(model)).toBe(expected.toString());
           compared++;
         }
         expect(compared).toBe(4 * 3 * 3 * 3 * (queryKey === 'locations' ? 2 : 3) * 2 * 2);
@@ -165,6 +171,26 @@ describe('buildQueryUrl', () => {
   it('sends the radius in its unit', () => {
     const url = new URL(request('radius', { radius: { value: 500, units: 'm' } }));
     expect([url.searchParams.get('within'), url.searchParams.get('within-units')]).toEqual(['500', 'm']);
+  });
+
+  describe('a radius, nothing of it until chosen', () => {
+    const sent = (radius: QueryModelInput['radius'], points: [number, number][] = [[24.9384, 60.1699]]) =>
+      Object.fromEntries(new URL(request('radius', { format: '', radius, points })).searchParams);
+
+    it('sends neither within nor its unit before they are chosen', () => {
+      expect(sent({ value: null, units: '' })).toEqual({ coords: 'POINT(24.938 60.170)' });
+      expect(sent({ value: null, units: '' }, [])).toEqual({});
+    });
+
+    it('sends each as it is chosen, the radius before a point too', () => {
+      expect(sent({ value: 25, units: '' })).toEqual({ coords: 'POINT(24.938 60.170)', within: '25' });
+      expect(sent({ value: null, units: 'mi' })).toEqual({ coords: 'POINT(24.938 60.170)', 'within-units': 'mi' });
+      expect(sent({ value: 25, units: 'km' }, [])).toEqual({ within: '25', 'within-units': 'km' });
+    });
+
+    it('sends a radius of 0 as typed, for the server to answer', () => {
+      expect(sent({ value: 0, units: 'km' }, [])).toEqual({ within: '0', 'within-units': 'km' });
+    });
   });
 
   it('sends a corridor as its centre line plus the size parameters that are set', () => {

@@ -78,12 +78,11 @@ export function useMapInteractions(
       if (source) {
         source.clear();
 
-        // A unit the map doesn't know leaves only the centre points
-        const radiusMeters = radius * (unitToMeters(radiusUnits) ?? 0);
-        if (clickedCoords && clickedCoords.length > 0 && radiusMeters > 0) {
+        // The circle waits for a radius and a unit the map knows; the centre points don't
+        const radiusMeters = (radius ?? 0) * (unitToMeters(radiusUnits) ?? 0);
+        if (radiusMeters > 0) {
           clickedCoords.forEach(coords => {
             const [lon, lat] = coords;
-            const center = fromLonLat([lon, lat]);
 
             const pointsOnCircle = 64;
             const circleCoords: [number, number][] = [];
@@ -106,13 +105,12 @@ export function useMapInteractions(
               geometry: circlePolygon,
             });
             source.addFeature(circleFeature);
-
-            const centerFeature = new Feature({
-              geometry: new Point(center),
-            });
-            source.addFeature(centerFeature);
           });
         }
+        // Over the circles
+        clickedCoords.forEach(([lon, lat]) => {
+          source.addFeature(new Feature({ geometry: new Point(fromLonLat([lon, lat])) }));
+        });
       }
     } else if (radiusLayer) {
       const source = radiusLayer.getSource();

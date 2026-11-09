@@ -9,8 +9,8 @@ import { buildQueryModel, emptyDim, timeIsOnlyAFilter } from '../query/queryMode
 import { buildQueryUrl } from '../query/buildQueryUrl';
 import { matchDataQuery, matchInstance, readQuerySelections, type QuerySelections } from '../query/parseQueryUrl';
 import { readableUrl } from '../query/requestUrl';
-import { effectiveOutputFormats, queryTypeOf, queryVariables, unitsFor } from '../query/queryTypes';
-import { pickUnit } from '../query/units';
+import { effectiveOutputFormats, keptFormat, queryTypeOf, queryVariables, unitsFor } from '../query/queryTypes';
+import { keptUnit } from '../query/units';
 import { addApiDocsIssues, validateQuery } from '../query/validateQuery';
 import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl';
 import { useInstances, type InstancesState } from './useInstances';
@@ -78,7 +78,7 @@ export interface UseQueryUrlReturn {
 }
 
 export function useQueryUrl(): UseQueryUrlReturn {
-  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, setDataQuery } = useMapInteraction();
+  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery } = useMapInteraction();
   const { selectedCollection, selectedFeature, setSelectedFeature, locationFeatures, setCollectionUrl } = useCollection();
   const { editUrl } = useRequestUrl();
   const { setQueryValidation } = useQueryValidationContext();
@@ -131,35 +131,18 @@ export function useQueryUrl(): UseQueryUrlReturn {
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
 
-  // Settings a newly picked query starts from: keep the output format if the query offers it,
-  // otherwise use its default; units it offers; and tell the map the query type, which drops
-  // geometry the new type can't use. The query is a collection's, or an instance's.
+  // What a newly picked query starts from: nothing that wasn't chosen, not even the format the query
+  // names as its default. The output format and the radius's unit stay if the new query offers them.
+  // Another query type's sizes and units go (a radius goes with the map's query type), and the map
+  // hears the query type, which drops geometry the new type can't use. The query is a collection's,
+  // or an instance's.
   const applyQueryDefaults = useCallback((collection: Collection, queryKey: string) => {
-    setSelectedFormat(current => {
-      const formats = getEffectiveOutputFormats(collection, queryKey);
-      if (current && formats.includes(current)) return current;
-      const defaultFormat = collection.data_queries[queryKey]?.link?.variables?.default_output_format;
-      return defaultFormat && formats.includes(defaultFormat) ? defaultFormat : '';
-    });
+    setSelectedFormat(current => keptFormat(collection, queryKey, current));
     const queryType = queryKey ? queryTypeOf(collection, queryKey) : '';
-    const variables = queryVariables(collection, queryKey);
-    if (queryType === 'radius') {
-      setRadiusUnits(pickUnit(unitsFor(variables, 'within'), radiusUnits));
-    }
-    // A corridor starts 10 wide in the preferred width unit; the height unit is the first offered.
-    // Without vertical levels a corridor has no height.
-    if (queryType === 'corridor') {
-      const hasLevels = !!collection.extent?.vertical;
-      setQueryParams(params => ({
-        ...params,
-        'corridor-width': params['corridor-width'] || '10',
-        'width-units': pickUnit(unitsFor(variables, 'width'), params['width-units'] || 'km'),
-        'corridor-height': hasLevels ? params['corridor-height'] ?? '' : '',
-        'height-units': hasLevels ? pickUnit(unitsFor(variables, 'height'), params['height-units'] || '') : '',
-      }));
-    }
+    if (queryType !== dataQuery) setQueryParams({});
+    if (queryType === 'radius') setRadiusUnits(keptUnit(unitsFor(queryVariables(collection, queryKey), 'within'), radiusUnits));
     setDataQuery(queryType);
-  }, [getEffectiveOutputFormats, setDataQuery, setRadiusUnits, radiusUnits]);
+  }, [dataQuery, setDataQuery, setRadiusUnits, radiusUnits]);
 
   // Switch the collection's data query, leaving any instance
   const selectDataQuery = useCallback((collection: Collection, queryKey: string) => {
@@ -221,9 +204,9 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setSelectedArea(polygons);
     setSelectedBbox(bbox);
     setBboxAsCoords(boxAsCoords);
-    // The unit first: changing it converts the radius
-    if (selections.radiusUnits) setRadiusUnits(selections.radiusUnits);
-    if (selections.radius !== null) setRadius(selections.radius);
+    // The unit first: changing it converts the radius. What the URL leaves out, the form leaves out.
+    setRadiusUnits(selections.radiusUnits ?? '');
+    setRadius(selections.radius);
     setQueryParams(params => ({ ...params, ...selections.queryParams }));
   }, [setClickedCoords, setSelectedArea, setSelectedBbox, setRadius, setRadiusUnits]);
 
