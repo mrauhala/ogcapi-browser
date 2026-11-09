@@ -3,6 +3,7 @@ import { isForCollection } from '../query/parseQueryUrl';
 import { collectionIdOf, isJustCollection, requestFromHash, requestRoute } from '../query/requestLink';
 import { useApi } from './ApiContext';
 import { useCollection } from './CollectionContext';
+import { useMapInteraction } from './MapInteractionContext';
 import { useOpenCollection } from './OpenCollectionContext';
 import { useQueryBuilder } from './QueryBuilderContext';
 import { useRequestUrl } from './RequestUrlContext';
@@ -34,6 +35,7 @@ export function OpenRequestProvider({ children }: { children: ReactNode }) {
   const { apiUrl, status: apiStatus, loadApiOf } = useApi();
   const { applyRequestUrl } = useQueryBuilder();
   const { pinUrl, unpinUrl, editUrl } = useRequestUrl();
+  const { zoomToQueryWhenPlaced } = useMapInteraction();
   const [link] = useState(() => requestFromHash(window.location.hash));
   const [opening, setOpening] = useState<{ url: string; stage: Stage } | null>(link ? { url: link, stage: 'api' } : null);
   const [note, setNote] = useState<string | null>(null);
@@ -81,10 +83,14 @@ export function OpenRequestProvider({ children }: { children: ReactNode }) {
         editUrl(url);
         finish(null);
       } else {
-        applyRequestUrl(url, followed => finish(followed ? null : CANT_FOLLOW));
+        applyRequestUrl(url, followed => {
+          // A link's query is put in view, wherever the map was when it opened
+          if (followed && url === link) zoomToQueryWhenPlaced();
+          finish(followed ? null : CANT_FOLLOW);
+        });
       }
     }
-  }, [opening, apiStatus, collections, selectedCollection, openCollection, leaveQuery, editUrl, applyRequestUrl, finish]);
+  }, [opening, apiStatus, collections, selectedCollection, openCollection, leaveQuery, editUrl, applyRequestUrl, finish, link, zoomToQueryWhenPlaced]);
 
   const openRequest = useCallback((url: string, { switchApi }: { switchApi: boolean }) => {
     if (opening?.url === url) return;

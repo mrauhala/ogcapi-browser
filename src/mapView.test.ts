@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type View from 'ol/View';
 import { fromLonLat } from 'ol/proj';
-import { zoomToExtents, zoomToLocations, zoomToOverview, zoomToPoint } from './mapView';
+import { zoomToExtents, zoomToLocations, zoomToOverview, zoomToPoint, zoomToQuery } from './mapView';
 
 const fakeView = () => {
   const view = { fit: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn() };
@@ -123,5 +123,33 @@ describe('zoomToOverview', () => {
       zoomToOverview(olView, null, locationExtent);
       expectWorld(view);
     }
+  });
+});
+
+describe('zoomToQuery', () => {
+  it('fits what the query covers, clear of the collection’s card above and the query’s below', () => {
+    const { view, olView } = fakeView();
+    zoomToQuery(olView, [5, 54, 32, 71]);
+    expect(view.fit).toHaveBeenCalledWith([...fromLonLat([5, 54]), ...fromLonLat([32, 71])], { padding: [130, 60, 170, 60], duration: 600, maxZoom: 12 });
+  });
+
+  it('gives a point the room a picked location gets', () => {
+    const { view, olView } = fakeView();
+    zoomToQuery(olView, [24.94, 60.17, 24.94, 60.17]);
+    const { view: expected, olView: expectedView } = fakeView();
+    zoomToPoint(expectedView, [24.94, 60.17]);
+    expect(view.fit).toHaveBeenCalledWith(...expected.fit.mock.calls[0]);
+  });
+
+  it('fits a line along a meridian or a parallel, which has no area', () => {
+    const { view, olView } = fakeView();
+    zoomToQuery(olView, [24, 60, 24, 62]);
+    expect(view.fit).toHaveBeenCalledWith([...fromLonLat([24, 60]), ...fromLonLat([24, 62])], expect.objectContaining({ maxZoom: 12 }));
+  });
+
+  it('leaves the map where it is for what can’t be placed', () => {
+    const { view, olView } = fakeView();
+    zoomToQuery(olView, [NaN, 60, 25, 61]);
+    untouched(view);
   });
 });

@@ -1,5 +1,5 @@
 // ...existing imports...
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import 'ol/ol.css';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
@@ -22,9 +22,10 @@ import { useResponseCellsLayer } from './hooks/useResponseCellsLayer';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { useLayerManagerSync } from './hooks/useLayerManagerSync';
 import MapQueryOverlay from './MapQueryOverlay';
-import { zoomToOverview } from './mapView';
+import { zoomToOverview, zoomToQuery } from './mapView';
+import { queryExtent } from './query/queryExtent';
 import { geometryKindOf } from './query/queryTypes';
-import { rangeFor } from './query/units';
+import { rangeFor, unitToMeters } from './query/units';
 
 
 interface MapProps {
@@ -50,7 +51,7 @@ const overviewButtonSx = {
 const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   // Context values for JSX rendering
   const { geoJsonLayers, setGeoJsonLayers, selectedGeoJsonFeature, setSelectedGeoJsonFeature } = useGeoJsonLayers();
-  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, dataQuery } = useMapInteraction();
+  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, dataQuery, queryZoom } = useMapInteraction();
   const geometryKind = geometryKindOf(dataQuery);
   const radiusRange = rangeFor(radiusUnits);
   // Nothing is chosen for a radius until it is, unit included
@@ -92,6 +93,30 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   const responseCells = useResponseCellsLayer(map, mapShown);
 
   const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer);
+
+  // The query in view: its points or path, polygons or box, and a radius around its points. False if it has nothing
+  // on the map yet
+  const zoomToTheQuery = useCallback(() => {
+    const extent = queryExtent({
+      points: geometryKind === 'points' || geometryKind === 'line' ? clickedCoords : [],
+      polygons: geometryKind === 'polygon' ? selectedArea : [],
+      bbox: geometryKind === 'bbox' ? selectedBbox : null,
+      radiusMeters: dataQuery === 'radius' && typeof radius === 'number' ? radius * (unitToMeters(radiusUnits) ?? 0) : 0,
+    });
+    if (!map || !extent) return false;
+    zoomToQuery(map.getView(), extent);
+    return true;
+  }, [map, geometryKind, clickedCoords, selectedArea, selectedBbox, dataQuery, radius, radiusUnits]);
+
+  // A link's query, once its geometry is in place, which can be a render or two after the request is applied. Only
+  // for a few seconds, so that drawing later never moves the map
+  const zoomAsked = useRef({ count: 0, at: 0 });
+  useEffect(() => {
+    if (queryZoom === 0) return;
+    if (zoomAsked.current.count !== queryZoom) zoomAsked.current = { count: queryZoom, at: Date.now() };
+    if (zoomAsked.current.at === 0 || Date.now() - zoomAsked.current.at > 5000) return;
+    if (zoomToTheQuery()) zoomAsked.current.at = 0;
+  }, [queryZoom, zoomToTheQuery]);
 
   useLayerManagerSync(
     vectorLayer, locationLayer, markerLayer, areaLayer, radiusLayer,
@@ -171,6 +196,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
             }}
             // A box is one gesture and a location one pick: Clear takes those back
             onUndo={geometryKind === 'bbox' || geometryKind === 'none' ? undefined : undoLast}
+            onZoom={zoomToTheQuery}
             radiusLabel={radiusText}
             selection={geometryKind === 'polygon'
               // The ring ends on its first vertex

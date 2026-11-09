@@ -103,6 +103,7 @@ interface MapQueryOverlayProps {
   isDrawing: boolean;
   onClear: () => void;
   onUndo?: () => void; // takes back the newest point or vertex, for geometry built up from them
+  onZoom?: () => void; // fits the map to what the query covers, as a link can open it far away
   radiusLabel?: string;
   selection?: MapSelection; // what the query has from the map, listed once it has it
   location?: { name: string; onInfo: () => void }; // the selected location, and showing its information
@@ -112,7 +113,7 @@ interface MapQueryOverlayProps {
 // Everything about the query's map input, in one card: the prompt until the query has its geometry,
 // then what it has, and the clear button. The list collapses, and starts collapsed on phones, where
 // it would cover the map. The parent stacks the card along the map's bottom edge
-const MapQueryOverlay: React.FC<MapQueryOverlayProps> = ({ queryType, hasGeometry, isDrawing, onClear, onUndo, radiusLabel = '', selection, location, children }) => {
+const MapQueryOverlay: React.FC<MapQueryOverlayProps> = ({ queryType, hasGeometry, isDrawing, onClear, onUndo, onZoom, radiusLabel = '', selection, location, children }) => {
   const { isMobile } = usePanes();
   const [listOpen, setListOpen] = useState(!isMobile);
   const listId = useId();
@@ -154,6 +155,7 @@ const MapQueryOverlay: React.FC<MapQueryOverlayProps> = ({ queryType, hasGeometr
         )}
         {showClear && (
           <div style={buttonsStyle}>
+            {onZoom && hasGeometry && <button onClick={onZoom} style={undoButtonStyle} title="Fit the map to the query">Zoom to</button>}
             {onUndo && <button onClick={onUndo} style={undoButtonStyle}>Undo</button>}
             <button
               onClick={onClear}
