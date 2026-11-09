@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
 import { buildQueryUrl } from './buildQueryUrl';
 import { isForCollection, matchDataQuery, matchInstance, readQuerySelections } from './parseQueryUrl';
-import { buildQueryModel, emptyDim, type QueryModelInput } from './queryModel';
+import { buildQueryModel, type QueryModelInput } from './queryModel';
 import { readableUrl } from './requestUrl';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
@@ -16,7 +16,7 @@ const hrefOf = (collection: Collection, queryKey: string) => collection.data_que
 
 function built(collection: Collection, queryKey: string, overrides: Partial<QueryModelInput>): string {
   return readableUrl(buildQueryUrl(buildQueryModel({
-    collection, queryKey, format: '', parameters: [], datetime: emptyDim(), vertical: emptyDim(), customDims: {},
+    collection, queryKey, format: '', parameters: [], datetime: '', vertical: '', customDims: {},
     points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {},
     locationFeature: null, ...overrides,
   })!)!);
@@ -119,36 +119,37 @@ describe('readQuerySelections', () => {
   it('reads the form\'s choices back', () => {
     const url = built(FMI, 'position', {
       format: 'CoverageJSON', parameters: ['a', 'b'],
-      datetime: { mode: 'range', value: '', start: '2026-11-05T00:00:00Z', end: '2026-11-06T00:00:00Z' },
+      datetime: '2026-11-05T00:00:00Z/2026-11-06T00:00:00Z', vertical: '1000,850',
     });
     expect(selections(url)).toMatchObject({
-      format: 'CoverageJSON', parameters: ['a', 'b'],
-      datetime: { mode: 'range', start: '2026-11-05T00:00:00Z', end: '2026-11-06T00:00:00Z' },
+      format: 'CoverageJSON', parameters: ['a', 'b'], datetime: '2026-11-05T00:00:00Z/2026-11-06T00:00:00Z', vertical: '1000,850',
     });
   });
 
-  it('reads a level, single or as a range', () => {
-    expect(withParams('z=850', LEVELS).vertical).toEqual({ mode: 'individual', value: '850', start: '', end: '' });
-    expect(withParams('z=500/850', LEVELS).vertical).toEqual({ mode: 'range', value: '', start: '500', end: '850' });
+  it('reads z as written, in any of its forms', () => {
+    expect(withParams('z=850', LEVELS).vertical).toBe('850');
+    expect(withParams('z=500/850', LEVELS).vertical).toBe('500/850');
+    expect(withParams('z=1000,925,850', LEVELS).vertical).toBe('1000,925,850');
+    expect(withParams('z=R5/100/50', LEVELS).vertical).toBe('R5/100/50');
   });
 
   it('takes the time as typed, including an open-ended interval', () => {
-    expect(withParams('datetime=2026-11-05T00:00:00Z').datetime).toMatchObject({ mode: 'individual', value: '2026-11-05T00:00:00Z' });
-    expect(withParams('datetime=../2026-11-05T00:00:00Z').datetime).toMatchObject({ mode: 'range', start: '..', end: '2026-11-05T00:00:00Z' });
+    expect(withParams('datetime=2026-11-05T00:00:00Z').datetime).toBe('2026-11-05T00:00:00Z');
+    expect(withParams('datetime=../2026-11-05T00:00:00Z').datetime).toBe('../2026-11-05T00:00:00Z');
   });
 
-  it('leaves no time when there is none', () => {
-    expect(withParams('f=x').datetime).toEqual(emptyDim());
+  it('leaves no time or level when there is none', () => {
+    expect(withParams('f=x')).toMatchObject({ datetime: '', vertical: '' });
   });
 
   it('keeps a value with too many slashes whole, for the check to flag', () => {
-    expect(withParams('datetime=a/b/c').datetime).toMatchObject({ mode: 'individual', value: 'a/b/c' });
+    expect(withParams('datetime=a/b/c').datetime).toBe('a/b/c');
   });
 
-  it('reads custom dimensions it knows about, and no others', () => {
+  it('reads custom dimensions it knows about, and no others, a list too', () => {
     const custom = { ...FMI, extent: { ...FMI.extent, custom: [{ id: 'member' }, { id: 'absent' }] } } as unknown as Collection;
-    const { customDims } = withParams('member=1/3&nope=9', custom);
-    expect(customDims).toEqual({ member: { mode: 'range', value: '', start: '1', end: '3' } });
+    expect(withParams('member=1/3&nope=9', custom).customDims).toEqual({ member: '1/3' });
+    expect(withParams('member=1,2,3', custom).customDims).toEqual({ member: '1,2,3' });
   });
 
   it('keeps an unknown parameter name, which the form flags', () => {

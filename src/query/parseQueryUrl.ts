@@ -1,9 +1,8 @@
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
 import { TYPE_PARAMS } from './buildQueryUrl';
-import { emptyDim } from './queryModel';
 import { geometryKindOf, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
-import type { BBox, DimSelection } from './types';
+import type { BBox } from './types';
 
 // The way back from a request URL to the query builder: the inverse of buildQueryUrl. Only what the
 // form can hold comes out. The rest, like `coords=garbage`, stays in the URL, which is what's sent.
@@ -18,9 +17,10 @@ export interface QueryTarget {
 export interface QuerySelections {
   format: string;
   parameters: string[];
-  datetime: DimSelection;
-  vertical: DimSelection;
-  customDims: Record<string, DimSelection>;
+  // As written in the URL, '' for none
+  datetime: string;
+  vertical: string;
+  customDims: Record<string, string>;
   points: LonLat[];
   polygons: LonLat[][];
   bbox: BBox | null;
@@ -86,13 +86,6 @@ export function matchInstance(url: string, collection: Collection): { queryKey: 
 export const isForCollection = (url: string, collection: Collection): boolean =>
   !!matchDataQuery(url, collection) || !!matchInstance(url, collection);
 
-// A single value or an interval, which may be open-ended (start/.. or ../end)
-function dimension(text: string | null): DimSelection {
-  if (!text) return emptyDim();
-  const parts = text.split('/');
-  return parts.length === 2 ? { mode: 'range', value: '', start: parts[0], end: parts[1] } : { mode: 'individual', value: text, start: '', end: '' };
-}
-
 const NUMBER = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?';
 const PAIR = new RegExp(`^\\s*(${NUMBER})\\s+(${NUMBER})\\s*$`);
 
@@ -152,16 +145,17 @@ export function readQuerySelections(url: string, collection: Collection, queryKe
   const units = params.get('within-units');
   const offered = unitsFor(queryVariables(collection, queryKey), 'within');
 
-  const customDims: Record<string, DimSelection> = {};
+  // As written, whatever form they take: the form shows them as they are
+  const customDims: Record<string, string> = {};
   for (const { id } of collection.extent?.custom ?? []) {
-    if (params.has(id)) customDims[id] = dimension(params.get(id));
+    if (params.has(id)) customDims[id] = params.get(id) ?? '';
   }
 
   return {
     format: params.get('f') ?? '',
     parameters: (params.get('parameter-name') ?? '').split(',').map(name => name.trim()).filter(Boolean),
-    datetime: dimension(params.get('datetime')),
-    vertical: dimension(params.get('z')),
+    datetime: params.get('datetime') ?? '',
+    vertical: params.get('z') ?? '',
     customDims,
     points: (kind === 'points' ? wktPoints(coords) : kind === 'line' ? wktLine(coords) : null) ?? [],
     polygons: (kind === 'polygon' ? wktPolygons(coords) : null) ?? [],

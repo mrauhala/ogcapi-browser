@@ -5,7 +5,8 @@ import { normalizeBbox } from '../utils/extents/bbox';
 import { REPEATING_LEVELS } from './levels';
 import { effectiveOutputFormats, parameterIdsOf, unitsFor } from './queryTypes';
 import { timeIsOnlyAFilter, type QueryModel } from './queryModel';
-import type { BBox, DimSelection, IssueSeverity, IssueSource, QueryIssue } from './types';
+import type { BBox, IssueSeverity, IssueSource, QueryIssue } from './types';
+import { intervalEnds, wholeValue } from './dimensionText';
 import { SEVERITY_ORDER } from './types';
 import type { ApiDocsCheck } from '../validation/openapi/checkQueryUrl';
 
@@ -177,8 +178,6 @@ function checkLimit(model: QueryModel, add: Add) {
   }
 }
 
-const isChosen = ({ mode, value, start, end }: DimSelection) => (mode === 'range' ? !!start && !!end : !!value);
-
 // EDR requires a corridor height, measured from the centre line's level: z, since the map draws a 2D
 // line. Without vertical levels there is no such level, and servers reject a height (FMI: "requires
 // 3D coords or an explicit z"), so the corridor goes without one.
@@ -189,7 +188,7 @@ function checkCorridorHeight(model: QueryModel, add: Add) {
     return;
   }
   checkLength(model, 'corridor-height', 'height-units', 'height', 'corridor height', add);
-  if (model.queryParams['corridor-height']?.trim() && !isChosen(model.vertical)) {
+  if (model.queryParams['corridor-height']?.trim() && !wholeValue(model.vertical)) {
     add('missing', 'edr', 'z', 'corridor-centre', "Pick the level of the corridor's centre: its height is measured from there", 'form');
   }
 }
@@ -239,11 +238,8 @@ const formatTime = (time: number) => (isFinite(time) ? new Date(time).toISOStrin
 
 function checkDatetime(model: QueryModel, add: Add) {
   if (!model.collection.extent?.temporal) return;
-  const { mode, value, start, end } = model.datetime;
-  const chosen = mode === 'range' ? [start, end] : [value];
-  const filled = chosen.filter(Boolean);
-
-  if (filled.length === 0) {
+  const text = model.datetime.trim();
+  if (!text) {
     if (timeIsOnlyAFilter(model.queryType, !!model.locationFeature)) {
       add('info', 'edr', 'datetime', 'no-filter', `No time filter: all ${model.queryType === 'locations' ? 'locations' : 'items'} are listed`);
     } else {
@@ -251,18 +247,19 @@ function checkDatetime(model: QueryModel, add: Add) {
     }
     return;
   }
-  if (mode === 'range' && filled.length === 1) {
-    add('missing', 'metadata', 'datetime', 'range', `Pick ${start ? 'an end' : 'a start'} time for the range`, 'form');
+  const ends = intervalEnds(text);
+  if (ends && (!ends.start || !ends.end)) {
+    add('missing', 'metadata', 'datetime', 'range', `Pick ${ends.start ? 'an end' : 'a start'} time for the range`, 'form');
     return;
   }
-  // `..` is an open end of an interval, which only a typed URL has
-  const closed = filled.filter(text => text !== '..');
-  const times = closed.map(text => Date.parse(text));
-  closed.forEach((text, i) => {
-    if (isNaN(times[i])) add('error', 'metadata', 'datetime', `parse-${i}`, `"${text}" isn't a valid date-time`, 'form');
+  // `..` is an open end of an interval
+  const closed = (ends ? [ends.start, ends.end] : [text]).filter(time => time !== '..');
+  const times = closed.map(time => Date.parse(time));
+  closed.forEach((time, i) => {
+    if (isNaN(times[i])) add('error', 'metadata', 'datetime', `parse-${i}`, `"${time}" isn't a valid date-time`, 'form');
   });
   if (times.some(isNaN)) return;
-  if (mode === 'range' && times[0] > times[1]) {
+  if (ends && times.length === 2 && times[0] > times[1]) {
     add('error', 'metadata', 'datetime', 'order', 'The time range starts after it ends', 'form');
   }
   const extent = extentsOf(model.collection).time;
@@ -272,35 +269,38 @@ function checkDatetime(model: QueryModel, add: Add) {
   }
 }
 
-// z and custom dimensions share the single value / range pattern
-function checkDimension(selection: DimSelection, field: string, label: string, add: Add) {
-  if (selection.mode === 'range' && Boolean(selection.start) !== Boolean(selection.end)) {
-    add('missing', 'metadata', field, 'range', `Pick ${selection.start ? 'the upper' : 'the lower'} end of the ${label} range`, 'form');
+// z and custom dimensions: a range with one end picked, sent as start/ or /end, is missing the other
+function checkDimension(text: string, field: string, label: string, add: Add) {
+  const ends = intervalEnds(text);
+  if (ends && Boolean(ends.start) !== Boolean(ends.end)) {
+    add('missing', 'metadata', field, 'range', `Pick ${ends.start ? 'the upper' : 'the lower'} end of the ${label} range`, 'form');
     return false;
   }
   return true;
 }
 
-// z as EDR 1.1 has it (/req/edr/z-response): a level, a list of them, a range, or a repeating interval
+// z as EDR 1.1 has it (/req/edr/z-response): a level, a list of them, a range, or a repeating interval. EDR 1.2 adds
+// ranges open at an end, ../level and level/..
 function checkVertical(model: QueryModel, add: Add) {
   const levels = extentsOf(model.collection).levels;
   if (!levels || !checkDimension(model.vertical, 'z', 'level', add)) return;
-  const { mode, value, start, end } = model.vertical;
-  const repeating = mode === 'individual' ? REPEATING_LEVELS.exec(value.trim()) : null;
-  const items = mode === 'range' ? [start, end] : repeating ? [repeating[2], repeating[3]] : value.split(',').map(text => text.trim());
-  if (mode === 'individual' && !repeating && items.length > 1 && items.some(text => !text)) {
+  const value = model.vertical;
+  const range = intervalEnds(value);
+  const repeating = range ? null : REPEATING_LEVELS.exec(value.trim());
+  const items = range ? [range.start, range.end] : repeating ? [repeating[2], repeating[3]] : value.split(',').map(text => text.trim());
+  if (!range && !repeating && items.length > 1 && items.some(text => !text)) {
     add('error', 'metadata', 'z', 'empty', `The list of levels "${value}" has an empty entry`, 'form');
   }
   if (repeating && items.some(text => !text.trim())) {
     add('error', 'metadata', 'z', 'empty', `The repeating interval "${value}" needs its lowest level and its step, as R3/500/100`, 'form');
   }
-  const chosen = items.filter(Boolean);
+  const chosen = items.filter(text => text && !(range && text === '..'));
   const numbers = chosen.map(Number);
   chosen.forEach((text, i) => {
     if (!isFinite(numbers[i])) add('error', 'metadata', 'z', `number-${i}`, `Level "${text}" isn't a number`, 'form');
   });
   if (numbers.some(n => !isFinite(n))) return;
-  const list = mode === 'individual' && !repeating;
+  const list = !range && !repeating;
   if (list && levels.values.length > 0) {
     const unlisted = chosen.filter((_, i) => !levels.values.includes(numbers[i]));
     if (unlisted.length === 1) add('error', 'metadata', 'z', 'offered', `Level ${unlisted[0]} isn't one of the collection's levels`, 'form');
@@ -308,12 +308,12 @@ function checkVertical(model: QueryModel, add: Add) {
   }
   // No order check for ranges: levels can run either way (pressure 1000/500 is a natural range). A repeating interval
   // runs from its lowest level, the number of intervals times its step
-  const range = levels.range;
+  const span = levels.range;
   const ends = repeating && numbers.length === 2 ? [numbers[0], numbers[0] + Number(repeating[1]) * numbers[1]] : numbers;
-  if (!range || !ends.some(n => n < range.min || n > range.max)) return;
-  const extent = `the collection's vertical extent (${range.min} – ${range.max})`;
+  if (!span || !ends.some(n => n < span.min || n > span.max)) return;
+  const extent = `the collection's vertical extent (${span.min} – ${span.max})`;
   if (list && chosen.length > 1) {
-    const outside = chosen.filter((_, i) => numbers[i] < range.min || numbers[i] > range.max);
+    const outside = chosen.filter((_, i) => numbers[i] < span.min || numbers[i] > span.max);
     add('warning', 'metadata', 'z', 'extent', `${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} outside ${extent}`, 'form');
   } else {
     add('warning', 'metadata', 'z', 'extent', `The selected ${repeating ? 'levels go' : 'level is'} outside ${extent}`, 'form');
@@ -329,14 +329,13 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   checkGeometry(model, add);
   checkFormat(model, add);
   if (model.rule?.featureList) {
-    const { mode, value, start, end } = model.datetime;
-    if (value || start || end || mode === 'range') checkDatetime(model, add);
+    if (model.datetime.trim()) checkDatetime(model, add);
     else if (model.collection.extent?.temporal) add('info', 'edr', 'datetime', 'no-filter', 'No time filter: items from any time are listed');
   } else if (model.queryType !== 'instances') {
     checkParameters(model, add);
     checkDatetime(model, add);
     checkVertical(model, add);
-    Object.entries(model.customDims).forEach(([id, selection]) => checkDimension(selection, `dim:${id}`, id, add));
+    Object.entries(model.customDims).forEach(([id, text]) => checkDimension(text, `dim:${id}`, id, add));
   }
   return issues.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }

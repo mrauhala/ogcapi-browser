@@ -22,6 +22,8 @@ import InstancePicker from './InstancePicker';
 import { queryTypeOf, queryVariables, unitsFor } from './query/queryTypes';
 import { EDR_QUERY_RULES, mapInputRequired } from './query/edrRules';
 import { levelChoice, pickedLevels, startsRepeating, unlistedReason } from './query/levels';
+import { intervalEnds, withEnd, type DimMode } from './query/dimensionText';
+import type { QueryIssue } from './query/types';
 import { timeIsOnlyAFilter } from './query/queryModel';
 import { useCollection } from './contexts/CollectionContext';
 import { useOpenCollection } from './contexts/OpenCollectionContext';
@@ -33,19 +35,191 @@ interface CollectionQueryBuilderProps {
   queryState: UseQueryUrlReturn;
 }
 
+// What a dimension field calls its parts: z's levels, or a custom dimension's values
+interface DimensionWords {
+  large: (count: number) => string; // why it's a text field: too many values to list
+  individual: string;
+  range: string;
+  select: string; // the dropdown of the values listed
+  selectId: string;
+  start: string;
+  startId: string;
+  end: string;
+  endId: string;
+  text: string; // the text field, for what the dropdowns can't hold
+  placeholder: string;
+  helper: string;
+  endHelper: string; // under a range's ends typed
+  unlisted: (value: string) => string; // why a value shown isn't one of those listed
+}
+
+const LEVEL_WORDS: DimensionWords = {
+  large: count => `This collection has a large vertical range (${count} values, limit: 250). Using text input for easier selection.`,
+  individual: 'Individual Levels',
+  range: 'Level Range',
+  select: 'Select Levels',
+  selectId: 'vertical-select-label',
+  start: 'Start Level',
+  startId: 'start-vertical-label',
+  end: 'End Level',
+  endId: 'end-vertical-label',
+  text: 'Vertical Levels',
+  placeholder: 'e.g. 1000, or 1000,850,500',
+  helper: 'A level, several separated by commas, a range as 1000/500, or R3/500/100 for 3 steps of 100 from 500',
+  endHelper: 'Enter a numeric value',
+  unlisted: unlistedReason,
+};
+
+const dimensionWords = (id: string, reference?: string): DimensionWords => ({
+  large: count => `This dimension has a large range (${count} values, limit: 250). Using text input for easier selection.`,
+  individual: 'Individual Values',
+  range: 'Range',
+  select: 'Select Values',
+  selectId: `${id}-select-label`,
+  start: 'Start Value',
+  startId: `start-${id}-label`,
+  end: 'End Value',
+  endId: `end-${id}-label`,
+  text: 'Values',
+  placeholder: 'Enter value',
+  helper: reference ? `Unit: ${reference}` : 'A value, or several separated by commas',
+  endHelper: reference ? `Unit: ${reference}` : '',
+  unlisted: () => "Not one of the dimension's values",
+});
+
+const MONO = { primary: { style: { fontSize: '0.85rem', fontFamily: 'monospace' } } };
+
+// z or a custom dimension: its text as sent, shown by the mode's control. One value or several from a dropdown, or a
+// range's two ends. What a dropdown can't hold, a repeating interval, a range in the one-value mode or a list in the
+// range mode, is shown as it's sent, in a text field. Switching the mode keeps the text (switchMode).
+const DimensionField: React.FC<{
+  fieldId: string; // after query-field-, which the issues jump to: z, or dim:<id>
+  legend: string;
+  listed: string[]; // the values the collection lists
+  hasValues: boolean; // listed as values, rather than worked out from an interval
+  text: string;
+  setText: (text: string) => void;
+  mode: DimMode;
+  setMode: (mode: DimMode) => void;
+  issue?: QueryIssue;
+  words: DimensionWords;
+}> = ({ fieldId, legend, listed, hasValues, text, setText, mode, setMode, issue, words }) => {
+  const tooMany = listed.length > 250;
+  const listable = hasValues && !tooMany;
+  const ends = intervalEnds(text);
+  const asText = (helper: string) => (
+    <TextField label={words.text} value={text} onChange={event => setText(event.target.value)} fullWidth size="small"
+      placeholder={words.placeholder} helperText={helper} />
+  );
+
+  // One value or several, sent as a list in the collection's order. Any not among its own, as from a link, show
+  // first, so that they can be taken out
+  const valuesSelect = () => {
+    const { chosen, unlisted } = levelChoice(text, listed);
+    return (
+      <FormControl fullWidth>
+        <InputLabel id={words.selectId}>{words.select}</InputLabel>
+        <Select
+          labelId={words.selectId}
+          multiple
+          value={chosen}
+          label={words.select}
+          onChange={(event) => {
+            const picked = typeof event.target.value === 'string' ? event.target.value.split(',') : event.target.value;
+            setText(pickedLevels(picked, listed));
+          }}
+          renderValue={(selected) => selected.join(', ')}
+          size="small"
+          MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
+        >
+          {[...unlisted, ...listed].map((value) => (
+            <MenuItem key={value} value={value} dense>
+              <Checkbox size="small" checked={chosen.includes(value)} sx={{ py: 0 }} />
+              <ListItemText primary={value} secondary={unlisted.includes(value) ? words.unlisted(value) : undefined} slotProps={MONO} />
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    );
+  };
+
+  // A range's end: the other end stays as it is, and one still to pick is left empty
+  const setEnd = (which: 'start' | 'end', value: string) => setText(withEnd(text, which, value));
+  const endSelect = (which: 'start' | 'end') => {
+    const { chosen, unlisted } = levelChoice(ends?.[which] ?? '', listed);
+    const label = which === 'start' ? words.start : words.end;
+    const id = which === 'start' ? words.startId : words.endId;
+    return (
+      <FormControl fullWidth size="small">
+        <InputLabel id={id}>{label}</InputLabel>
+        <Select
+          labelId={id}
+          value={chosen[0] ?? ''}
+          label={label}
+          onChange={(event) => setEnd(which, event.target.value)}
+          MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
+        >
+          <MenuItem value="">
+            <em>Select {label.toLowerCase()}</em>
+          </MenuItem>
+          {[...unlisted, ...listed].map((value) => (
+            <MenuItem key={value} value={value}>
+              <ListItemText primary={value} secondary={unlisted.includes(value) ? words.unlisted(value) : undefined} slotProps={MONO} />
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    );
+  };
+  const endField = (which: 'start' | 'end') => (
+    <TextField
+      label={which === 'start' ? words.start : words.end}
+      value={ends?.[which] ?? ''}
+      onChange={(event) => setEnd(which, event.target.value)}
+      fullWidth
+      size="small"
+      placeholder={`Enter ${(which === 'start' ? words.start : words.end).toLowerCase()}`}
+      helperText={words.endHelper}
+    />
+  );
+
+  return (
+    <Box sx={{ mb: 2 }} id={`query-field-${fieldId}`}>
+      <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>{legend}</FormLabel>
+
+      {tooMany && (
+        <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
+          <Typography variant="caption">{words.large(listed.length)}</Typography>
+        </Alert>
+      )}
+
+      <FormControl component="fieldset" sx={{ mb: 1 }}>
+        <RadioGroup row value={mode} onChange={(event) => setMode(event.target.value as DimMode)} sx={{ gap: 2 }}>
+          <FormControlLabel value="individual" control={<Radio size="small" />} label={<Typography variant="body2">{words.individual}</Typography>} />
+          <FormControlLabel value="range" control={<Radio size="small" />} label={<Typography variant="body2">{words.range}</Typography>} />
+        </RadioGroup>
+      </FormControl>
+
+      {mode === 'individual' && (listable && !ends && !startsRepeating(text) ? valuesSelect() : asText(words.helper))}
+
+      {mode === 'range' && (ends || !text.trim() ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {listable ? <>{endSelect('start')}{endSelect('end')}</> : <>{endField('start')}{endField('end')}</>}
+        </Box>
+      ) : asText('Not a range of two ends, so shown as it is sent'))}
+
+      <FieldIssueText issue={issue} />
+    </Box>
+  );
+};
+
 // The query's fields, for a collection's data query or an instance's: everything below the query pick
 const QueryFields: React.FC<{ collection: Collection; queryKey: string; queryState: UseQueryUrlReturn }> = ({ collection, queryKey, queryState }) => {
   const {
     selectedFormat, setSelectedFormat,
     selectedParameters, setSelectedParameters,
-    selectedVertical, setSelectedVertical,
-    verticalMode, setVerticalMode,
-    startVertical, setStartVertical,
-    endVertical, setEndVertical,
-    selectedCustomDimensions, setSelectedCustomDimensions,
-    customDimensionModes, setCustomDimensionModes,
-    customDimensionStarts, setCustomDimensionStarts,
-    customDimensionEnds, setCustomDimensionEnds,
+    vertical, setVertical, verticalMode, setVerticalMode,
+    dimensions, setDimension, dimensionModes, setDimensionMode,
     getEffectiveOutputFormats,
     queryParams, setQueryParam,
     bboxAsCoords, setBboxAsCoords,
@@ -158,435 +332,45 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
         </Box>
       )}
 
-      {/* Vertical Extent Selector */}
+      {/* z and the custom dimensions, OGC API Maps UAD dimensions among them (top-level extent keys) */}
       {selectsData && collection.extent?.vertical && (() => {
-        const verticalValues = expandVerticalValues(collection.extent.vertical, 500);
-        const hasValues = collection.extent.vertical.values && collection.extent.vertical.values.length > 0;
-        const hasInterval = collection.extent.vertical.interval && collection.extent.vertical.interval.length > 0;
-
-        // Check if we have too many values (from large intervals)
-        // If so, use TextField instead of dropdown
-        const tooManyValues = verticalValues.length > 250;
-        // A repeating interval, R3/500/100, isn't a choice of levels: it stays as text, as sent
-        const useDropdown = hasValues && !tooManyValues && !startsRepeating(selectedVertical);
-
-        // Show vertical selection UI if collection has vertical extent (values OR interval)
+        const verticalExtent = collection.extent.vertical;
+        const hasValues = !!verticalExtent.values && verticalExtent.values.length > 0;
+        const hasInterval = !!verticalExtent.interval && verticalExtent.interval.length > 0;
         return (hasValues || hasInterval) ? (
-          <Box sx={{ mb: 2 }} id="query-field-z">
-            <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>
-              Vertical Level Selection{zUnits.length > 0 && ` (${zUnits.join(', ')})`}
-            </FormLabel>
-
-            {/* Info message when using text input due to large intervals */}
-            {tooManyValues && (
-              <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
-                <Typography variant="caption">
-                  This collection has a large vertical range ({verticalValues.length} values, limit: 250). Using text input for easier selection.
-                </Typography>
-              </Alert>
-            )}
-
-            {/* Vertical Mode Selector - always show when vertical extent exists */}
-            <FormControl component="fieldset" sx={{ mb: 1 }}>
-              <RadioGroup
-                row
-                value={verticalMode}
-                onChange={(e) => {
-                  const newMode = e.target.value as 'individual' | 'range';
-                  setVerticalMode(newMode);
-                  // Clear selections when switching modes
-                  if (newMode === 'range') {
-                    setSelectedVertical('');
-                  } else {
-                    setStartVertical('');
-                    setEndVertical('');
-                  }
-                }}
-                sx={{ gap: 2 }}
-              >
-                <FormControlLabel
-                  value="individual"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">Individual Levels</Typography>}
-                />
-                <FormControlLabel
-                  value="range"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">Level Range</Typography>}
-                />
-              </RadioGroup>
-            </FormControl>
-
-            {/* Individual Level - show dropdown if values exist, otherwise show TextField */}
-            {verticalMode === 'individual' && (
-              useDropdown ? (() => {
-                // One level or several, sent as a list. Any not among the collection's, as from a link, are shown first,
-                // so that they can be taken out
-                const { chosen, unlisted } = levelChoice(selectedVertical, verticalValues);
-                return (
-                  <FormControl fullWidth>
-                    <InputLabel id="vertical-select-label">Select Levels</InputLabel>
-                    <Select
-                      labelId="vertical-select-label"
-                      multiple
-                      value={chosen}
-                      label="Select Levels"
-                      onChange={(e) => {
-                        const picked = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
-                        setSelectedVertical(pickedLevels(picked, verticalValues));
-                      }}
-                      renderValue={(selected) => selected.join(', ')}
-                      size="small"
-                      MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                    >
-                      {[...unlisted, ...verticalValues].map((level) => (
-                        <MenuItem key={level} value={level} dense>
-                          <Checkbox size="small" checked={chosen.includes(level)} sx={{ py: 0 }} />
-                          <ListItemText
-                            primary={level}
-                            secondary={unlisted.includes(level) ? unlistedReason(level) : undefined}
-                            slotProps={{
-                              primary: {
-                                style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                              }
-                            }}
-                          />
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                );
-              })() : (
-                <TextField
-                  label="Vertical Levels"
-                  value={selectedVertical}
-                  onChange={(e) => {
-                    const vertical = e.target.value;
-                    setSelectedVertical(vertical);
-                  }}
-                  fullWidth
-                  size="small"
-                  placeholder="e.g. 1000, or 1000,850,500"
-                  helperText="A level, several separated by commas, or R3/500/100 for 3 steps of 100 from 500"
-                />
-              )
-            )}
-
-            {/* Level Range Selectors - show when in range mode */}
-            {verticalMode === 'range' && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {/* Show dropdowns with list if we have actual values and not too many */}
-                {useDropdown ? (
-                  <>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="start-vertical-label">Start Level</InputLabel>
-                      <Select
-                        labelId="start-vertical-label"
-                        value={startVertical}
-                        label="Start Level"
-                        onChange={(e) => {
-                          const newStart = e.target.value;
-                          setStartVertical(newStart);
-                        }}
-                        MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                      >
-                        <MenuItem value="">
-                          <em>Select start level</em>
-                        </MenuItem>
-                        {verticalValues.map((level) => (
-                          <MenuItem key={level} value={level}>
-                            <ListItemText
-                              primary={level}
-                              slotProps={{
-                                primary: {
-                                  style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                                }
-                              }}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl fullWidth size="small">
-                      <InputLabel id="end-vertical-label">End Level</InputLabel>
-                      <Select
-                        labelId="end-vertical-label"
-                        value={endVertical}
-                        label="End Level"
-                        onChange={(e) => {
-                          const newEnd = e.target.value;
-                          setEndVertical(newEnd);
-                        }}
-                        MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                      >
-                        <MenuItem value="">
-                          <em>Select end level</em>
-                        </MenuItem>
-                        {verticalValues.map((level) => (
-                          <MenuItem key={level} value={level}>
-                            <ListItemText
-                              primary={level}
-                              slotProps={{
-                                primary: {
-                                  style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                                }
-                              }}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </>
-                ) : (
-                  /* Show text inputs if no values exist or too many */
-                  <>
-                    <TextField
-                      label="Start Level"
-                      value={startVertical}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
-                        setStartVertical(newStart);
-                      }}
-                      fullWidth
-                      size="small"
-                      placeholder="Enter start level"
-                      helperText="Enter a numeric value"
-                    />
-                    <TextField
-                      label="End Level"
-                      value={endVertical}
-                      onChange={(e) => {
-                        const newEnd = e.target.value;
-                        setEndVertical(newEnd);
-                      }}
-                      fullWidth
-                      size="small"
-                      placeholder="Enter end level"
-                      helperText="Enter a numeric value"
-                    />
-                  </>
-                )}
-              </Box>
-            )}
-            <FieldIssueText issue={fieldIssue('z')} />
-          </Box>
+          <DimensionField
+            fieldId="z"
+            legend={`Vertical Level Selection${zUnits.length > 0 ? ` (${zUnits.join(', ')})` : ''}`}
+            listed={expandVerticalValues(verticalExtent, 500)}
+            hasValues={hasValues}
+            text={vertical}
+            setText={setVertical}
+            mode={verticalMode}
+            setMode={setVerticalMode}
+            issue={fieldIssue('z')}
+            words={LEVEL_WORDS}
+          />
         ) : null;
       })()}
 
-      {/* Custom Dimension Selectors — includes OGC API Maps UAD dimensions (top-level extent keys) */}
       {selectsData && getEffectiveCustomDimensions(collection.extent).map((dimension) => {
         const dimensionId = dimension.id;
-        const dimensionValues = expandCustomDimensionValues(dimension, 500);
-        const hasValues = dimension.values && dimension.values.length > 0;
-        const hasInterval = dimension.interval && dimension.interval.length > 0;
-
-        // Check if we have too many values (from large intervals)
-        const tooManyValues = dimensionValues.length > 250;
-        const useDropdown = hasValues && !tooManyValues;
-
-        // Show dimension selection UI if dimension has values OR interval
+        const hasValues = !!dimension.values && dimension.values.length > 0;
+        const hasInterval = !!dimension.interval && dimension.interval.length > 0;
         return (hasValues || hasInterval) ? (
-          <Box key={dimensionId} sx={{ mb: 2 }} id={`query-field-dim:${dimensionId}`}>
-            <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>
-              {dimension.id} Selection {dimension.reference ? `(${dimension.reference})` : ''}
-            </FormLabel>
-
-            {/* Info message when using text input due to large intervals */}
-            {tooManyValues && (
-              <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
-                <Typography variant="caption">
-                  This dimension has a large range ({dimensionValues.length} values, limit: 250). Using text input for easier selection.
-                </Typography>
-              </Alert>
-            )}
-
-            {/* Dimension Mode Selector */}
-            <FormControl component="fieldset" sx={{ mb: 1 }}>
-              <RadioGroup
-                row
-                value={customDimensionModes[dimensionId] || 'individual'}
-                onChange={(e) => {
-                  const newMode = e.target.value as 'individual' | 'range';
-                  setCustomDimensionModes(prev => ({ ...prev, [dimensionId]: newMode }));
-                  // Clear selections when switching modes
-                  if (newMode === 'range') {
-                    setSelectedCustomDimensions(prev => {
-                      const updated = { ...prev };
-                      delete updated[dimensionId];
-                      return updated;
-                    });
-                  } else {
-                    setCustomDimensionStarts(prev => {
-                      const updated = { ...prev };
-                      delete updated[dimensionId];
-                      return updated;
-                    });
-                    setCustomDimensionEnds(prev => {
-                      const updated = { ...prev };
-                      delete updated[dimensionId];
-                      return updated;
-                    });
-                  }
-                }}
-                sx={{ gap: 2 }}
-              >
-                <FormControlLabel
-                  value="individual"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">Individual Value</Typography>}
-                />
-                <FormControlLabel
-                  value="range"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">Range</Typography>}
-                />
-              </RadioGroup>
-            </FormControl>
-
-            {/* Individual Value Selector */}
-            {(customDimensionModes[dimensionId] || 'individual') === 'individual' && (
-              useDropdown ? (
-                <FormControl fullWidth>
-                  <InputLabel id={`${dimensionId}-select-label`}>Select Value</InputLabel>
-                  <Select
-                    labelId={`${dimensionId}-select-label`}
-                    value={selectedCustomDimensions[dimensionId] || ''}
-                    label="Select Value"
-                    onChange={(e) => {
-                      const value = e.target.value as string;
-                      setSelectedCustomDimensions(prev => ({ ...prev, [dimensionId]: value }));
-                    }}
-                    size="small"
-                    MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                  >
-                    {dimensionValues.map((val) => (
-                      <MenuItem key={val} value={val}>
-                        <ListItemText
-                          primary={val}
-                          slotProps={{
-                            primary: {
-                              style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                            }
-                          }}
-                        />
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              ) : (
-                <TextField
-                  label="Value"
-                  value={selectedCustomDimensions[dimensionId] || ''}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedCustomDimensions(prev => ({ ...prev, [dimensionId]: value }));
-                  }}
-                  fullWidth
-                  size="small"
-                  placeholder="Enter value"
-                  helperText={dimension.reference ? `Unit: ${dimension.reference}` : ''}
-                />
-              )
-            )}
-
-            {/* Range Selectors */}
-            {(customDimensionModes[dimensionId] || 'individual') === 'range' && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {useDropdown ? (
-                  <>
-                    <FormControl fullWidth size="small">
-                      <InputLabel id={`start-${dimensionId}-label`}>Start Value</InputLabel>
-                      <Select
-                        labelId={`start-${dimensionId}-label`}
-                        value={customDimensionStarts[dimensionId] || ''}
-                        label="Start Value"
-                        onChange={(e) => {
-                          const newStart = e.target.value;
-                          setCustomDimensionStarts(prev => ({ ...prev, [dimensionId]: newStart }));
-                        }}
-                        MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                      >
-                        <MenuItem value="">
-                          <em>Select start value</em>
-                        </MenuItem>
-                        {dimensionValues.map((val) => (
-                          <MenuItem key={val} value={val}>
-                            <ListItemText
-                              primary={val}
-                              slotProps={{
-                                primary: {
-                                  style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                                }
-                              }}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <FormControl fullWidth size="small">
-                      <InputLabel id={`end-${dimensionId}-label`}>End Value</InputLabel>
-                      <Select
-                        labelId={`end-${dimensionId}-label`}
-                        value={customDimensionEnds[dimensionId] || ''}
-                        label="End Value"
-                        onChange={(e) => {
-                          const newEnd = e.target.value;
-                          setCustomDimensionEnds(prev => ({ ...prev, [dimensionId]: newEnd }));
-                        }}
-                        MenuProps={{ slotProps: { paper: { style: { maxHeight: 300 } } } }}
-                      >
-                        <MenuItem value="">
-                          <em>Select end value</em>
-                        </MenuItem>
-                        {dimensionValues.map((val) => (
-                          <MenuItem key={val} value={val}>
-                            <ListItemText
-                              primary={val}
-                              slotProps={{
-                                primary: {
-                                  style: { fontSize: '0.85rem', fontFamily: 'monospace' }
-                                }
-                              }}
-                            />
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </>
-                ) : (
-                  <>
-                    <TextField
-                      label="Start Value"
-                      value={customDimensionStarts[dimensionId] || ''}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
-                        setCustomDimensionStarts(prev => ({ ...prev, [dimensionId]: newStart }));
-                      }}
-                      fullWidth
-                      size="small"
-                      placeholder="Enter start value"
-                      helperText={dimension.reference ? `Unit: ${dimension.reference}` : ''}
-                    />
-                    <TextField
-                      label="End Value"
-                      value={customDimensionEnds[dimensionId] || ''}
-                      onChange={(e) => {
-                        const newEnd = e.target.value;
-                        setCustomDimensionEnds(prev => ({ ...prev, [dimensionId]: newEnd }));
-                      }}
-                      fullWidth
-                      size="small"
-                      placeholder="Enter end value"
-                      helperText={dimension.reference ? `Unit: ${dimension.reference}` : ''}
-                    />
-                  </>
-                )}
-              </Box>
-            )}
-            <FieldIssueText issue={fieldIssue(`dim:${dimensionId}`)} />
-          </Box>
+          <DimensionField
+            key={dimensionId}
+            fieldId={`dim:${dimensionId}`}
+            legend={`${dimension.id} Selection ${dimension.reference ? `(${dimension.reference})` : ''}`}
+            listed={expandCustomDimensionValues(dimension, 500)}
+            hasValues={hasValues}
+            text={dimensions[dimensionId] ?? ''}
+            setText={text => setDimension(dimensionId, text)}
+            mode={dimensionModes[dimensionId] ?? 'individual'}
+            setMode={mode => setDimensionMode(dimensionId, mode)}
+            issue={fieldIssue(`dim:${dimensionId}`)}
+            words={dimensionWords(dimensionId, dimension.reference)}
+          />
         ) : null;
       })}
     </>

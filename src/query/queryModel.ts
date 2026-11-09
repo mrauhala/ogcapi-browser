@@ -2,7 +2,7 @@ import type { Collection, QueryVariables } from '../types/api';
 import { normalizeHref } from '../utils/href';
 import { EDR_QUERY_RULES, type EdrQueryRule } from './edrRules';
 import { queryTypeOf } from './queryTypes';
-import type { BBox, DimSelection } from './types';
+import type { BBox } from './types';
 
 // The parts of a selected location feature that address it
 export interface LocationFeature {
@@ -17,9 +17,10 @@ export interface QueryModelInput {
   queryKey: string; // key in collection.data_queries
   format: string;
   parameters: string[];
-  datetime: DimSelection;
-  vertical: DimSelection;
-  customDims: Record<string, DimSelection>;
+  // As sent: one value, a list, an interval or a repeating interval, '' for none. See dimensionText.ts
+  datetime: string;
+  vertical: string;
+  customDims: Record<string, string>;
   points: [number, number][]; // map clicks: position/radius points, trajectory vertices
   polygons: [number, number][][]; // drawn areas
   bbox: BBox | null; // the box drawn or typed for cube queries: west, south, east, north (lon/lat)
@@ -54,5 +55,3 @@ export function buildQueryModel(input: QueryModelInput): QueryModel | null {
 export function timeIsOnlyAFilter(queryType: string, hasLocation: boolean): boolean {
   return !!EDR_QUERY_RULES[queryType]?.featureList || (queryType === 'locations' && !hasLocation);
 }
-
-export const emptyDim = (mode: DimSelection['mode'] = 'individual'): DimSelection => ({ mode, value: '', start: '', end: '' });

@@ -1,6 +1,7 @@
 import type { Collection, ValidationResult } from '../types/api';
 import { normalizeBbox } from '../utils/extents/bbox';
 import { normalizeHref } from '../utils/href';
+import { wholeValue } from '../query/dimensionText';
 import { allSectionsValid, isProblem } from '../validation/severity';
 
 // What opening a collection works out, apart from the state it goes into
@@ -12,20 +13,13 @@ export function adjacentCollection(collections: Collection[], open: Collection |
   return collections[index + step] ?? null;
 }
 
-export interface LayerTime {
-  datetime?: string;
-  mode?: 'individual' | 'range';
-  start?: string;
-  end?: string;
-}
-
-// A collection's GeoJSON links as map layers, at the time chosen if it has a time at all. Without a
-// bbox, which OpenLayers adds as the view moves.
-export function geoJsonLinksOf(collection: Collection, { datetime, mode, start, end }: LayerTime = {}): { url: string; title: string }[] {
+// A collection's GeoJSON links as map layers, at the time chosen if it has a time at all and it's whole (a range still
+// missing an end isn't). Without a bbox, which OpenLayers adds as the view moves.
+export function geoJsonLinksOf(collection: Collection, datetime = ''): { url: string; title: string }[] {
   if (!Array.isArray(collection?.links)) return [];
   const temporal = collection.extent?.temporal;
   const hasTime = !!temporal && !!(temporal.interval || temporal.values);
-  const time = !hasTime ? '' : mode === 'range' && start && end ? `${start}/${end}` : datetime ?? '';
+  const time = hasTime ? wholeValue(datetime) : '';
 
   return collection.links.flatMap(link => {
     if (link.type !== 'application/geo+json') return [];

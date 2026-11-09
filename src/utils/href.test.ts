@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
-import { buildQueryModel, emptyDim } from '../query/queryModel';
+import { buildQueryModel } from '../query/queryModel';
 import { buildQueryUrl } from '../query/buildQueryUrl';
 import { normalizeHref, repairAppendedHref, resolveCollectionHrefs, resolveHref } from './href';
 import dmi from './__fixtures__/dmi-appended-hrefs.json';
@@ -72,7 +72,7 @@ describe('resolveCollectionHrefs', () => {
     resolveCollectionHrefs(collection, 'https://opendataapi.dmi.dk/v1/forecastedr/', dmi.requestUrl);
     const url = buildQueryUrl(buildQueryModel({
       collection, queryKey: 'position', format: 'CoverageJSON', parameters: [],
-      datetime: emptyDim(), vertical: emptyDim(), customDims: {}, points: [[12.561, 55.715]], polygons: [], bbox: null, bboxAsCoords: false,
+      datetime: '', vertical: '', customDims: {}, points: [[12.561, 55.715]], polygons: [], bbox: null, bboxAsCoords: false,
       radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null,
     })!);
     expect(url).toBe('https://opendataapi.dmi.dk/v1/forecastedr/collections/dkss_nsbs/position?f=CoverageJSON&coords=POINT%2812.561+55.715%29');

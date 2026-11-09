@@ -44,16 +44,11 @@ const TimeControl: React.FC<TimeControlProps> = ({ temporal, queryState }) => {
 
   const tc = useTimeControl(temporal, queryState);
 
+  // The time chosen stays: a time becomes an open range's start, and a range its start
   const handleModeChange = useCallback((_: React.MouseEvent<HTMLElement>, newMode: 'individual' | 'range' | null) => {
     if (newMode === null) return;
     setDatetimeMode(newMode);
-    if (newMode === 'range') {
-      setSelectedDatetime('');
-    } else {
-      setStartDatetime('');
-      setEndDatetime('');
-    }
-  }, [setDatetimeMode, setSelectedDatetime, setStartDatetime, setEndDatetime]);
+  }, [setDatetimeMode]);
 
   const formatSliderLabel = useCallback((value: number) => {
     return formatDateString(new Date(value).toISOString());
