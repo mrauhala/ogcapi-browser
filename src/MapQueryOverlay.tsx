@@ -4,6 +4,7 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import { usePanes } from './contexts/PanesContext';
+import { waypointLetter } from './utils/waypointLetter';
 
 // What the map asks for in each query type, and the button that clears it. An optional input
 // (an items box, a location) gets no prompt, only the clear button.
@@ -92,6 +93,8 @@ const listStyle: React.CSSProperties = {
 export interface MapSelection {
   title: string;
   items: string[];
+  // A path's vertices go by letter, as the section's waypoints do; other places by number
+  lettered?: boolean;
 }
 
 interface MapQueryOverlayProps {
@@ -167,7 +170,7 @@ const MapQueryOverlay: React.FC<MapQueryOverlayProps> = ({ queryType, hasGeometr
       {list && listOpen && (
         <div id={listId} style={listStyle}>
           {list.items.map((item, idx) => (
-            <div key={idx} style={{ marginTop: idx > 0 ? '4px' : '0' }}>{idx + 1}. {item}</div>
+            <div key={idx} style={{ marginTop: idx > 0 ? '4px' : '0' }}>{list.lettered ? waypointLetter(idx) : idx + 1}. {item}</div>
           ))}
         </div>
       )}

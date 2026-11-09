@@ -5,18 +5,21 @@ import { useResponseCells } from '../contexts/responseCells';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { sourceCell } from './cellSelection';
 import { lutFor } from './colourScale';
-import { notNumbersText } from './coverageCells';
+import { notNumbersText, type DrawableCells } from './coverageCells';
 import {
-  clampView, gridMaps, hitTest, paintAxes, paintGrid, paintGridDetail, paintMarks, paintPolygons, paintSamples, plotLayout, scaleText,
-  type PaintedPlot, type PlotView,
+  clampView, gridMaps, hitTest, marginsOf, paintAxes, paintGrid, paintGridDetail, paintMarks, paintPolygons, paintSamples, paintSectionDetail, plotLayout,
+  scaleText, type PaintedPlot, type PlotView,
 } from './paintCells';
 import { useCellsPalette } from './useCellsPalette';
 
 const SHORTEST_PICTURE = 240;
-// The axis labels' room above and below the cells
-const CANVAS_MARGINS = 30;
 const READOUT_MARGIN = 12;
 const ZOOM_ROW = 30;
+
+// What the picture is, for a screen reader: "a section of 257 positions by 39 levels", or "35 cells"
+function canvasWords({ section, geometry: g, cells }: DrawableCells) {
+  return section && g.kind === 'grid' ? `a ${section.data.kind} of ${g.nx} positions by ${g.ny} levels` : `${cells} cells`;
+}
 
 // Two stacked canvases, so that pointing doesn't repaint the cells. The picture fits the pane, and zooms from there
 export default function CellsCanvas({ readoutBelow }: { readoutBelow: boolean }) {
@@ -29,24 +32,27 @@ export default function CellsCanvas({ readoutBelow }: { readoutBelow: boolean })
   const [scale, setScale] = useState('');
   const [tallest, setTallest] = useState(SHORTEST_PICTURE);
   const { zoom, ramp, pin, flip } = choices;
+  const drawn = picture?.cells;
 
   // As tall as it can be with the readout still in sight below it, since pointing is no use without that. Where the
   // words above leave too little room, as on a phone, it's the tallest that fits once they're scrolled away
   useLayoutEffect(() => {
     const canvas = base.current;
     const scroller = canvas?.closest<HTMLElement>('[data-cells-scroller]');
-    if (!canvas || !scroller) return undefined;
+    if (!canvas || !scroller || !drawn) return undefined;
+    // The axis labels' room above and below the cells
+    const margins = marginsOf(drawn);
     const measure = () => {
       const readout = readoutBelow ? (scroller.querySelector<HTMLElement>('[data-cell-readout]')?.offsetHeight ?? 0) + READOUT_MARGIN : READOUT_MARGIN;
       const above = canvas.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-      const fits = scroller.clientHeight - above - CANVAS_MARGINS - readout;
-      setTallest(Math.round(fits >= SHORTEST_PICTURE ? fits : Math.max(SHORTEST_PICTURE, scroller.clientHeight - ZOOM_ROW - CANVAS_MARGINS - readout)));
+      const fits = scroller.clientHeight - above - margins - readout;
+      setTallest(Math.round(fits >= SHORTEST_PICTURE ? fits : Math.max(SHORTEST_PICTURE, scroller.clientHeight - ZOOM_ROW - margins - readout)));
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(scroller);
     return () => observer.disconnect();
-  }, [picture?.cells, readoutBelow, flip]);
+  }, [drawn, readoutBelow, flip]);
 
   const repaintMarks = useCallback(() => {
     if (over.current && plot.current && picture) paintMarks(over.current, plot.current, picture.cells, pin, hover.get()?.cell ?? null);
@@ -79,7 +85,8 @@ export default function CellsCanvas({ readoutBelow }: { readoutBelow: boolean })
     if (g.kind === 'grid') {
       maps = gridMaps(g, box.v, W, H);
       paintGrid(ctx, ox, oy, W, H, g, codes, lut, maps, { scale: ratio, mode: palette.mode, highlight: lit });
-      paintGridDetail(ctx, box, g, maps, codes, lut, cell => parameter.rawAt(sourceCell(g, cell, flip), slice).value, ratio, palette);
+      const printed = paintGridDetail(ctx, box, g, maps, codes, lut, cell => parameter.rawAt(sourceCell(g, cell, flip), slice).value, ratio, palette);
+      paintSectionDetail(ctx, box, cells, maps, codes, lut, slice, ratio, palette, printed);
     } else if (g.kind === 'samples') {
       paintSamples(ctx, box, g, cells.crs, codes, lut, ratio, palette, palette.plot);
     } else {
@@ -247,7 +254,7 @@ export default function CellsCanvas({ readoutBelow }: { readoutBelow: boolean })
           ref={over}
           tabIndex={0}
           role="img"
-          aria-label={`${picture.parameter.id}, ${picture.cells.cells} cells. Arrow keys move between cells, and the value shows below`}
+          aria-label={`${picture.parameter.id}, ${canvasWords(picture.cells)}. Arrow keys move between cells, and the value shows below`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

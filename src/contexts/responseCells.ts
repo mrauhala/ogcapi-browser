@@ -4,6 +4,8 @@ import { codesFor, colourRange, figuresInScope, scopeOf, sliceIndex, type Flip, 
 import type { Highlight, RampKind } from '../coverage/colourScale';
 import type { CellParameter, CellsReading, DrawableCells } from '../coverage/coverageCells';
 import type { PlotView } from '../coverage/paintCells';
+import { planeFor } from '../coverage/sectionCells';
+import type { LevelSpacing } from '../coverage/verticalAxis';
 
 // The cells of the latest response, above the pane and the map, so that the two show the same thing: the same
 // parameter, step and colours. This view never sends a request.
@@ -16,7 +18,10 @@ export interface CellsChoices {
   setHi: number | null;
   ramp: RampKind;
   scope: RangeScope | null;
+  // On a section, 'ns' turns the level axis over, labels and all, as the profile's Flip does
   flip: Flip;
+  // How a section's levels are spaced. Null for its default
+  levelSpacing: LevelSpacing | null;
   onMap: boolean;
   opacity: number;
   zoom: PlotView | null;
@@ -35,6 +40,7 @@ export const INITIAL_CHOICES: CellsChoices = {
   ramp: 'sequential',
   scope: null,
   flip: 'none',
+  levelSpacing: null,
   onMap: true,
   opacity: 0.85,
   zoom: null,
@@ -51,6 +57,7 @@ export const afterNewResponse = (choices: CellsChoices): CellsChoices => ({
   setHi: null,
   scope: null,
   flip: 'none',
+  levelSpacing: null,
   zoom: null,
   pin: null,
   litPinned: null,
@@ -69,14 +76,16 @@ export interface CellsPicture {
   codes: Uint16Array;
 }
 
-export function pictureOf(reading: CellsReading | null, { parameterId, steps, range, setLo, setHi, ramp, scope, flip }: CellsChoices): CellsPicture | null {
+export function pictureOf(reading: CellsReading | null, { parameterId, steps, range, setLo, setHi, ramp, scope, flip, levelSpacing }: CellsChoices): CellsPicture | null {
   if (!reading?.drawable) return null;
-  const parameter = reading.parameters.find(candidate => candidate.id === parameterId) ?? reading.parameters[0];
-  const theScope = scopeOf(reading, scope);
-  const figures = figuresInScope(parameter, reading, theScope, steps);
+  // A section's plane is laid out as its levels are chosen to be. A grid is as it was read
+  const cells = reading.section ? planeFor(reading, levelSpacing ?? reading.section.defaultSpacing, flip === 'ns') : reading;
+  const parameter = cells.parameters.find(candidate => candidate.id === parameterId) ?? cells.parameters[0];
+  const theScope = scopeOf(cells, scope);
+  const figures = figuresInScope(parameter, cells, theScope, steps);
   const [lo, hi] = colourRange(figures, range, setLo, setHi, ramp);
-  const slice = sliceIndex(reading.dims, steps);
-  return { cells: reading, parameter, slice, scope: theScope, figures, lo, hi, codes: codesFor(parameter, reading, slice, lo, hi, flip) };
+  const slice = sliceIndex(cells.dims, steps);
+  return { cells, parameter, slice, scope: theScope, figures, lo, hi, codes: codesFor(parameter, cells, slice, lo, hi, flip) };
 }
 
 export interface CellHover {

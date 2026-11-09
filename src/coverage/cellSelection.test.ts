@@ -1,12 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cellRows, codesFor, colourRange, figuresInScope, longestReadout, longestStepCaption, notesFor, opensAsPicture, positionUrl, scopeOf,
-  sliceIndex, sortedCells, sourceCell, stepCaption, stepKinds, stepLabel, stepOf, tallies,
+  cellRows, codesFor, colourRange, figuresInScope, longestReadout, longestStepCaption, notSentWords, notesFor, opensAsPicture, positionUrl, scopeOf,
+  sectionPlace, sectionRowCells, sliceIndex, sortedCells, sourceCell, stepCaption, stepKinds, stepLabel, stepOf, tallies,
 } from './cellSelection';
 import { analyse } from './cellFigures';
-import { ABOVE_CODE, BELOW_CODE, NULL_CODE, TEXT_CODE } from './colourScale';
+import { ABOVE_CODE, ABSENT_CODE, BELOW_CODE, NULL_CODE, TEXT_CODE } from './colourScale';
 import { readCells, type DrawableCells, type GridGeometry } from './coverageCells';
 import { CRS84, counting, grid, pointCollection, pointCoverage, pointLattice, triangles } from './cellsTestData';
+import { planeFor, readResponseCells } from './sectionCells';
+import { sectionRows } from '../coverageTableColumns';
+import fmiEc2param from './__fixtures__/sections/fmi-ec-2param.json';
+import fmiEcFrames from './__fixtures__/sections/fmi-ec-frames.json';
+import fmiMultilinestring from './__fixtures__/sections/fmi-multilinestring.json';
+import mcIfsDatetimes from './__fixtures__/sections/mc-ifs-datetimes.json';
+import mcIfsLsmZlist from './__fixtures__/sections/mc-ifs-lsm-zlist.json';
+import mcIfsLsz from './__fixtures__/sections/mc-ifs-lsz.json';
+import mcRadarFikorZ from './__fixtures__/sections/mc-radar-fikor-z.json';
 
 const drawn = (json: unknown) => readCells(json) as DrawableCells;
 const DAY = ['2026-11-07T06:00:00Z', '2026-11-07T07:00:00Z', '2026-11-07T08:00:00Z'];
@@ -103,6 +112,13 @@ describe('what the colours cover', () => {
     expect(figuresInScope(cells.parameters[0], cells, 'this', { t: 1 })).toMatchObject({ numbers: 0, nulls: 1, notNumbers: 1 });
   });
 
+  it('leaves out what nothing was sent for within a scope', () => {
+    const cells = drawn(grid({ x: [1, 2], y: [60], t: DAY, values: [1, null, null, null, 5, 6] }));
+    const parameter = { ...cells.parameters[0], absentAt: Uint8Array.from([0, 1, 0, 1, 0, 0]) };
+    expect(figuresInScope(parameter, cells, 'this', { t: 0 })).toMatchObject({ total: 1, numbers: 1, nulls: 0 });
+    expect(figuresInScope(parameter, cells, 'this', { t: 1 })).toMatchObject({ total: 1, numbers: 0, nulls: 1 });
+  });
+
   it('takes the whole parameter for all, and works each scope out once', () => {
     const cells = levels();
     const [parameter] = cells.parameters;
@@ -189,6 +205,14 @@ describe('codesFor', () => {
     expect(Array.from(codesFor(cells.parameters[0], cells, 0, 0, 10, 'none'))).toEqual([0, TEXT_CODE, NULL_CODE]);
     expect(Array.from(codesFor(cells.parameters[0], cells, 1, 0, 10, 'none'))).toEqual([TEXT_CODE, 255, 0]);
   });
+
+  it('codes what nothing was sent for apart from a null, at the step it’s given', () => {
+    const cells = drawn(grid({ x: [1, 2, 3], y: [60], t: DAY.slice(0, 2), values: [0, null, 10, 10, 0, null] }));
+    const parameter = { ...cells.parameters[0], absentAt: Uint8Array.from([0, 1, 0, 0, 0, 1]) };
+    expect(Array.from(codesFor(parameter, cells, 0, 0, 10, 'none'))).toEqual([0, ABSENT_CODE, 255]);
+    expect(Array.from(codesFor(parameter, cells, 1, 0, 10, 'none'))).toEqual([255, 0, ABSENT_CODE]);
+    expect(Array.from(codesFor(parameter, cells, 1, 0, 10, 'ew'))).toEqual([ABSENT_CODE, 0, 255]);
+  });
 });
 
 describe('tallies', () => {
@@ -199,6 +223,12 @@ describe('tallies', () => {
     expect(counted.bins[63]).toBe(1);
     expect(counted.bins).toHaveLength(64);
     expect([counted.nulls, counted.notNumbers, counted.below, counted.above]).toEqual([2, 4, 1, 3]);
+  });
+
+  it('counts what nothing was sent for, in no bar', () => {
+    const counted = tallies(Uint16Array.from([0, ABSENT_CODE, ABSENT_CODE, NULL_CODE]));
+    expect([counted.absent, counted.nulls, counted.bins.reduce((sum, bin) => sum + bin, 0)]).toEqual([2, 1, 1]);
+    expect(tallies(Uint16Array.from([0, NULL_CODE])).absent).toBe(0);
   });
 });
 
@@ -424,5 +454,150 @@ describe('longestReadout', () => {
   it('writes an id with a slash as the path does', () => {
     const cells = drawn(grid({ id: 'a/b' }));
     expect(longestReadout(cells, cells.parameters[0]).pointer).toContain('/ranges/a~1b/values/');
+  });
+});
+
+describe('along a path', () => {
+  const urlOf = (json: unknown) => /^GET (\S+),/.exec((json as { _comment: string })._comment)?.[1] ?? '';
+  // FMI's 3 levels, with 333 hPa asked for too, which isn't sent
+  const BADLEVEL_URL = 'https://opendata.fmi.fi/edr/collections/ecmwf_painepinta/trajectory?coords=LINESTRING(24%2060,25%2061,26%2062)&z=1000,850,500,333&parameter-name=temperature,windspeedms&datetime=2026-11-07T00:00:00Z&f=CoverageJSON';
+  const section = (json: unknown, url = urlOf(json)) => readResponseCells(json, { url }) as DrawableCells;
+  const PATHS: [string, unknown, string?][] = [
+    ['fmi-ec-2param', fmiEc2param], ['fmi-ec-frames', fmiEcFrames], ['fmi-multilinestring', fmiMultilinestring], ['mc-ifs-datetimes', mcIfsDatetimes],
+    ['mc-ifs-lsm-zlist', mcIfsLsmZlist], ['mc-ifs-lsz', mcIfsLsz], ['mc-radar-fikor-z', mcRadarFikorZ], ['fmi-ec-2param with 333 hPa not sent', fmiEc2param, BADLEVEL_URL],
+  ];
+
+  describe('the rows of its Table', () => {
+    it('has a row where something was sent, position by position along the path, each position’s levels from the lowest value', () => {
+      expect([...sectionRowCells(section(fmiEc2param), 0)]).toEqual([0, 3, 6, 1, 4, 7, 2, 5, 8]);
+      // Heights up: the lowest is the bottom row
+      const radar = section(mcRadarFikorZ);
+      expect([...sectionRowCells(radar, 0).subarray(0, 3)]).toEqual([38 * 257, 37 * 257, 36 * 257]);
+      expect(sectionRowCells(radar, 0)).toHaveLength(257 * 39);
+    });
+
+    it('has no row for a level not sent, or a track’s other levels', () => {
+      expect([...sectionRowCells(section(fmiEc2param, BADLEVEL_URL), 0)]).toEqual([3, 6, 9, 4, 7, 10, 5, 8, 11]);
+      const track = section(mcIfsLsz);
+      expect(sectionRowCells(track, 0)).toHaveLength(9);
+      expect([...sectionRowCells(track, 0)].every(cell => !track.parameters[0].absentAt![cell])).toBe(true);
+    });
+
+    it('has none for what isn’t a section', () => {
+      expect(sectionRowCells(drawn(grid()), 0)).toHaveLength(0);
+    });
+
+    it('sorts only among the cells it’s given', () => {
+      const cells = section(fmiEc2param, BADLEVEL_URL);
+      const among = sectionRowCells(cells, 0);
+      const sorted = sortedCells(cells.parameters[0], cells, 0, 1, among);
+      expect([...sorted].sort((a, b) => a - b)).toEqual([...among].sort((a, b) => a - b));
+      const values = [...sorted].map(cell => cells.parameters[0].data[cell]);
+      expect(values).toEqual([...values].sort((a, b) => a - b));
+      expect([...among]).toEqual([3, 6, 9, 4, 7, 10, 5, 8, 11]);
+    });
+
+    for (const [name, json, url] of PATHS) {
+      it(`lists ${name} as the path’s own table did, a step at a time`, () => {
+        const cells = section(json, url);
+        const data = cells.section!.data;
+        const before = sectionRows(data);
+        for (let slice = 0; slice < cells.slices; slice++) {
+          const rows = cellRows(cells, 0, Infinity, null, slice, 'none');
+          expect(rows.every(row => typeof row.id === 'number')).toBe(true);
+          // A step at a time, so the time is the step bar's, unless it runs along the path
+          const theirs = before.filter(row => row.id.startsWith(`${slice}:`)).map(({ id: _id, location: _location, time, ...row }) => (data.timeAlong ? { ...row, time } : row));
+          expect(rows.map(({ id: _id, ...row }) => row)).toEqual(theirs);
+        }
+      });
+    }
+
+    it('gives each row the cell drawn, so that clicking it pins what’s seen, flipped or not, with the same values', () => {
+      const cells = section(fmiEc2param);
+      const flipped = planeFor(cells, 'log', true);
+      const rows = cellRows(cells, 0, 9, null, 0, 'none');
+      const turned = cellRows(flipped, 0, 9, null, 0, 'ns');
+      expect(turned.map(({ id: _id, ...row }) => row)).toEqual(rows.map(({ id: _id, ...row }) => row));
+      // 500 hPa at the first position: the top row as sent, the bottom row turned over
+      expect([rows[0].id, turned[0].id]).toEqual([0, 6]);
+      expect(turned.map(row => row.id)).toEqual(rows.map(row => sourceCell(flipped.geometry, Number(row.id), 'ns')));
+    });
+
+    it('builds only the page asked for, in the order it’s given', () => {
+      const cells = section(mcRadarFikorZ);
+      const order = sectionRowCells(cells, 0);
+      expect(cellRows(cells, 100, 200, order, 0, 'none')).toHaveLength(100);
+      // The third position's 23rd level from the ground
+      expect(cellRows(cells, 100, 101, order, 0, 'none')[0]).toMatchObject({ id: order[100], position: 3, z: cells.section!.data.levels[22] });
+    });
+  });
+
+  describe('the readout', () => {
+    it('says where along the path, at which level, and from which waypoint', () => {
+      const radar = section(mcRadarFikorZ);
+      expect(sectionPlace(radar, 0, 0)).toEqual({ where: '0 km · 9306.12 m · at A', place: '#1 at x 20.5, y 60.1 · lowest beam 790.305 m', notBack: null });
+      expect(sectionPlace(radar, 5, 0)?.where).toBe('2.5 km · 9306.12 m · A+2.5 km');
+      expect(sectionPlace(radar, 38 * 257 + 255, 0)?.where).toBe('127.27 km · 0 m · B−0.5 km');
+      expect(sectionPlace(section(fmiEc2param), 4, 0)).toEqual({ where: '123.94 km · 850 hPa · at B', place: '#2 at x 25, y 61', notBack: null });
+      expect(sectionPlace(section(fmiMultilinestring), 2, 0)?.where).toBe('123.94 km · 500 hPa · line 2, at C');
+    });
+
+    it('gives a time along the path for the position', () => {
+      expect(sectionPlace(section(mcIfsLsmZlist), 5, 0)?.place).toBe('#6 at x 25.24402167194262, y 61.25067995551859 · Nov 7 06:00');
+    });
+
+    it('says which level was asked for and not sent', () => {
+      expect(sectionPlace(section(fmiEc2param, BADLEVEL_URL), 1, 0)).toMatchObject({ where: '123.94 km · 333 hPa · at B', notBack: 333 });
+      expect(notSentWords(333)).toBe('Not in the response: z=333 was asked for');
+      expect(notSentWords(null)).toBe('Not in the response');
+    });
+
+    it('counts positions where x and y aren’t lon/lat', () => {
+      const json = JSON.parse(JSON.stringify(fmiEc2param));
+      json.referencing[0].system = { type: 'ProjectedCRS', id: 'http://www.opengis.net/def/crs/EPSG/0/3067' };
+      expect(sectionPlace(section(json, urlOf(fmiEc2param)), 4, 0)).toEqual({ where: 'position 2 · 850 hPa', place: 'x 25, y 61', notBack: null });
+    });
+
+    it('has nothing to say of a grid’s cell this way', () => {
+      expect(sectionPlace(drawn(grid()), 0, 0)).toBeNull();
+    });
+
+    for (const [name, json, url] of PATHS) {
+      it(`keeps room for the longest of each of ${name}’s lines`, () => {
+        const cells = section(json, url);
+        const g = cells.geometry as GridGeometry;
+        for (const parameter of cells.parameters) {
+          const room = longestReadout(cells, parameter);
+          for (let slice = 0; slice < cells.slices; slice++) {
+            for (let cell = 0; cell < g.cells; cell++) {
+              const raw = parameter.rawAt(cell, slice);
+              const spot = sectionPlace(cells, cell, slice)!;
+              const value = raw.absent ? notSentWords(spot.notBack) : raw.value === null ? 'null' : `${String(raw.value)}${parameter.unit ? ` ${parameter.unit}` : ''}`;
+              expect(value.length).toBeLessThanOrEqual(room.value.length);
+              expect(spot.where.length).toBeLessThanOrEqual(room.where.length);
+              expect(spot.place.length).toBeLessThanOrEqual(room.place!.length);
+              expect((raw.pointer ?? '').length).toBeLessThanOrEqual(room.pointer.length);
+            }
+          }
+        }
+      });
+    }
+
+    it('keeps room for a path in the last coverage of a collection, and for none in a single coverage', () => {
+      const fmi = section(fmiEcFrames);
+      expect(longestReadout(fmi, fmi.parameters[0]).pointer).toBe('/coverages/8/ranges/temperature/values/14');
+      const radar = section(mcRadarFikorZ);
+      expect(longestReadout(radar, radar.parameters[0]).pointer).toBe('/ranges/DBZH/values/10022');
+    });
+  });
+
+  it('has no note about a missing t axis where time runs along the path', () => {
+    const cells = section(mcIfsLsmZlist);
+    expect(notesFor(cells, cells.parameters[0], `${urlOf(mcIfsLsmZlist)}&datetime=2026-11-07T00:00:00Z/2026-11-07T12:00:00Z`).map(note => note.text).join(' ')).not.toContain('datetime');
+  });
+
+  it('has no position check: a place along a path is another request', () => {
+    const cells = section(fmiEc2param);
+    expect(positionUrl('https://x/collections/c/area?coords=POLYGON((1%202))', cells, cells.parameters[0], 0, {})).toBeNull();
   });
 });

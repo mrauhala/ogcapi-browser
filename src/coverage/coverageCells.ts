@@ -1,4 +1,4 @@
-import { analyse, shareText, type CellFigures } from './cellFigures';
+import { analyse, shareText, type CellFigures, type SliceFigures } from './cellFigures';
 import { formatValue } from './coverageSummary';
 import { rangeMisfit } from './rangeFit';
 import { parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
@@ -7,6 +7,7 @@ import { NAMED } from './parameterChecks';
 import { parseTime } from '../utils/utcTime';
 import { COVJSON } from '../standards';
 import type { Rule, ValidationError } from '../types/api';
+import type { SectionPlane } from './sectionCells';
 
 // A parsed CoverageJSON response in, what can be drawn out, or why not. It reads the response, and assumes nothing
 // about it: real APIs answer an area or a cube with a Grid, with thousands of Point coverages, with stations or with
@@ -82,6 +83,9 @@ export interface CellParameter extends ParameterBase {
   // The cells whose NaN is a value that isn't a number, or null if there's none. Text, if every one is a string
   notNumberAt: Uint8Array | null;
   notNumbersAreText: boolean;
+  // The cells nothing was sent for, as a level asked for and not sent, or a track's other levels. Null or left out if
+  // there are none
+  absentAt?: Uint8Array | null;
   rawAt: (cell: number, slice: number) => CellRaw;
   indicesAt: (cell: number, slice: number) => [string, number][];
 }
@@ -105,14 +109,16 @@ export interface CellNote {
 
 export interface DrawableCells {
   drawable: true;
-  source: 'grid' | 'points' | 'points-grid' | 'polygons';
-  viewLabel: 'Grid' | 'Points' | 'Cells';
+  source: 'grid' | 'points' | 'points-grid' | 'polygons' | 'section';
+  viewLabel: 'Grid' | 'Points' | 'Cells' | 'Section';
   domainType: string;
   geometry: CellGeometry;
   dims: StepAxis[];
   fixed: Record<string, unknown>;
   slices: number;
   cells: number;
+  // A section's plane is distance along the path by level, so it isn't lon/lat whatever the path's CRS: its geographic
+  // is false, which keeps it off the map, and the path's own CRS is in section.data.crs
   crs: CellCrs;
   parameters: CellParameter[];
   broken: BrokenParameter[];
@@ -122,6 +128,8 @@ export interface DrawableCells {
   zUnit: string;
   // The coverages it was put together from, if there were several
   coverageCount: number | null;
+  // Only for source 'section': the path behind the plane, and how its levels are laid out
+  section?: SectionPlane;
 }
 
 export interface UndrawableCells {
@@ -1016,8 +1024,8 @@ function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: u
 const FILL_LIKE = new Set([-9999, 9999, -999, 999, -99, -32768, 32767, 65535, -999.9, 9999.9]);
 const looksLikeFill = (value: number) => Math.abs(value) >= 1e20 || FILL_LIKE.has(Math.round(value * 10) / 10);
 
-function addParameterNotes(notes: CellNote[], parameter: CellParameter) {
-  const { id, unit, figures, data } = parameter;
+export function addParameterNotes(notes: CellNote[], parameter: CellParameter) {
+  const { id, unit, figures, data, absentAt } = parameter;
   const cells = data.length / figures.perSlice.length;
   // Where the first value that passes is, in the data, which cellFindings makes a path of
   const first = (test: (value: number, at: number) => boolean) => {
@@ -1043,10 +1051,13 @@ function addParameterNotes(notes: CellNote[], parameter: CellParameter) {
     const guess = spike.value !== 0 ? '. It may be a code and not a measurement' : '';
     notes.push({ level: guess ? 'warn' : 'info', checks: 'info', at: first(each => each === spike.value), text: `${formatValue(spike.value)}${unit ? ` ${unit}` : ''} is in ${count(spike.count)} of ${count(figures.total)} ${id} values (${shareText(spike.count / figures.total)}), at the ${spike.atLow ? 'bottom' : 'top'} of the range${guess}`, parameter: id });
   }
-  const empty = figures.perSlice.filter(slice => slice.numbers === 0).length;
+  // A step with nothing sent isn't null: nothing was there to be
+  const allNull = (slice: SliceFigures) => slice.numbers === 0 && slice.nulls + slice.notNumbers > 0;
+  const empty = figures.perSlice.filter(allNull).length;
   if (empty > 0 && empty < figures.perSlice.length) {
-    const firstEmpty = figures.perSlice.findIndex(slice => slice.numbers === 0);
-    notes.push({ level: 'warn', text: `${plural(empty, 'step')} of ${id} ${empty === 1 ? 'is' : 'are'} all null`, parameter: id, checks: 'info', at: firstEmpty * cells });
+    let at = figures.perSlice.findIndex(allNull) * cells;
+    while (absentAt?.[at]) at++;
+    notes.push({ level: 'warn', text: `${plural(empty, 'step')} of ${id} ${empty === 1 ? 'is' : 'are'} all null`, parameter: id, checks: 'info', at });
   }
   addUnitNote(notes, parameter);
 }

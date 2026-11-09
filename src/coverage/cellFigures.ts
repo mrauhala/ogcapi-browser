@@ -169,10 +169,11 @@ function recount(figures: CellFigures, found: Found, numbers: Float32Array) {
   figures.hi = hi;
 }
 
-// notNumberAt marks the cells whose NaN is a value that isn't a number, so that it isn't counted as a null
-export function analyse(data: Float32Array, slices: number, cells: number, notNumberAt: Uint8Array | null = null): CellFigures {
-  const total = data.length;
-  const numbers = new Float32Array(total);
+// notNumberAt marks the cells whose NaN is a value that isn't a number, so that it isn't counted as a null. absentAt
+// marks those nothing was sent for, which aren't values at all: not nulls, and not in the total
+export function analyse(data: Float32Array, slices: number, cells: number, notNumberAt: Uint8Array | null = null, absentAt: Uint8Array | null = null): CellFigures {
+  const numbers = new Float32Array(data.length);
+  let absent = 0;
   let n = 0;
   let sum = 0;
   let nulls = 0;
@@ -191,7 +192,8 @@ export function analyse(data: Float32Array, slices: number, cells: number, notNu
     for (let i = 0; i < cells; i++) {
       const value = data[offset + i];
       if (value !== value) {
-        if (notNumberAt?.[offset + i]) sliceNotNumbers++;
+        if (absentAt?.[offset + i]) absent++;
+        else if (notNumberAt?.[offset + i]) sliceNotNumbers++;
         else sliceNulls++;
         continue;
       }
@@ -211,7 +213,7 @@ export function analyse(data: Float32Array, slices: number, cells: number, notNu
     perSlice[s] = { numbers: count, nulls: sliceNulls, notNumbers: sliceNotNumbers, min: count ? min : null, max: count ? max : null, mean: count ? sliceSum / count : null };
   }
   const figures: CellFigures = {
-    total, numbers: n, nulls, notNumbers, mean: n ? sum / n : null, perSlice,
+    total: data.length - absent, numbers: n, nulls, notNumbers, mean: n ? sum / n : null, perSlice,
     min: null, max: null, spike: null, apart: [], lo: null, hi: null, oneValue: false,
   };
   if (n === 0) return figures;

@@ -124,4 +124,13 @@ describe('MapQueryOverlay', () => {
     expect(box).toContain('Clear Box');
     expect(box).not.toContain('Undo');
   });
+
+  it('letters a path’s vertices, as the section’s waypoints are, and numbers other places', () => {
+    const path = render('trajectory', { hasGeometry: true, selection: { ...points, lettered: true } });
+    expect(path).toContain('A. Lat: 60°, Lon: 25°');
+    expect(path).toContain('B. Lat: 61°, Lon: 24°');
+    const places = render('position', { hasGeometry: true, selection: points });
+    expect(places).toContain('1. Lat: 60°, Lon: 25°');
+    expect(places).not.toContain('A. Lat');
+  });
 });

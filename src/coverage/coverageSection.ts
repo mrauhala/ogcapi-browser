@@ -1,9 +1,10 @@
 import type { ValidationError } from '../types/api';
 import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime } from '../utils/utcTime';
+import { waypointLetter } from '../utils/waypointLetter';
 import { axisFault, axisValues, crsOf, pointerPart, type CellCrs } from './coverageCells';
 import { formatValue, type ParameterFigures } from './coverageSummary';
-import { askedLevels, expectedLevels, isNumber, readVerticalAxis, withUnit, zFindings, type VerticalAxis } from './verticalAxis';
+import { askedLevels, expectedLevels, isNumber, readVerticalAxis, withUnit, zFindings, type VerticalAxis, type VerticalKind } from './verticalAxis';
 
 // A response along a path, as frames × levels × positions: what the section view draws and its table lists. EDR's
 // trajectory answers come in many shapes: a coverage per level (FMI, MeteoCore), a radar's Section with a z axis, z in
@@ -49,6 +50,14 @@ export interface SectionCell {
   path: string;
 }
 
+// MeteoCore's lowest radar beam along the path, from meteocore:beamCoverage.floor. It changes with time, so it's per frame
+export interface BeamFloor {
+  // Per frame, a height per position in z's unit. NaN where there's none
+  values: Float64Array[];
+  // Where a position's height is in the response, e.g. /coverages/3/domain/meteocore:beamCoverage/floor/12
+  pathAt: (frame: number, col: number) => string | null;
+}
+
 export interface SectionData {
   // 'line': one level or none. 'track': one level per position, as z in the tuples gives
   kind: SectionKind;
@@ -74,6 +83,10 @@ export interface SectionData {
   waypoints: Waypoint[];
   // Positions where a new line of a MULTILINESTRING starts
   breaks: number[];
+  // The lowest radar beam, if the response has one that can be drawn
+  beamFloor: BeamFloor | null;
+  // Why one that's there isn't drawn
+  beamFloorFault: string | null;
   notes: ValidationError[];
   // Where a cell's value is in the response, and the value as sent. Null where nothing was sent
   cellAt: (parameterId: string, frame: number, cell: number) => SectionCell | null;
@@ -99,10 +112,14 @@ const listed = (texts: string[]) => (texts.length < 2 ? texts.join('') : `${text
 const levelsListed = (values: number[]) => `${values.slice(0, 5).join(', ')}${values.length > 5 ? ` and ${values.length - 5} more` : ''}`;
 const kmText = (km: number) => km.toLocaleString('en-US', km >= 0.1 || km === 0 ? { maximumFractionDigits: 2 } : { maximumSignificantDigits: 2 });
 // A, B... Z, then AA, AB
-const letter = (i: number): string => (i < 26 ? String.fromCharCode(65 + i) : letter(Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26)));
 
 const PATH_TYPE = /^(trajectory|section)$/i;
 const EARTH_KM = 6371.0088;
+// A vendor member of the domain: a height per tuple, under the radar's lowest beam
+const BEAM = 'meteocore:beamCoverage';
+const KIND_WORDS: Record<VerticalKind, string> = {
+  pressure: 'pressure', height: 'a height', depth: 'a depth', modelLevel: 'a model level', angle: 'an elevation angle', unknown: "of a kind the response doesn't name",
+};
 
 function greatCircleKm([x1, y1]: Position, [x2, y2]: Position): number {
   const rad = Math.PI / 180;
@@ -147,6 +164,8 @@ interface Coverage {
   // Its z axis, if it has one
   z: number[] | null;
   tAxis: unknown;
+  // Its meteocore:beamCoverage, as sent
+  beam: unknown;
 }
 
 // Positions in order, as the first coverage and time that sent them have them
@@ -166,15 +185,24 @@ interface Strip {
   frameKey: string;
 }
 
+// The summary and the picture read the same response for the same request, and a radar's takes tens of ms, so it's
+// read once. What's returned is shared, and never changed by those who use it
+const readBefore = new WeakMap<object, { url: string | undefined; result: SectionResult }>();
+
 // A response along a path, or why it can't be read, or null if it isn't along one. A reader that throws is a bug in
 // it, and is said to be: a response mustn't take the page down with it
 export function toSection(json: unknown, requestUrl?: string): SectionResult {
+  const known = isObject(json) ? readBefore.get(json) : undefined;
+  if (known && known.url === requestUrl) return known.result;
+  let result: SectionResult;
   try {
-    return readSection(json, requestUrl);
+    result = readSection(json, requestUrl);
   } catch (error) {
     console.error('toSection failed on this response:', error);
-    return cant(`This response couldn't be read: ${error instanceof Error ? error.message : String(error)}`);
+    result = cant(`This response couldn't be read: ${error instanceof Error ? error.message : String(error)}`);
   }
+  if (isObject(json)) readBefore.set(json, { url: requestUrl, result });
+  return result;
 }
 
 function readSection(json: unknown, requestUrl: string | undefined): SectionResult {
@@ -249,7 +277,7 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
         if (index >= 0 && !isNumber(tuple[index])) return cant(`${at} has ${name} ${shown(tuple[index])}, which isn't a number`);
       }
     }
-    coverages.push({ json: coverage, where, tuples: tuples as unknown[][], ix, iy, it, iz, z: z as number[] | null, tAxis: axisValues(axes.t)?.[0] });
+    coverages.push({ json: coverage, where, tuples: tuples as unknown[][], ix, iy, it, iz, z: z as number[] | null, tAxis: axisValues(axes.t)?.[0], beam: domain[BEAM] });
   }
 
   const hasZ = coverages.some(coverage => coverage.iz >= 0 || coverage.z !== null);
@@ -326,6 +354,24 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
   const frameIndex = new Map(frames.map((frame, i) => [frame.key, i]));
   const cells = levels.length * colCount;
 
+  // ---- The lowest beam: a height per tuple, read along with the values, and kept only if z is a height ----
+
+  const beamSent = coverages.some(coverage => coverage.beam !== undefined);
+  let beamFloorFault: string | null = null;
+  const floorOf: (unknown[] | null)[] = coverages.map(() => null);
+  for (let c = 0; beamSent && c < coverages.length && !beamFloorFault; c++) {
+    const { beam, tuples, where } = coverages[c];
+    if (tuples.length === 0) continue;
+    const floor = isObject(beam) ? beam.floor : undefined;
+    const at = `${where}/domain/${BEAM}/floor`;
+    if (beam === undefined) beamFloorFault = `${named(c)} has no ${BEAM}, where the rest of the response has one, so the lowest beam isn't drawn`;
+    else if (!Array.isArray(floor)) beamFloorFault = `${at} isn't a list of heights, so the lowest beam isn't drawn`;
+    else if (floor.length !== tuples.length) beamFloorFault = `${at} has ${plural(floor.length, 'value')}, and composite has ${plural(tuples.length, 'position')}, so the lowest beam isn't drawn`;
+    else floorOf[c] = floor;
+  }
+  const floorValues = frames.map(() => new Float64Array(colCount).fill(NaN));
+  const floorFrom = frames.map(() => ({ coverage: new Int32Array(colCount).fill(-1), tuple: new Int32Array(colCount).fill(-1) }));
+
   // ---- The values: each into its cell, through its range's own axisNames ----
 
   interface Reading { parameter: SectionParameter; sum: number; source: { coverage: Int32Array; value: Int32Array }[] }
@@ -341,6 +387,18 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
     const ranges = isObject(covJson.ranges) ? covJson.ranges : {};
     const definitions = coverageParameters({ parameters: isObject(covJson.parameters) ? covJson.parameters : undefined }, collectionParameters) ?? {};
     const frame = frameIndex.get(strip.frameKey)!;
+    const floor = floorOf[strip.coverage];
+    if (floor) {
+      const from = floorFrom[frame];
+      strip.tuples.forEach((k, n) => {
+        const col = strip.part.start + n;
+        // The first coverage to give a position a height keeps it, as with the values
+        if (from.coverage[col] >= 0 || !isNumber(floor[k])) return;
+        floorValues[frame][col] = floor[k];
+        from.coverage[col] = strip.coverage;
+        from.tuple[col] = k;
+      });
+    }
     const axes = domainOf(covJson)!.axes as Json;
     const lengths: Record<string, number> = { composite: tuples.length };
     for (const name of Object.keys(axes)) if (name !== 'composite') lengths[name] = axisValues(axes[name])?.length ?? 0;
@@ -492,7 +550,7 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
     note(`The coverages don't share their positions: coverage ${second.coverage + 1}'s differ from coverage ${firstPart.coverage + 1}'s, so the path is read in ${plural(partList.length, 'part')}`, placeOf(second.start));
   }
   const waypoints: Waypoint[] = lines.flatMap((line, l) => line.map(([lon, lat]) => ({ label: '', line: l, lon, lat, col: null, km: null })));
-  waypoints.forEach((waypoint, i) => (waypoint.label = letter(i)));
+  waypoints.forEach((waypoint, i) => (waypoint.label = waypointLetter(i)));
   if (crs.geographic && waypoints.length > 0) {
     const near = Math.max(0.5, spacing.median * 0.6);
     // A line each to a part where there are as many, else all the vertices along the whole path
@@ -579,6 +637,21 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
     const zAt = `${coverages[0].where}/domain/axes/${coverages[0].z ? 'z' : 'composite'}`;
     notes.push(...zFindings(z, zAt, domain && Array.isArray(domain.referencing) ? `${coverages[0].where}/domain/referencing` : '/referencing'));
   }
+  let beamFloor: BeamFloor | null = null;
+  if (beamSent && !beamFloorFault) {
+    if (!z) beamFloorFault = `${BEAM}.floor is a height, and the response has no z, so the lowest beam isn't drawn`;
+    else if (z.kind !== 'height') beamFloorFault = `${BEAM}.floor is read as a height, and z here is ${KIND_WORDS[z.kind]}, so the lowest beam isn't drawn`;
+    else {
+      beamFloor = {
+        values: floorValues,
+        pathAt(frame, col) {
+          const from = floorFrom[frame];
+          const c = from && col >= 0 && col < colCount ? from.coverage[col] : -1;
+          return c < 0 ? null : `${prefix(c)}/domain/${BEAM}/floor/${from.tuple[col]}`;
+        },
+      };
+    }
+  }
   const unit = z?.unit ?? '';
   // Where a missing level would be: on a z axis, or a coverage of the collection's, one per level, or in the tuples
   const levelsAt = coverages.some(coverage => (coverage.z?.length ?? 0) > 1) || (!isCollection && coverages[0].z)
@@ -646,6 +719,6 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
     levels, notBack, z,
     colCount, positions, crs, km, spacing,
     frames, timeAlong,
-    parameters, waypoints, breaks, notes, cellAt,
+    parameters, waypoints, breaks, beamFloor, beamFloorFault, notes, cellAt,
   };
 }

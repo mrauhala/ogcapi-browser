@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isEvenlySpaced, levelPosition, pickLevelLabels, readVerticalAxis,
-  readVrs, vrsAbout, withUnit,
+  readVrs, valuePosition, vrsAbout, withUnit,
 } from './verticalAxis';
 
 // A coverage whose z has this reference system
@@ -255,6 +255,42 @@ describe('levelPosition', () => {
       expect(levelPosition([850], { spacing, direction: 'down' })(850)).toBe(0.5);
       expect(levelPosition([850], { spacing, direction: 'up', flipped: true })(850)).toBe(0.5);
     }
+  });
+});
+
+describe('valuePosition', () => {
+  const levels = [1000, 10, 500, 100];
+
+  it('puts a level where levelPosition does, every way', () => {
+    for (const spacing of ['linear', 'log', 'even'] as const) {
+      for (const direction of ['up', 'down'] as const) {
+        for (const flipped of [false, true]) {
+          const value = valuePosition(levels, { spacing, direction, flipped });
+          const level = levelPosition(levels, { spacing, direction, flipped });
+          for (const each of levels) expect(value(each)).toBeCloseTo(level(each), 12);
+        }
+      }
+    }
+  });
+
+  it('puts a value between levels by its value, linear or log', () => {
+    expect(valuePosition(levels, { spacing: 'linear', direction: 'down' })(505)).toBeCloseTo(495 / 990, 12);
+    expect(valuePosition(levels, { spacing: 'log', direction: 'down' })(Math.sqrt(10 * 100))).toBeCloseTo(0.25, 12);
+  });
+
+  it('puts a value between two levels in proportion when they’re evenly spaced, and on at the end steps beyond them', () => {
+    const down = valuePosition(levels, { spacing: 'even', direction: 'down' });
+    expect(down(55)).toBeCloseTo(0.5 / 3, 12);
+    expect(down(750)).toBeCloseTo(2.5 / 3, 12);
+    expect(down(1500)).toBeCloseTo(1 + 1 / 3, 12);
+    expect(down(5.5)).toBeCloseTo(-4.5 / 90 / 3, 12);
+    expect(valuePosition(levels, { spacing: 'even', direction: 'up' })(55)).toBeCloseTo(1 - 0.5 / 3, 12);
+    expect(valuePosition(levels, { spacing: 'even', direction: 'down', flipped: true })(55)).toBeCloseTo(1 - 0.5 / 3, 12);
+  });
+
+  it('puts anything in the middle of one level, and nowhere for what isn’t a number', () => {
+    expect(valuePosition([850], { spacing: 'even', direction: 'down' })(900)).toBe(0.5);
+    expect(valuePosition(levels, { spacing: 'even', direction: 'down' })(NaN)).toBeNaN();
   });
 });
 

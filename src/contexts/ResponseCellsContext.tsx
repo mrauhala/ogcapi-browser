@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
-import { readCells, type CellsReading } from '../coverage/coverageCells';
+import type { CellsReading } from '../coverage/coverageCells';
+import { readResponseCells } from '../coverage/sectionCells';
 import {
   INITIAL_CHOICES, NO_SOURCE, PublishContext, ResponseCellsContext, afterNewResponse, createHoverStore, pictureOf,
   type CellsChoices, type CellsSource,
@@ -12,7 +13,11 @@ export function ResponseCellsProvider({ children }: { children: ReactNode }) {
   const [choices, setChoices] = useState<CellsChoices>(INITIAL_CHOICES);
   const [hover] = useState(createHoverStore);
 
-  const reading = useMemo(() => (source.json === null ? null : readCells(source.json, { drawAnyway: drawnAnyway === source.json })), [source.json, drawnAnyway]);
+  // The request's URL says a path's waypoints and the levels asked for
+  const reading = useMemo(
+    () => (source.json === null ? null : readResponseCells(source.json, { drawAnyway: drawnAnyway === source.json, url: source.url })),
+    [source.json, source.url, drawnAnyway],
+  );
 
   // During rendering, so that nothing paints the new response with the last one's pin
   const [readingSeen, setReadingSeen] = useState<CellsReading | null>(null);
@@ -22,11 +27,11 @@ export function ResponseCellsProvider({ children }: { children: ReactNode }) {
   }
   useLayoutEffect(() => hover.set(null), [reading, hover]);
 
-  const { parameterId, steps, range, setLo, setHi, ramp, scope, flip, litHover, litPinned } = choices;
+  const { parameterId, steps, range, setLo, setHi, ramp, scope, flip, levelSpacing, litHover, litPinned } = choices;
   // Only what the picture is made from: moving the pin or the opacity leaves it as it is
   const picture = useMemo(
-    () => pictureOf(reading, { ...INITIAL_CHOICES, parameterId, steps, range, setLo, setHi, ramp, scope, flip }),
-    [reading, parameterId, steps, range, setLo, setHi, ramp, scope, flip],
+    () => pictureOf(reading, { ...INITIAL_CHOICES, parameterId, steps, range, setLo, setHi, ramp, scope, flip, levelSpacing }),
+    [reading, parameterId, steps, range, setLo, setHi, ramp, scope, flip, levelSpacing],
   );
 
   const choose = useCallback((patch: Partial<CellsChoices>) => setChoices(current => ({ ...current, ...patch })), []);

@@ -38,6 +38,14 @@ describe('analyse', () => {
     expect(figures.perSlice.map(slice => [slice.numbers, slice.nulls, slice.notNumbers])).toEqual([[1, 1, 1], [1, 0, 2]]);
   });
 
+  it('leaves out what nothing was sent for: not a null, not text, and not in the total', () => {
+    const data = Float32Array.from([1, NaN, NaN, NaN, NaN, 4]);
+    const figures = analyse(data, 2, 3, Uint8Array.from([0, 0, 1, 0, 0, 0]), Uint8Array.from([0, 1, 0, 1, 1, 0]));
+    expect(figures).toMatchObject({ total: 3, numbers: 2, nulls: 0, notNumbers: 1, min: 1, max: 4 });
+    expect(figures.perSlice.map(slice => [slice.numbers, slice.nulls, slice.notNumbers])).toEqual([[1, 0, 1], [1, 0, 0]]);
+    expect(analyse(Float32Array.from([NaN, NaN]), 1, 2, null, Uint8Array.from([1, 0]))).toMatchObject({ total: 1, nulls: 1, numbers: 0 });
+  });
+
   it('knows one value when it sees it, and doesn’t call it a spike', () => {
     expect(figuresOf([3, 3, 3])).toMatchObject({ oneValue: true, spike: null, lo: 3, hi: 3, apart: [] });
   });

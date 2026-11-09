@@ -1,11 +1,12 @@
 import { memo } from 'react';
+import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 import type { CoverageProfile } from './coverageProfile';
 import {
   CHARACTER, NULL_LANE, cellWords, dotRadius, emptyWords, plotColours, profileSegments, valueScale,
   type ProfileLine, type ProfilePanelGroup,
 } from './profilePlot';
-import { isNumber } from './verticalAxis';
+import { isNumber, type LevelSpacing, type VerticalAxis } from './verticalAxis';
 
 // A profile's drawing in SVG: a panel per parameter, each given its size, and the vertical axis they share. Each has a
 // layer on top for the crosshair, so that pointing doesn't redraw what's under it
@@ -13,6 +14,28 @@ import { isNumber } from './verticalAxis';
 const round = (value: number) => Math.round(value * 10) / 10;
 
 const MONO_TEXT = { fontFamily: 'monospace', fontSize: 11 };
+
+const DIRECTION_SOURCE = { response: 'response', usual: 'assumed', none: 'assumed' } as const;
+
+// What z is, which level is at the top and why: the profile's and the section's
+export function AxisWords({ axis, spacing, flipped, top }: { axis: VerticalAxis; spacing: LevelSpacing; flipped: boolean; top: number | string }) {
+  const nothing = axis.kind === 'unknown' && !axis.unit;
+  const name = nothing ? 'z' : axis.unit ? `${axis.name}, ${axis.unit}` : axis.name;
+  return (
+    <Box sx={{ flex: '1 1 200px', minWidth: 0, fontSize: '0.75rem', lineHeight: '17px' }}>
+      <Box component="span" sx={{ fontWeight: 500 }}>{name}</Box>
+      {nothing && <Box component="span" sx={{ color: 'warning.main' }}> (no name or unit in the response)</Box>}
+      <Box component="span" sx={{ color: axis.directionSource === 'none' && !flipped ? 'warning.main' : 'text.secondary' }}>
+        {`. ${top} at the top (${flipped ? 'flipped here' : DIRECTION_SOURCE[axis.directionSource]})${spacing === 'even' ? ', each level the same height' : ''}`}
+      </Box>
+    </Box>
+  );
+}
+
+// Levels that should be there and aren't, as a sentence
+export function MissingLevelsWords({ missing, from }: { missing: number[]; from: 'request' | 'collection' | null }) {
+  return <>{`${[...missing].sort((a, b) => a - b).join(', ')} ${missing.length === 1 ? "isn't" : "aren't"} in the response, though ${from === 'request' ? 'asked for' : "in the collection's extent"}.`}</>;
+}
 
 export interface PlotFrame {
   height: number;

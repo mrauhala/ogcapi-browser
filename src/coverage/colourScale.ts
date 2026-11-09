@@ -9,6 +9,8 @@ export const BELOW_CODE = 257;
 export const ABOVE_CODE = 258;
 // A value that's there but isn't a number: text, or what no range should hold. Painted as a null is, and counted apart
 export const TEXT_CODE = 259;
+// Nothing was sent here, as at a level asked for and not sent: paper, not a null's hatch
+export const ABSENT_CODE = 260;
 
 // Outside the range, never clamped: clamping would hide exactly what this view is for
 export const OUTSIDE: [number, number, number] = [255, 45, 149];

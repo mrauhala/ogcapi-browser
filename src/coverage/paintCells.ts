@@ -1,7 +1,11 @@
 import {
-  NULL_CODE, TEXT_CODE, fadedNullColour, hatchColours, lutCss, medianCode, type Highlight, type ThemeMode,
+  ABSENT_CODE, NULL_CODE, TEXT_CODE, fadedNullColour, hatchColours, lutCss, medianCode, type Highlight, type ThemeMode,
 } from './colourScale';
 import { invMercY, mercY, type CellCrs, type DrawableCells, type GridGeometry, type PolygonsGeometry, type SamplesGeometry } from './coverageCells';
+import type { Waypoint } from './coverageSection';
+import { formatValue } from './coverageSummary';
+import type { SectionPlane } from './sectionCells';
+import { pickLevelLabels } from './verticalAxis';
 
 // Cells to pixels, for the pane and the map alike: the same code draws both, so they agree by eye. No React.
 
@@ -12,6 +16,8 @@ export interface CellsPalette {
   textSecondary: string;
   border: string;
   primary: string;
+  // For what was asked for and isn't there
+  warning: string;
 }
 
 // x runs left to right. y0 is the top and y1 the bottom, in the display's y
@@ -74,6 +80,10 @@ export function axisToPixels(edges: Float64Array, n: number, pixels: number) {
   return { start, end };
 }
 
+// How much a cell stands out among those that share a pixel: a null or what's off the scale first, then the value
+// furthest from the median. Nothing sent never wins over something
+export const standOut = (code: number, median: number) => (code === ABSENT_CODE ? -1 : code > 255 ? 1000 + code : Math.abs(code - median));
+
 export function gridMaps(g: GridGeometry, v: PlotView, W: number, H: number): GridMaps {
   const ex = new Float64Array(g.nx + 1);
   const ey = new Float64Array(g.ny + 1);
@@ -118,13 +128,12 @@ export function paintGrid(
       if (colFrom < 0) continue;
       let best = codes[rowFrom * g.nx + colFrom];
       if (rowTo - rowFrom > 1 || colTo - colFrom > 1) {
-        // The cell that stands out: a null first, then the value furthest from the median
-        let bestDistance = best > 255 ? 1000 + best : Math.abs(best - median);
+        let bestDistance = standOut(best, median);
         for (let r = rowFrom; r < rowTo; r++) {
           const offset = r * g.nx;
           for (let c = colFrom; c < colTo; c++) {
             const code = codes[offset + c];
-            const distance = code > 255 ? 1000 + code : Math.abs(code - median);
+            const distance = standOut(code, median);
             if (distance > bestDistance) {
               bestDistance = distance;
               best = code;
@@ -132,6 +141,8 @@ export function paintGrid(
           }
         }
       }
+      // Nothing sent is left as paper
+      if (best === ABSENT_CODE) continue;
       // What isn't a number looks as a null does, until it's drawn as what it is, and lights apart
       if (best === NULL_CODE || best === TEXT_CODE) {
         if (nullClear) continue;
@@ -158,8 +169,7 @@ export function cellAtPixel(g: GridGeometry, codes: Uint16Array, maps: GridMaps,
   let bestDistance = -1;
   for (let r = rowFrom; r < rowTo; r++) {
     for (let c = colFrom; c < colTo; c++) {
-      const code = codes[r * g.nx + c];
-      const distance = code > 255 ? 1000 + code : Math.abs(code - median);
+      const distance = standOut(codes[r * g.nx + c], median);
       if (distance > bestDistance) {
         bestDistance = distance;
         best = r * g.nx + c;
@@ -261,9 +271,37 @@ function xTicksOf({ geometry: g, crs }: DrawableCells, v: PlotView, plotW: numbe
 const ROOM_RIGHT = 8;
 const ROOM_TOP = 10;
 const ROOM_BOTTOM = 20;
+const CHARACTER = 6.7;
+
+// A section's room: z's unit above the plot, the km labels below, and the waypoints' letters under them
+const SECTION_TOP = 16;
+const SECTION_BOTTOM = 20;
+const SECTION_LETTERS = 14;
+const SECTION_SHORTEST = 150;
+const SECTION_TALLEST = 420;
+
+const lettered = (section: SectionPlane) => section.data.waypoints.some(waypoint => waypoint.km !== null);
+
+// The room above and below the plot, which the picture's height is fitted around
+export function marginsOf(cells: DrawableCells): number {
+  if (!cells.section) return ROOM_TOP + ROOM_BOTTOM;
+  return SECTION_TOP + SECTION_BOTTOM + (lettered(cells.section) ? SECTION_LETTERS : 0);
+}
+
+// A section fills the width, as a profile's panel does. Its x and y are a distance and a level, so there's no aspect to
+// keep: its height follows the width, within bounds. The level axis is as wide as its longest label
+function sectionLayout(section: SectionPlane, cells: DrawableCells, width: number, zoom: PlotView | null, tallest: number): PlotBox {
+  const v = zoom ?? fullView(cells);
+  const longest = section.data.levels.reduce<number>((most, level) => Math.max(most, formatValue(Number(level)).length), 1);
+  const roomLeft = Math.ceil(longest * CHARACTER) + 14;
+  const plotW = Math.max(1, width - roomLeft - ROOM_RIGHT);
+  const plotH = Math.max(SECTION_SHORTEST, Math.min(Math.round(plotW * 0.6), tallest, SECTION_TALLEST));
+  return { width, height: plotH + marginsOf(cells), plotX: roomLeft, plotY: SECTION_TOP, plotW, plotH, v };
+}
 
 // Height is capped, so that a wide pane doesn't push all that's below the picture out of sight
 export function plotLayout(cells: DrawableCells, width: number, zoom: PlotView | null, tallest: number): PlotBox {
+  if (cells.section) return sectionLayout(cells.section, cells, width, zoom, tallest);
   const v = zoom ?? fullView(cells);
   const aspect = (v.y0 - v.y1) / (v.x1 - v.x0);
   const g = cells.geometry;
@@ -272,7 +310,7 @@ export function plotLayout(cells: DrawableCells, width: number, zoom: PlotView |
   const roughH = Math.min(maxH, width * aspect);
   // As wide as its longest label needs, so no label is cut
   const longest = Math.max(...yTicksOf(cells, v, Math.max(roughH, 44)).map(tick => tick.label.length));
-  const roomLeft = Math.ceil(longest * 6.7) + 10;
+  const roomLeft = Math.ceil(longest * CHARACTER) + 10;
   const available = width - roomLeft - ROOM_RIGHT;
   let plotW = oneCell ? Math.min(150, available) : available;
   let plotH = oneCell ? plotW : plotW * aspect;
@@ -293,6 +331,10 @@ export function plotLayout(cells: DrawableCells, width: number, zoom: PlotView |
 }
 
 export function paintAxes(ctx: CanvasRenderingContext2D, box: PlotBox, cells: DrawableCells, scale: number, palette: CellsPalette, zoomed: boolean) {
+  if (cells.section && cells.geometry.kind === 'grid') {
+    paintSectionAxes(ctx, box, cells.section, cells.geometry, scale, palette);
+    return;
+  }
   const { v } = box;
   ctx.fillStyle = palette.textSecondary;
   ctx.strokeStyle = palette.border;
@@ -337,18 +379,44 @@ export function paintAxes(ctx: CanvasRenderingContext2D, box: PlotBox, cells: Dr
   }
 }
 
-// Gridlines once a cell is big enough to have edges, and its value once it can hold one
+// A cell's size on screen, on average, in CSS px
+const cellSizeOf = (box: PlotBox, g: GridGeometry) => [
+  (box.plotW * ((g.xEdges[g.nx] - g.xEdges[0]) / (box.v.x1 - box.v.x0))) / g.nx,
+  (box.plotH * ((g.yEdges[0] - g.yEdges[g.ny]) / (box.v.y0 - box.v.y1))) / g.ny,
+];
+const holdsValues = ([cellW, cellH]: number[]) => cellW >= 30 && cellH >= 15;
+
+// Black or white, whichever reads on a cell's colour
+function inkOn(lut: Uint32Array, code: number) {
+  const colour = lut[code];
+  const lightness = (0.2126 * (colour & 255) + 0.7152 * ((colour >> 8) & 255) + 0.0722 * ((colour >> 16) & 255)) / 255;
+  return lightness > 0.5 ? '#000' : '#fff';
+}
+
+// Where a value was written over its cell, in canvas pixels
+export interface PrintedText {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+// A monospace digit is about this much of the font's size across
+const MONO_ADVANCE = 0.6;
+
+// Gridlines once a cell is big enough to have edges, and its value once it can hold one. Says where it wrote, so that
+// what's drawn over the cells can keep clear of it
 export function paintGridDetail(
   ctx: CanvasRenderingContext2D, box: PlotBox, g: GridGeometry, maps: GridMaps, codes: Uint16Array, lut: Uint32Array,
   valueAt: (cell: number) => unknown, scale: number, palette: CellsPalette,
-) {
+): PrintedText[] {
+  const printed: PrintedText[] = [];
   const { ex, ey } = maps;
   const W = box.plotW * scale;
   const H = box.plotH * scale;
   const ox = box.plotX * scale;
   const oy = box.plotY * scale;
-  const cellW = (box.plotW * ((g.xEdges[g.nx] - g.xEdges[0]) / (box.v.x1 - box.v.x0))) / g.nx;
-  const cellH = (box.plotH * ((g.yEdges[0] - g.yEdges[g.ny]) / (box.v.y0 - box.v.y1))) / g.ny;
+  const [cellW, cellH] = cellSizeOf(box, g);
   ctx.save();
   ctx.beginPath();
   ctx.rect(ox, oy, W, H);
@@ -358,30 +426,282 @@ export function paintGridDetail(
     for (let i = 0; i <= g.nx; i++) if (ex[i] >= 0 && ex[i] <= W) ctx.fillRect(ox + Math.round(ex[i]), oy, 1, H);
     for (let j = 0; j <= g.ny; j++) if (ey[j] >= 0 && ey[j] <= H) ctx.fillRect(ox, oy + Math.round(ey[j]), W, 1);
   }
-  if (cellW >= 30 && cellH >= 15) {
+  if (holdsValues([cellW, cellH])) {
+    const size = Math.min(11, Math.floor(cellW / 3.4)) * scale;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `${Math.min(11, Math.floor(cellW / 3.4)) * scale}px monospace`;
+    ctx.font = `${size}px monospace`;
+    const write = (text: string, x: number, y: number) => {
+      ctx.fillText(text, x, y);
+      const half = (text.length * size * MONO_ADVANCE) / 2;
+      if (half > 0) printed.push({ x0: x - half, x1: x + half, y0: y - size / 2, y1: y + size / 2 });
+    };
     for (let row = 0; row < g.ny; row++) {
       if (ey[row + 1] < 0 || ey[row] > H) continue;
       for (let col = 0; col < g.nx; col++) {
         if (ex[col + 1] < 0 || ex[col] > W) continue;
         const cell = row * g.nx + col;
         const code = codes[cell];
+        if (code === ABSENT_CODE) continue;
         const x = ox + (ex[col] + ex[col + 1]) / 2;
         const y = oy + (ey[row] + ey[row + 1]) / 2;
         if (code === NULL_CODE || code === TEXT_CODE) {
           ctx.fillStyle = palette.textSecondary;
           // Text as it is, cut to what a number would take
           const text = code === NULL_CODE ? 'null' : JSON.stringify(valueAt(cell)) ?? '';
-          ctx.fillText(text.length > 7 ? `${text.slice(0, 6)}…` : text, x, y);
+          write(text.length > 7 ? `${text.slice(0, 6)}…` : text, x, y);
           continue;
         }
-        const colour = lut[code];
-        const lightness = (0.2126 * (colour & 255) + 0.7152 * ((colour >> 8) & 255) + 0.0722 * ((colour >> 16) & 255)) / 255;
-        ctx.fillStyle = lightness > 0.5 ? '#000' : '#fff';
+        ctx.fillStyle = inkOn(lut, code);
         const raw = valueAt(cell);
-        ctx.fillText(typeof raw === 'number' ? String(Number(raw.toPrecision(4))) : '', x, y);
+        write(typeof raw === 'number' ? String(Number(raw.toPrecision(4))) : '', x, y);
+      }
+    }
+  }
+  ctx.restore();
+  return printed;
+}
+
+// ---- A section: distance along the path by level ----------------------------------------------
+
+export interface AxisTick {
+  // In CSS px from the plot's left or top
+  at: number;
+  label: string;
+}
+
+// The km axis: nice numbers within the path and the view. Where x and y aren't lon/lat, positions are counted from 1
+export function sectionXTicks(v: PlotView, total: number, plotW: number, byPosition: boolean): AxisTick[] {
+  const from = Math.max(v.x0, 0);
+  const to = Math.min(v.x1, total);
+  if (!(to >= from)) return [];
+  const toPixels = (km: number) => ((km - v.x0) / (v.x1 - v.x0)) * plotW;
+  const n = Math.max(2, Math.floor(plotW / 76));
+  if (byPosition) return ticks(from + 1, to + 1, n).list.filter(Number.isInteger).map(tick => ({ at: toPixels(tick - 1), label: String(tick) }));
+  const { list, step } = ticks(from, to, n);
+  const decimals = decimalsFor(step);
+  return list.map(tick => ({ at: toPixels(tick), label: tick.toFixed(decimals) }));
+}
+
+// A short tick under each position, only where all of them in view are at least minGap apart: closer, they'd be a bar.
+// A position sent twice, as at a break, is one tick
+export function positionRug(km: ArrayLike<number>, v: PlotView, plotW: number, minGap = 3): number[] {
+  const out: number[] = [];
+  for (let col = 0; col < km.length; col++) {
+    const x = ((km[col] - v.x0) / (v.x1 - v.x0)) * plotW;
+    if (x < 0 || x > plotW) continue;
+    const gap = out.length ? x - out[out.length - 1] : Infinity;
+    if (gap === 0) continue;
+    if (gap < minGap) return [];
+    out.push(x);
+  }
+  return out;
+}
+
+export interface WaypointMark {
+  // In CSS px from the plot's left
+  x: number;
+  // Null where it would sit on the last letter drawn. Its line is still drawn
+  label: string | null;
+}
+
+// The request's vertices among the positions, each a line, and a letter where it has room
+export function waypointMarks(waypoints: Waypoint[], v: PlotView, plotW: number, minGap = 12): WaypointMark[] {
+  const marks: WaypointMark[] = [];
+  let lastLetter = -Infinity;
+  for (const { km, label } of waypoints) {
+    if (km === null) continue;
+    const x = ((km - v.x0) / (v.x1 - v.x0)) * plotW;
+    if (x < 0 || x > plotW) continue;
+    const room = x - lastLetter >= minGap;
+    if (room) lastLetter = x;
+    marks.push({ x, label: room ? label : null });
+  }
+  return marks;
+}
+
+export interface LevelTick {
+  level: number;
+  // In CSS px from the plot's top
+  at: number;
+  // Asked for and not sent
+  missing: boolean;
+  label: string | null;
+}
+
+// Labels this far apart, centre to centre, leave a clear gap between two lines of 11 px figures: 13 px left them all
+// but touching, the top one too
+export const LEVEL_LABEL_GAP = 18;
+
+// The level axis, as the profile's: a tick at every level in view, and a label at those pickLevelLabels chooses, which
+// always has those asked for and not sent
+export function levelTicks(section: SectionPlane, g: GridGeometry, v: PlotView, plotH: number): LevelTick[] {
+  const inView: { level: number; at: number }[] = [];
+  for (let row = 0; row < g.ny; row++) {
+    const at = ((v.y0 - section.rowY[row]) / (v.y0 - v.y1)) * plotH;
+    if (at >= -0.5 && at <= plotH + 0.5) inView.push({ level: g.ys[row], at });
+  }
+  const pixels = new Map(inView.map(({ level, at }) => [level, at]));
+  const { notBack } = section.data;
+  const labelled = pickLevelLabels([...pixels.keys()], level => pixels.get(level)!, { minGap: LEVEL_LABEL_GAP, must: notBack.filter(level => pixels.has(level)) });
+  return inView.map(({ level, at }) => ({ level, at, missing: notBack.includes(level), label: labelled.has(level) ? formatValue(level) : null }));
+}
+
+// A vertical line from top to bottom at x, as the stretches that keep clear of what's written where it crosses: pad
+// pixels above and below each piece of text. All of it where nothing's written
+export function clearOfText(x: number, top: number, bottom: number, printed: PrintedText[], pad: number): [number, number][] {
+  const across = printed
+    .filter(text => x >= text.x0 - pad && x <= text.x1 + pad && text.y1 + pad > top && text.y0 - pad < bottom)
+    .sort((a, b) => a.y0 - b.y0);
+  const stretches: [number, number][] = [];
+  let from = top;
+  for (const text of across) {
+    if (text.y0 - pad > from) stretches.push([from, text.y0 - pad]);
+    from = Math.max(from, text.y1 + pad);
+  }
+  if (bottom > from) stretches.push([from, bottom]);
+  return stretches;
+}
+
+// The lowest beam as lines in the plane: one for each stretch with a height at each position, broken where there's none,
+// and at each break of a MULTILINESTRING
+export function floorRuns(floor: ArrayLike<number>, km: ArrayLike<number>, breaks: number[], yOf: (value: number) => number): [number, number][][] {
+  const runs: [number, number][][] = [];
+  const breakAt = new Set(breaks);
+  let run: [number, number][] = [];
+  for (let col = 0; col < floor.length; col++) {
+    const y = yOf(floor[col]);
+    if ((breakAt.has(col) || !Number.isFinite(y)) && run.length) {
+      runs.push(run);
+      run = [];
+    }
+    if (Number.isFinite(y)) run.push([km[col], y]);
+  }
+  if (run.length) runs.push(run);
+  return runs;
+}
+
+// What z's unit is called at the top of the level axis, where it has none
+const levelCaption = ({ data }: SectionPlane) => data.z?.unit || (data.z?.kind === 'modelLevel' ? 'level' : 'z');
+
+// km along the bottom, with the waypoints' letters under it, and the profile's level axis on the left
+function paintSectionAxes(ctx: CanvasRenderingContext2D, box: PlotBox, section: SectionPlane, g: GridGeometry, scale: number, palette: CellsPalette) {
+  const { v } = box;
+  const { data } = section;
+  const byPosition = !data.crs.geographic;
+  const left = box.plotX * scale;
+  const bottom = (box.plotY + box.plotH) * scale;
+  ctx.font = `${11 * scale}px monospace`;
+  ctx.lineWidth = scale;
+  ctx.fillStyle = palette.textSecondary;
+  ctx.strokeStyle = palette.border;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  const tickDown = (x: number, length: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x, bottom);
+    ctx.lineTo(x, bottom + length * scale);
+    ctx.stroke();
+  };
+  for (const tick of sectionXTicks(v, data.km[data.colCount - 1] ?? 0, box.plotW, byPosition)) {
+    const x = left + tick.at * scale;
+    tickDown(x, 4);
+    const half = ctx.measureText(tick.label).width / 2;
+    ctx.fillText(tick.label, Math.min(x, box.width * scale - half), bottom + 15 * scale);
+  }
+  for (const x of positionRug(data.km, v, box.plotW)) tickDown(left + x * scale, 2);
+  ctx.textAlign = 'left';
+  ctx.fillText(byPosition ? '#' : 'km', 2 * scale, bottom + 15 * scale);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = palette.text;
+  for (const mark of waypointMarks(data.waypoints, v, box.plotW)) if (mark.label) ctx.fillText(mark.label, left + mark.x * scale, bottom + 29 * scale);
+
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (const tick of levelTicks(section, g, v, box.plotH)) {
+    const y = (box.plotY + tick.at) * scale;
+    ctx.strokeStyle = tick.missing ? palette.warning : palette.border;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(left - (tick.missing ? 7 : 4) * scale, y);
+    ctx.stroke();
+    if (!tick.label) continue;
+    ctx.fillStyle = tick.missing ? palette.warning : palette.textSecondary;
+    ctx.fillText(tick.label, left - (tick.missing ? 9 : 6) * scale, y);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = palette.textSecondary;
+  ctx.fillText(levelCaption(section), 2 * scale, (box.plotY - 6) * scale);
+}
+
+// Over a section's cells: a dashed line at each waypoint, a solid rule at each break, the lowest beam, and a dot where
+// each sample is, once the cells are big enough to show it isn't always in their middle. A waypoint's line stops short
+// of a value written in a cell, which it would otherwise cut through
+export function paintSectionDetail(
+  ctx: CanvasRenderingContext2D, box: PlotBox, cells: DrawableCells, maps: GridMaps, codes: Uint16Array, lut: Uint32Array,
+  slice: number, scale: number, palette: CellsPalette, printed: PrintedText[] = [],
+) {
+  const { section, geometry: g } = cells;
+  if (!section || g.kind !== 'grid') return;
+  const { data } = section;
+  const { v } = box;
+  const ox = box.plotX * scale;
+  const oy = box.plotY * scale;
+  const W = box.plotW * scale;
+  const H = box.plotH * scale;
+  const xOf = (km: number) => ox + ((km - v.x0) / (v.x1 - v.x0)) * W;
+  const yOf = (y: number) => oy + ((v.y0 - y) / (v.y0 - v.y1)) * H;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ox, oy, W, H);
+  ctx.clip();
+
+  ctx.strokeStyle = palette.text;
+  ctx.lineWidth = scale;
+  ctx.globalAlpha = 0.7;
+  ctx.setLineDash([3 * scale, 3 * scale]);
+  for (const mark of waypointMarks(data.waypoints, v, box.plotW)) {
+    const x = Math.round(ox + mark.x * scale) + 0.5;
+    ctx.beginPath();
+    for (const [from, to] of clearOfText(x, oy, oy + H, printed, 2 * scale)) {
+      ctx.moveTo(x, from);
+      ctx.lineTo(x, to);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = palette.text;
+  for (const col of data.breaks) ctx.fillRect(Math.round(xOf(data.km[col]) - scale), oy, 2 * scale, H);
+
+  const floor = data.beamFloor?.values[slice];
+  if (floor) {
+    const runs = floorRuns(floor, data.km, data.breaks, section.yOf);
+    ctx.lineJoin = 'round';
+    for (const [width, colour] of [[3, 'rgba(0,0,0,.85)'], [1.5, '#fff']] as const) {
+      ctx.lineWidth = width * scale;
+      ctx.strokeStyle = colour;
+      for (const run of runs) {
+        ctx.beginPath();
+        run.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(xOf(x), yOf(y)) : ctx.lineTo(xOf(x), yOf(y))));
+        ctx.stroke();
+      }
+    }
+  }
+
+  // A printed value marks its cell already
+  if (!holdsValues(cellSizeOf(box, g))) {
+    const { ex, ey } = maps;
+    for (let row = 0; row < g.ny; row++) {
+      if ((ey[row + 1] - ey[row]) / scale < 7) continue;
+      for (let col = 0; col < g.nx; col++) {
+        const code = codes[row * g.nx + col];
+        if ((ex[col + 1] - ex[col]) / scale < 9 || code === ABSENT_CODE) continue;
+        ctx.fillStyle = code === NULL_CODE || code === TEXT_CODE ? palette.textSecondary : inkOn(lut, code);
+        ctx.beginPath();
+        ctx.arc(xOf(data.km[col]), yOf(section.rowY[row]), scale, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
