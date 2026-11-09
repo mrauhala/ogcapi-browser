@@ -50,3 +50,9 @@ export function effectiveOutputFormats(collection: Collection, queryKey: string)
   if (Array.isArray(formats) && formats.length > 0) return formats;
   return Array.isArray(collection.output_formats) ? collection.output_formats : [];
 }
+
+// A format chosen for one query, kept for the next if it offers it. Never the one a query names as its
+// default: that's the server's to apply, and a developer testing the server wants to see it do so.
+export function keptFormat(collection: Collection, queryKey: string, current: string): string {
+  return current && effectiveOutputFormats(collection, queryKey).includes(current) ? current : '';
+}

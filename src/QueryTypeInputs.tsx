@@ -176,7 +176,7 @@ const QueryTypeInputs: React.FC<QueryTypeInputsProps> = ({ collection, queryKey,
   if (queryType === 'radius') {
     return (
       <ValueWithUnit issues={[fieldIssue('within'), fieldIssue('within-units')]}>
-        <NumberField id="query-field-within" label="Radius" value={radius} onChange={value => setRadius(value ?? 0)} issue={fieldIssue('within')} />
+        <NumberField id="query-field-within" label="Radius" value={radius} onChange={setRadius} issue={fieldIssue('within')} />
         <UnitField id="query-field-within-units" label="Unit" value={radiusUnits} options={unitsFor(variables, 'within')}
           onChange={setRadiusUnits} issue={fieldIssue('within-units')} />
       </ValueWithUnit>

@@ -54,6 +54,8 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, dataQuery, queryZoom } = useMapInteraction();
   const geometryKind = geometryKindOf(dataQuery);
   const radiusRange = rangeFor(radiusUnits);
+  // Nothing is chosen for a radius until it is, unit included
+  const radiusText = radius === null ? 'not set yet' : radiusUnits ? `${radius} ${radiusUnits}` : `${radius}, its unit not set yet`;
   const { selectedCollection, selectedCollectionExtents, selectedFeature, setSelectedFeature } = useCollection();
   const { license: apiLicense } = useApi();
   const { isMobile, isOpen } = usePanes();
@@ -195,7 +197,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
             // A box is one gesture and a location one pick: Clear takes those back
             onUndo={geometryKind === 'bbox' || geometryKind === 'none' ? undefined : undoLast}
             onZoom={zoomToTheQuery}
-            radiusLabel={`${radius} ${radiusUnits}`}
+            radiusLabel={radiusText}
             selection={geometryKind === 'polygon'
               // The ring ends on its first vertex
               ? { title: 'Selected Polygons', items: selectedArea.map(polygon => `${polygon.length - 1} vertices`) }
@@ -212,8 +214,8 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
             {dataQuery === 'radius' && (
               <div style={{ margin: '2px 0 4px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', fontSize: '12px' }}>
-                  <span style={{ fontWeight: 'bold' }}>Radius: {radius} {radiusUnits}</span>
-                  <span style={{ fontSize: '10px', opacity: 0.7 }}>{radiusRange.min} - {radiusRange.max} {radiusUnits}</span>
+                  <span style={{ fontWeight: 'bold' }}>Radius: {radiusText}</span>
+                  <span style={{ fontSize: '10px', opacity: 0.7 }}>{radiusRange.min} - {radiusRange.max}{radiusUnits ? ` ${radiusUnits}` : ''}</span>
                 </div>
                 <input
                   type="range"
@@ -221,7 +223,8 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
                   min={radiusRange.min}
                   max={radiusRange.max}
                   step={radiusRange.step}
-                  value={radius}
+                  // A thumb has to sit somewhere: at the start, faint, until a radius is chosen
+                  value={radius ?? radiusRange.min}
                   onChange={(e) => {
                     setRadius(Number(e.target.value));
                   }}
@@ -230,6 +233,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
                     width: '100%',
                     margin: '6px 0 0',
                     cursor: 'pointer',
+                    opacity: radius === null ? 0.4 : 1,
                   }}
                 />
               </div>

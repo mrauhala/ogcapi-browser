@@ -44,9 +44,7 @@ export function convertLength(value: number, from: string, to: string): number {
   return Math.max(min, Math.round((value * fromMeters) / toMeters / step) * step);
 }
 
-// The unit to use from those a query offers: the current one if offered, else km, else the first.
-// With nothing offered the current unit stays.
-export function pickUnit(offered: string[], current: string): string {
-  if (offered.length === 0 || offered.includes(current)) return current;
-  return offered.find(unit => unit.toLowerCase() === 'km') ?? offered[0];
+// A unit chosen for one query, kept for the next if it offers it, or lists none. Never one picked for the user.
+export function keptUnit(offered: string[], current: string): string {
+  return offered.length === 0 || offered.includes(current) ? current : '';
 }

@@ -66,10 +66,15 @@ export function buildQueryUrl(model: QueryModel): string | null {
       params.set('coords', pointsWkt(points));
     } else if ((queryType === 'trajectory' || queryType === 'corridor') && points.length > 1) {
       params.set('coords', `LINESTRING(${points.map(lonLat).join(', ')})`);
-    } else if (queryType === 'radius' && points.length > 0) {
-      params.set('coords', pointsWkt(points));
-      params.set('within', model.radius.value.toString());
-      params.set('within-units', model.radius.units);
+    } else if (queryType === 'radius') {
+      // Each as it's chosen: a radius typed before any point is clicked goes in
+      const { value, units } = model.radius;
+      if (points.length > 0) params.set('coords', pointsWkt(points));
+      else params.delete('coords');
+      if (value !== null) params.set('within', value.toString());
+      else params.delete('within');
+      if (units) params.set('within-units', units);
+      else params.delete('within-units');
     } else if (queryType === 'items' && model.bbox) {
       params.set('bbox', model.bbox.map(edge => edge.toFixed(3)).join(','));
       params.delete('coords');
