@@ -30,7 +30,7 @@ type Stage = 'api' | 'collection' | 'opening' | 'query' | 'applying';
 
 export function OpenRequestProvider({ children }: { children: ReactNode }) {
   const { collections, selectedCollection } = useCollection();
-  const { openCollection } = useOpenCollection();
+  const { openCollection, leaveQuery } = useOpenCollection();
   const { apiUrl, status: apiStatus, loadApiOf } = useApi();
   const { applyRequestUrl } = useQueryBuilder();
   const { pinUrl, unpinUrl, editUrl } = useRequestUrl();
@@ -76,13 +76,15 @@ export function OpenRequestProvider({ children }: { children: ReactNode }) {
     } else if (stage === 'query') {
       setOpening({ url, stage: 'applying' });
       if (isJustCollection(url)) {
+        // The collection itself, so the form has no query either, or picking one leaves this URL in the line
+        leaveQuery();
         editUrl(url);
         finish(null);
       } else {
         applyRequestUrl(url, followed => finish(followed ? null : CANT_FOLLOW));
       }
     }
-  }, [opening, apiStatus, collections, selectedCollection, openCollection, editUrl, applyRequestUrl, finish]);
+  }, [opening, apiStatus, collections, selectedCollection, openCollection, leaveQuery, editUrl, applyRequestUrl, finish]);
 
   const openRequest = useCallback((url: string, { switchApi }: { switchApi: boolean }) => {
     if (opening?.url === url) return;

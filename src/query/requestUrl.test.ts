@@ -225,6 +225,22 @@ describe('mergeEditedUrl', () => {
     expect(mergeEditedUrl(built('f=x'), 'https://api.test/edr/collections/c/area?f=x', built('f=x&a=b'))).toBeNull();
   });
 
+  // With no query the form builds the collection's own URL, so a link or typed URL for the collection is
+  // about what the form was building, and goes once a query is picked
+  describe('to and from the collection itself', () => {
+    const COLLECTION = 'https://api.test/edr/collections/c';
+
+    it('starts again from the form once a query is picked', () => {
+      expect(mergeEditedUrl(COLLECTION, built('f=x'), COLLECTION)).toBeNull();
+      expect(mergeEditedUrl(COLLECTION, built('f=x'), `${COLLECTION}?f=json`)).toBeNull();
+    });
+
+    it('keeps the collection as typed when the form leaves its query for it', () => {
+      expect(mergeEditedUrl(built('f=x'), COLLECTION, `${COLLECTION}?f=json`)).toBe(`${COLLECTION}?f=json`);
+      expect(mergeEditedUrl(built('f=x'), COLLECTION, COLLECTION)).toBeNull();
+    });
+  });
+
   it('starts again when the form has nothing left', () => {
     expect(mergeEditedUrl(built('f=x'), '', built('f=x&a=b'))).toBeNull();
   });

@@ -10,6 +10,7 @@ import type { QueryIssue } from './query/types';
 const issues = vi.hoisted(() => ({ list: [] as QueryIssue[] }));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedFeature: null, collectionUrl: 'x' }) }));
 vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ showMap: () => {} }) }));
+vi.mock('./contexts/OpenCollectionContext', () => ({ useOpenCollection: () => ({ leaveQuery: () => {} }) }));
 vi.mock('./hooks/useQueryValidation', () => ({ useQueryValidation: () => ({ issues: issues.list, active: true, apiOperation: null }) }));
 vi.mock('./QueryIssuesPanel', async importOriginal => ({ ...(await importOriginal<object>()), default: () => <i>the issues</i> }));
 vi.mock('./QueryTypeInputs', () => ({ default: () => null }));

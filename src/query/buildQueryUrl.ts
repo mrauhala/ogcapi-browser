@@ -7,8 +7,6 @@ export const TYPE_PARAMS: Readonly<Record<string, string[]>> = {
   items: ['limit'],
 };
 
-const QUERY_PARAMS = ['f', 'parameter-name', 'datetime', 'z', 'coords', 'within', 'within-units', 'bbox', ...TYPE_PARAMS.corridor, ...TYPE_PARAMS.items];
-
 const lonLat = ([lon, lat]: [number, number]) => `${lon.toFixed(3)} ${lat.toFixed(3)}`;
 const ring = (polygon: [number, number][]) => polygon.map(([lon, lat]) => `${lon.toFixed(2)} ${lat.toFixed(2)}`).join(',');
 
@@ -103,17 +101,5 @@ export function buildQueryUrl(model: QueryModel): string | null {
     return url.toString();
   } catch {
     return model.baseHref;
-  }
-}
-
-// A collection URL without any data query parameters
-export function collectionBaseUrl(url: string): string {
-  if (!url) return url;
-  try {
-    const parsed = new URL(url);
-    QUERY_PARAMS.forEach(param => parsed.searchParams.delete(param));
-    return parsed.toString();
-  } catch {
-    return url;
   }
 }

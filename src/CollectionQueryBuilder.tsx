@@ -24,6 +24,7 @@ import { EDR_QUERY_RULES, mapInputRequired } from './query/edrRules';
 import { levelChoice, pickedLevels, startsRepeating, unlistedReason } from './query/levels';
 import { timeIsOnlyAFilter } from './query/queryModel';
 import { useCollection } from './contexts/CollectionContext';
+import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryValidation } from './hooks/useQueryValidation';
 
@@ -595,6 +596,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
 const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collection, queryState }) => {
   const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey } = queryState;
   const { showMap } = usePanes();
+  const { leaveQuery } = useOpenCollection();
   const instanceMode = !!selectedDataQuery && queryTypeOf(collection, selectedDataQuery) === 'instances';
   // What the fields describe: the collection's query, or the picked instance's
   const target = instanceMode
@@ -612,6 +614,10 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
             value={selectedDataQuery}
             label="Data Query"
             onChange={(e) => {
+              if (!e.target.value) {
+                leaveQuery();
+                return;
+              }
               selectDataQuery(collection, e.target.value);
               // Its next step, drawing the query's geometry, happens on the map
               if (mapInputRequired(queryTypeOf(collection, e.target.value))) showMap();

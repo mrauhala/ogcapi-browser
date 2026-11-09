@@ -1,7 +1,6 @@
 import type { Collection, ValidationResult } from '../types/api';
 import { normalizeBbox } from '../utils/extents/bbox';
 import { normalizeHref } from '../utils/href';
-import { collectionBaseUrl } from '../query/buildQueryUrl';
 import { allSectionsValid, isProblem } from '../validation/severity';
 
 // What opening a collection works out, apart from the state it goes into
@@ -37,11 +36,11 @@ export function geoJsonLinksOf(collection: Collection, { datetime, mode, start, 
   });
 }
 
-// Where a collection's queries hang from: its data link, or else where collections normally are
-export function queryBaseUrlOf(collection: Collection, apiUrl: string): string {
-  const dataLink = collection.links?.find(link => link.rel === 'data');
-  const href = dataLink?.href ? normalizeHref(dataLink.href) : '';
-  return collectionBaseUrl(href || `${apiUrl}/collections/${collection.id}`);
+// The collection's own URL, which is the request while no query is chosen. Not one of its data links:
+// servers link each of its queries as data (MeteoCore's and Polytope's first is /position, FMI's /area),
+// and a query nobody chose isn't the request. The service URL's own trailing slash would double the one here.
+export function collectionUrlOf(collection: Collection, apiUrl: string): string {
+  return `${apiUrl.replace(/\/+$/, '')}/collections/${encodeURIComponent(String(collection.id))}`;
 }
 
 export function extentsOf(collection: Collection): [number, number, number, number][] | null {

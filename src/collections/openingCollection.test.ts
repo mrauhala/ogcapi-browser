@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Collection, ValidationResult } from '../types/api';
-import { adjacentCollection, extentsOf, geoJsonLinksOf, queryBaseUrlOf, withLocationsValidation, withoutLocationsValidation } from './openingCollection';
+import { adjacentCollection, collectionUrlOf, extentsOf, geoJsonLinksOf, withLocationsValidation, withoutLocationsValidation } from './openingCollection';
 
 const collection = (overrides: Partial<Collection> = {}) => ({
   id: 'a',
@@ -93,20 +93,27 @@ describe('geoJsonLinksOf', () => {
   });
 });
 
-describe('queryBaseUrlOf', () => {
-  it('follows the data link', () => {
-    const links = [{ href: 'https://other.test/data/a', rel: 'data' }];
-    expect(queryBaseUrlOf(collection({ links } as Partial<Collection>), 'https://api.test')).toBe('https://other.test/data/a');
+describe('collectionUrlOf', () => {
+  it('is the collection itself, not a query its data links name', () => {
+    // As MeteoCore's ecmwf-ifs-pressure links its queries, 2026-11-08
+    const links = [
+      { href: 'https://api.test/edr/collections/a', rel: 'self' },
+      { href: 'https://api.test/edr/collections/a/position', rel: 'data' },
+      { href: 'https://api.test/edr/collections/a/area', rel: 'data' },
+    ];
+    expect(collectionUrlOf(collection({ links } as Partial<Collection>), 'https://api.test/edr')).toBe('https://api.test/edr/collections/a');
+    expect(collectionUrlOf(collection({ links: undefined } as unknown as Partial<Collection>), 'https://api.test/edr')).toBe('https://api.test/edr/collections/a');
   });
 
-  it('falls back on where collections normally are', () => {
-    expect(queryBaseUrlOf(collection(), 'https://api.test')).toBe('https://api.test/collections/a');
-    expect(queryBaseUrlOf(collection({ links: undefined } as unknown as Partial<Collection>), 'https://api.test')).toBe('https://api.test/collections/a');
+  it("doesn't double the slash a service URL ends in", () => {
+    // KNMI is listed as https://geoservices.knmi.nl/edr/
+    expect(collectionUrlOf(collection(), 'https://api.test/edr/')).toBe('https://api.test/edr/collections/a');
+    expect(collectionUrlOf(collection(), 'https://api.test//')).toBe('https://api.test/collections/a');
   });
 
-  it('ignores a data link it cannot read', () => {
-    const links = [{ href: { nope: 1 }, rel: 'data' }];
-    expect(queryBaseUrlOf(collection({ links } as unknown as Partial<Collection>), 'https://api.test')).toBe('https://api.test/collections/a');
+  it('keeps an id that would end the path inside the path', () => {
+    expect(collectionUrlOf(collection({ id: 'a b#c?d/e' }), 'https://api.test')).toBe('https://api.test/collections/a%20b%23c%3Fd%2Fe');
+    expect(collectionUrlOf(collection({ id: 7 as unknown as string }), 'https://api.test')).toBe('https://api.test/collections/7');
   });
 });
 

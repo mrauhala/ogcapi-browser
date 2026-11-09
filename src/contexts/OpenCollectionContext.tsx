@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { executeLocationQuery, getLocationQueryUrl, hasLocationQuery } from '../DataRetrievalAPI';
-import { extentsOf, geoJsonLinksOf, queryBaseUrlOf, withLocationsValidation, withoutLocationsValidation } from '../collections/openingCollection';
+import { collectionUrlOf, extentsOf, geoJsonLinksOf, withLocationsValidation, withoutLocationsValidation } from '../collections/openingCollection';
 import type { Collection } from '../types/api';
 import { detectEdrVersion, validateLocationsResponse } from '../validation/locationsValidator';
 import { useApi } from './ApiContext';
@@ -16,6 +16,8 @@ interface OpenCollectionContextValue {
   // opened waits for. The collection itself, not its ID: an API under test can repeat or leave those out
   openCollection: (collection: Collection) => Promise<void>;
   closeCollection: () => void;
+  // Back to the open collection itself, with no query chosen, as its URL asks
+  leaveQuery: () => void;
   // A new number per open, so that what's shown for a collection can start afresh
   openSerial: number;
 }
@@ -30,7 +32,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
   const { getAuthCredentials } = useService();
   const { apiUrl, conformsTo } = useApi();
   const { setValidationResult, setEndpointUrls, setRawResponses } = useValidation();
-  const { selectedDatetime, datetimeMode, startDatetime, endDatetime, resetQueryState } = useQueryBuilder();
+  const { selectedDatetime, datetimeMode, startDatetime, endDatetime, resetQueryState, selectDataQuery } = useQueryBuilder();
 
   const [openSerial, setOpenSerial] = useState(0);
 
@@ -64,7 +66,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
       apiKey: auth?.apiKey,
       apiKeyParam: auth?.apiKeyParam,
     })));
-    setCollectionUrl(queryBaseUrlOf(collection, apiUrl));
+    setCollectionUrl(collectionUrlOf(collection, apiUrl));
     resetQueryState();
     setClickedCoords([]);
     setDataQuery('');
@@ -108,6 +110,14 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
     clearLocations();
   }, [setSelectedCollection, setSelectedFeature, setGeoJsonLayers, setCollectionUrl, resetQueryState, setClickedCoords, setDataQuery, setSelectedCollectionExtents, clearLocations]);
 
+  // The form has no URL of its own without a query, so the collection's goes in, as on opening it. The form's
+  // values stay for the next query. A collection with a map then has the map panel's, as on opening it.
+  const leaveQuery = useCallback(() => {
+    if (!selectedCollection) return;
+    selectDataQuery(selectedCollection, '');
+    setCollectionUrl(collectionUrlOf(selectedCollection, apiUrl));
+  }, [selectedCollection, selectDataQuery, setCollectionUrl, apiUrl]);
+
   // The layers follow the time chosen
   useEffect(() => {
     if (!selectedCollection || geoJsonLayers.length === 0) return;
@@ -127,7 +137,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDatetime, datetimeMode, startDatetime, endDatetime]);
 
-  const value = useMemo(() => ({ openCollection, closeCollection, openSerial }), [openCollection, closeCollection, openSerial]);
+  const value = useMemo(() => ({ openCollection, closeCollection, leaveQuery, openSerial }), [openCollection, closeCollection, leaveQuery, openSerial]);
   return <OpenCollectionContext.Provider value={value}>{children}</OpenCollectionContext.Provider>;
 }
 

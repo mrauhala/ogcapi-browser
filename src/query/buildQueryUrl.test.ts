@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
 import { buildQueryModel, emptyDim, type LocationFeature, type QueryModelInput } from './queryModel';
-import { buildQueryUrl, collectionBaseUrl } from './buildQueryUrl';
+import { buildQueryUrl } from './buildQueryUrl';
 import type { DimSelection } from './types';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
@@ -222,12 +222,5 @@ describe('buildQueryUrl', () => {
       collection: COLLECTIONS.fmiEcmwf, queryKey: 'nope', format: '', parameters: [], datetime: emptyDim(),
       vertical: emptyDim(), customDims: {}, points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null,
     })).toBeNull();
-  });
-});
-
-describe('collectionBaseUrl', () => {
-  it('strips data query parameters but keeps others', () => {
-    expect(collectionBaseUrl('https://x.org/edr/collections/c?f=json&datetime=a&z=1&coords=POINT(1+2)&lang=fi'))
-      .toBe('https://x.org/edr/collections/c?lang=fi');
   });
 });
