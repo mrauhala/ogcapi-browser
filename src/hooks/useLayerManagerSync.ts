@@ -136,7 +136,8 @@ export function useLayerManagerSync(
         const key = 'internal:radius';
         layers.push({
           url: 'radius-circle',
-          title: `Radius Circle (${radius} ${radiusUnits})`,
+          // Its points show before the radius is set
+          title: radius === null ? 'Radius Circle' : `Radius Circle (${radius}${radiusUnits ? ` ${radiusUnits}` : ''})`,
           visible: radiusLayer.getVisible(),
           opacity: radiusLayer.getOpacity(),
           zIndex: zIndexMapRef.current.get(key),

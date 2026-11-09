@@ -140,11 +140,13 @@ function checkGeometry(model: QueryModel, add: Add) {
   }
 
   if (queryType === 'radius') {
-    if (!(model.radius.value > 0)) add('error', 'edr', 'within', 'positive', 'The radius must be greater than 0', 'form');
-    const units = unitsFor(model.variables, 'within');
-    if (units.length > 0 && !units.includes(model.radius.units)) {
-      add('error', 'metadata', 'within-units', 'offered',
-        `Radius unit "${model.radius.units}" isn't offered by this collection (${units.join(', ')})`, 'form');
+    const { value, units } = model.radius;
+    if (value === null) add('missing', 'edr', 'within', 'required', 'Set the radius', 'form');
+    else if (!(value > 0)) add('error', 'edr', 'within', 'positive', 'The radius must be greater than 0', 'form');
+    const offered = unitsFor(model.variables, 'within');
+    if (!units) add('missing', 'edr', 'within-units', 'required', 'Pick the unit of the radius', 'form');
+    else if (offered.length > 0 && !offered.includes(units)) {
+      add('error', 'metadata', 'within-units', 'offered', `Radius unit "${units}" isn't offered by this collection (${offered.join(', ')})`, 'form');
     }
   }
 }
@@ -213,8 +215,9 @@ function checkFormat(model: QueryModel, add: Add) {
       add('error', 'metadata', 'f', 'offered', `Output format "${model.format}" isn't offered for this query`, 'form');
     }
   } else {
-    const fallback = model.variables?.default_output_format;
-    add('info', 'metadata', 'f', 'default', `No output format selected: the server uses its default${fallback ? ` (${fallback})` : ''}`);
+    // What the metadata names, which the server may or may not use: Polytope's API docs don't list the one it names
+    const named = model.variables?.default_output_format;
+    add('info', 'metadata', 'f', 'default', `No output format selected: the server uses its default${named ? `. The query names ${named} as default_output_format` : ''}`);
   }
 }
 

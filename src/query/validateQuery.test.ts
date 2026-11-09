@@ -62,6 +62,19 @@ describe('EDR geometry rules', () => {
     expect(problems(issuesFor(DWD, 'radius', { points: [BERLIN], radius: { value: 5, units: 'm' } }))).toEqual([]);
   });
 
+  it('radius says what of it is still to choose, as EDR requires within and within-units', () => {
+    const radius = (value: number | null, units: string) => issuesFor(FMI, 'radius', { points: [HELSINKI], radius: { value, units } });
+    expect(problems(radius(null, ''))).toEqual(['missing within', 'missing within-units']);
+    expect(radius(null, '')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ field: 'within', input: 'form', message: 'Set the radius' }),
+      expect.objectContaining({ field: 'within-units', input: 'form', message: 'Pick the unit of the radius' }),
+    ]));
+    expect(problems(radius(25, ''))).toEqual(['missing within-units']);
+    expect(problems(radius(null, 'km'))).toEqual(['missing within']);
+    // A query that lists no units still needs one
+    expect(problems(issuesFor(DWD, 'radius', { points: [BERLIN], radius: { value: 5, units: '' } }))).toEqual(['missing within-units']);
+  });
+
   it('cube needs a real lon/lat box over the collection', () => {
     const cube = (bbox: [number, number, number, number] | null) => problems(issuesFor(FMI_LEVELS, 'cube', { bbox }));
     expect(cube([24, 60, 25, 61])).toEqual([]);
@@ -149,6 +162,13 @@ describe('collection metadata checks', () => {
     expect(problems(issuesFor(FMI, 'position', { points: [HELSINKI], format: 'NetCDF' }))).toEqual(['error f']);
     const unset = issuesFor(FMI, 'position', { points: [HELSINKI], format: '' }).find(issue => issue.field === 'f');
     expect(unset).toMatchObject({ severity: 'info', message: expect.stringContaining('CoverageJSON') });
+  });
+
+  it("says the default format is the one the query names, not the one the server uses", () => {
+    const note = (collection: Collection) => issuesFor(collection, 'position', { points: [HELSINKI], format: '' }).find(issue => issue.field === 'f')?.message;
+    expect(note(FMI)).toBe('No output format selected: the server uses its default. The query names CoverageJSON as default_output_format');
+    const unnamed = { ...FMI, data_queries: { position: { link: { ...FMI.data_queries.position.link, variables: { query_type: 'position' } } } } } as unknown as Collection;
+    expect(note(unnamed)).toBe('No output format selected: the server uses its default');
   });
 
   it('checks parameter names and notes when none are chosen', () => {

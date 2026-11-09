@@ -10,13 +10,13 @@ interface MapInteractionContextValue {
   setSelectedArea: (area: [number, number][][]) => void;
   selectedBbox: BBox | null; // cube box, drawn on the map or typed in the builder
   setSelectedBbox: (bbox: BBox | null) => void;
-  // Radius queries: the radius in radiusUnits. Changing the unit converts the radius.
-  radius: number;
-  setRadius: (radius: number) => void;
+  // Radius queries: the radius in radiusUnits, null and '' until chosen. Changing the unit converts the radius.
+  radius: number | null;
+  setRadius: (radius: number | null) => void;
   radiusUnits: string;
   setRadiusUnits: (units: string) => void;
   // The selected data query's EDR type (position, area, ...), '' for none. Switching to a type that
-  // takes another kind of geometry clears the drawn geometry.
+  // takes another kind of geometry clears the drawn geometry, and any other type clears the radius.
   dataQuery: string;
   setDataQuery: (queryType: string) => void;
   // Current OL view extent (EPSG:3857) and viewport size, updated on map move/resize.
@@ -32,9 +32,9 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
   const [clickedCoords, setClickedCoords] = useState<[number, number][]>([]);
   const [selectedArea, setSelectedArea] = useState<[number, number][][]>([]);
   const [selectedBbox, setSelectedBbox] = useState<BBox | null>(null);
-  const [radius, setRadius] = useState<number>(10);
-  const [radiusUnits, setRadiusUnitsState] = useState<string>('km');
-  const radiusUnitsRef = useRef('km');
+  const [radius, setRadius] = useState<number | null>(null);
+  const [radiusUnits, setRadiusUnitsState] = useState<string>('');
+  const radiusUnitsRef = useRef('');
   const [dataQuery, setDataQueryState] = useState<string>('');
   const dataQueryRef = useRef('');
   const [viewExtent, setViewExtent] = useState<[number, number, number, number] | null>(null);
@@ -47,6 +47,12 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
       setSelectedArea([]);
       setSelectedBbox(null);
     }
+    // A radius and its unit are the radius query's, and nothing else's
+    if (queryType !== 'radius') {
+      setRadius(null);
+      radiusUnitsRef.current = '';
+      setRadiusUnitsState('');
+    }
     dataQueryRef.current = queryType;
     setDataQueryState(queryType);
   }, []);
@@ -54,7 +60,7 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
   const setRadiusUnits = useCallback((units: string) => {
     const from = radiusUnitsRef.current;
     if (units === from) return;
-    setRadius(value => convertLength(value, from, units));
+    setRadius(value => (value === null ? null : convertLength(value, from, units)));
     radiusUnitsRef.current = units;
     setRadiusUnitsState(units);
   }, []);
