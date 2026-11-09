@@ -19,6 +19,7 @@ import { useOpenApi } from './contexts/OpenApiContext';
 import type { EndpointUrls, RawResponses } from './contexts/ValidationContext';
 import type { ValidationError } from './DataRetrievalAPI';
 import { isProblem, problemCount } from './validation/severity';
+import RuleLinks, { EdrVersionNote } from './RuleLinks';
 
 // Rendering tens of thousands of errors froze the popover (a 10 MB locations response)
 const MAX_ITEMS_PER_GROUP = 100;
@@ -221,6 +222,7 @@ const ValidationPopover: React.FC = () => {
           </Box>
         ) : (
           <Box sx={{ overflow: 'auto', maxHeight: 360 }}>
+            <EdrVersionNote rules={validationResult.errors?.map(error => error.rule) ?? []} sx={{ px: 1.5, pt: 0.75, mb: 0 }} />
             {Array.from(errorsBySchema.entries()).map(([schema, errors], groupIdx) => (
               <Box key={schema}>
                 {groupIdx > 0 && <Divider />}
@@ -257,10 +259,14 @@ const ValidationPopover: React.FC = () => {
                     }
                     seen.get(key)!.push(error);
                   }
-                  return bySection.map((group) => (
+                  return bySection.map((group) => {
+                    // A schema's findings all rest on its one rule, said once by their heading
+                    const shared = group.items.every(item => item.rule === group.items[0].rule) ? group.items[0].rule : undefined;
+                    return (
                     <Box key={group.key}>
                       <Typography variant="caption" sx={{ display: 'block', px: 1.5, pt: 0.75, pb: 0.25, fontWeight: 600, color: 'info.main' }}>
                         {group.label}
+                        <RuleLinks rule={shared} />
                       </Typography>
                       {group.items.slice(0, MAX_ITEMS_PER_GROUP).map((error, idx) => {
                         const msg = error.path && error.message.startsWith(error.path)
@@ -308,7 +314,10 @@ const ValidationPopover: React.FC = () => {
                               {error.keyword && (
                                 <Chip label={error.keyword} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
                               )}
-                              <Typography variant="caption">{msg}</Typography>
+                              <Typography variant="caption">
+                                {msg}
+                                {!shared && <RuleLinks rule={error.rule} />}
+                              </Typography>
                               {error.params?.missingProperty && (
                                 <Typography
                                   variant="caption"
@@ -340,7 +349,8 @@ const ValidationPopover: React.FC = () => {
                         </Typography>
                       )}
                     </Box>
-                  ));
+                    );
+                  });
                 })()}
               </Box>
             ))}

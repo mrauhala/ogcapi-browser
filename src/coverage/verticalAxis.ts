@@ -1,3 +1,4 @@
+import { COVJSON } from '../standards';
 import type { ValidationError, Vertical } from '../types/api';
 import { i18nText } from '../utils/i18nText';
 
@@ -295,7 +296,9 @@ export function zFindings(axis: VerticalAxis, zPath: string, referencingPath: st
   else if (axis.directionSource === 'usual') say('warning', `z's direction isn't in the response: assumed ${axis.direction}, as usual for ${axis.usualWords}`);
   else say('warning', "z's direction isn't in the response, and nothing says what z is: assumed up");
   if (axis.againstUsual) say('warning', `z is ${axis.usualWords} and says it runs ${axis.direction}, against the usual`);
-  if (axis.flatCrs) say('warning', `z is referenced to ${axis.flatCrs}, which has no vertical axis`, referencingPath);
+  // CoverageJSON 9.10: ""z" to vertical spatial coordinates, and all of "x", "y", and "z" MUST be referenced by a
+  // spatial coordinate reference system"
+  if (axis.flatCrs) found.push({ message: `z is referenced to ${axis.flatCrs}, which has no vertical axis`, path: referencingPath, severity: 'warning', rule: COVJSON.spatialReferenced });
   // A level number needs no unit
   if (axis.unitSource === 'response' && axis.unit) say('pass', `z's unit is in the response: ${axis.unit}`);
   else if (axis.unitSource === 'description') say('warning', `z's unit, ${axis.unit}, is only in a description, and not in its reference system's axis`);

@@ -16,14 +16,15 @@ import { Vertical, normalizeVertical, formatVerticalInterval, formatVerticalValu
 interface VerticalExtentProps {
   vertical: Vertical | null | undefined;
   collectionId?: string;
-  isSubsection?: boolean;
+  // Its title as a part of the collection's extent, numbered under the extent's letter
+  subsection?: string;
 }
 
-const VerticalExtent: React.FC<VerticalExtentProps> = ({ vertical, collectionId, isSubsection = false }) => {
+const VerticalExtent: React.FC<VerticalExtentProps> = ({ vertical, collectionId, subsection }) => {
   const [showDetails, setShowDetails] = useState(false);
 
   const getAlertTitle = () => {
-    return isSubsection ? "G.3: Vertical Extent (Optional)" : "VERTICAL EXTENT";
+    return subsection ?? "VERTICAL EXTENT";
   };
 
   // If no vertical extent, show appropriate message

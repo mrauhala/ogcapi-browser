@@ -1,5 +1,7 @@
+import axios from 'axios';
 import { capturedGet, type CapturedResponse } from '../../api/capture';
-import type { AuthCredentials, Link } from '../../types/api';
+import { EDR } from '../../standards';
+import type { AuthCredentials, Link, ValidationError } from '../../types/api';
 
 // The server's API definition (service-desc), parsed
 export interface ServiceDescription {
@@ -38,6 +40,28 @@ function linkRank(link: Link): number {
 // A service-desc link that answers with a web page (a Swagger UI or ReDoc page) instead of a document
 export class WebPageError extends Error {}
 
+// A description that parses as neither JSON nor YAML's object
+export class NotADocumentError extends Error {}
+
+// A description that can't be loaded is reported, but isn't a flaw in the document
+export function unavailable(error: unknown): ValidationError {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  return {
+    message: status
+      ? `The API definition could not be loaded (HTTP ${status})`
+      : `The API definition could not be loaded (${error instanceof Error ? error.message : 'network or CORS error'})`,
+    section: 'OpenAPI',
+    schema: 'OpenAPI',
+    keyword: 'unavailable',
+    // A missing document or a web page in its place is the server's problem; a network error may not be
+    severity: status === 404 || error instanceof WebPageError ? 'warning' : 'info',
+    type: status ? 'unknown' : 'network',
+    // EDR /req/core/api-definition-success A: "A successful execution of the operation SHALL be reported as a response
+    // with an HTTP status code 200", and B: "The content of that response SHALL be an API Definition document."
+    ...(status === 404 ? { rule: EDR.apiDefinitionSuccessA } : error instanceof WebPageError || error instanceof NotADocumentError ? { rule: EDR.apiDefinitionSuccessB } : {}),
+  };
+}
+
 export function pickOpenApiLink(links: Link[] | undefined): Link | null {
   const candidates = (links ?? []).filter(link => SERVICE_DESC_RELS.includes(link.rel ?? '') && linkRank(link) > 0);
   return candidates.reduce<Link | null>((best, link) => (!best || linkRank(link) > linkRank(best) ? link : best), null);
@@ -54,7 +78,7 @@ export async function parseServiceDescription(text: string, hint?: string): Prom
   }
   const yaml = await import('js-yaml');
   const doc = yaml.load(text, { schema: yaml.CORE_SCHEMA });
-  if (!doc || typeof doc !== 'object') throw new Error('The API definition is neither JSON nor YAML');
+  if (!doc || typeof doc !== 'object') throw new NotADocumentError('The API definition is neither JSON nor YAML');
   return { doc: doc as Record<string, unknown>, format: 'yaml' };
 }
 

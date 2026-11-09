@@ -3,7 +3,7 @@ import { axisLength, coverageParameters, distinctLabel, isTimeSeriesCoverage, pa
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { axisFault } from './coverageCells';
 import { coverageToProfile, type CoverageProfile, type ProfileContext } from './coverageProfile';
-import { rangeMisfit } from './rangeFit';
+import { rangeMisfit, type RangeMisfit } from './rangeFit';
 import { timeFindings, type TimeContext } from './timeChecks';
 import { parameterFindings } from './parameterChecks';
 import { toSection, type SectionData, type SectionResult } from './coverageSection';
@@ -241,7 +241,7 @@ function axisOrderFindings(coverages: Json[], prefix: (coverage: number) => stri
     }
   });
   return [...found.values()].map(({ message, path, more }) => ({
-    message: more ? `${message}, and likewise in ${plural(more, 'more coverage')}` : message, path, severity: 'error', rule: COVJSON.domain,
+    message: more ? `${message}, and likewise in ${plural(more, 'more coverage')}` : message, path, severity: 'error', rule: COVJSON.monotonic,
   }));
 }
 
@@ -366,7 +366,7 @@ function buildSeries(coverages: Json[], tallies: Map<string, Tally>): { series: 
 // Every range against its domain, whatever the response is: a schema can't check that its axisNames and shape are
 // the domain's axes. The same fault in many coverages is said once
 function rangeFindings(coverages: Json[], prefix: (coverage: number) => string): ValidationError[] {
-  const faults = new Map<string, { message: string; path: string; more: number }>();
+  const faults = new Map<string, { message: string; path: string; rule: RangeMisfit['rule']; more: number }>();
   let fitting = 0;
   let unchecked = 0;
   coverages.forEach((coverage, c) => {
@@ -386,16 +386,17 @@ function rangeFindings(coverages: Json[], prefix: (coverage: number) => string):
       const key = `${id}\u0000${misfit.member}`;
       const known = faults.get(key);
       if (known) known.more++;
-      else faults.set(key, { message: misfit.message, path: `${prefix(c)}/ranges/${pointerPart(id)}/${misfit.member}`, more: 0 });
+      else faults.set(key, { message: misfit.message, path: `${prefix(c)}/ranges/${pointerPart(id)}/${misfit.member}`, rule: misfit.rule, more: 0 });
     }
   });
   if (faults.size === 0) {
-    return fitting > 0 && unchecked === 0 ? [{ message: "Every parameter's values fit its shape and axes", path: `${prefix(0)}/ranges`, severity: 'pass' }] : [];
+    return fitting > 0 && unchecked === 0 ? [{ message: "Every parameter's values fit its shape and axes", path: `${prefix(0)}/ranges`, severity: 'pass', rule: COVJSON.rangesFitDomain }] : [];
   }
-  return [...faults.values()].map(({ message, path, more }) => ({
+  return [...faults.values()].map(({ message, path, rule, more }) => ({
     message: more ? `${message}, and likewise in ${plural(more, 'more coverage')}` : message,
     path,
     severity: 'error',
+    rule,
   }));
 }
 

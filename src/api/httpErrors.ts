@@ -82,7 +82,10 @@ export function httpFailure(status: number, body: unknown): { message: string; r
 export function networkFailureMessage(error: { message?: string; code?: string }): string {
   const message = error.message ?? '';
   if (message.includes('CORS') || message.includes('Access-Control-Allow-Origin') || message.includes('cross-origin')) {
-    return 'CORS blocked. Your API must include the Access-Control-Allow-Origin header for this origin.';
+    // A recommendation, not a requirement: EDR's Recommendation 3, "If the server is intended to be accessed from the
+    // browser, cross-origin requests SHOULD be supported. Note that support can also be added in a proxy layer on top
+    // of the server."
+    return 'CORS blocked: the API doesn\'t allow cross-origin requests from this origin. EDR recommends that an API meant for browsers allows them, with an Access-Control-Allow-Origin header.';
   }
   if (error.code === 'ERR_NETWORK' || message.includes('Network Error') || message.includes('Failed to fetch')) {
     return 'Network error. The API may be unreachable or blocking cross-origin requests (CORS).';

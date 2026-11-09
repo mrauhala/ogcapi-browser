@@ -1,3 +1,4 @@
+import { EDR } from '../standards';
 import type { ValidationError } from '../types/api';
 import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { parseTime } from '../utils/utcTime';
@@ -539,7 +540,7 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
   // ---- Notes: what the response does along the path. EDR has no rule for it, so each is a note ----
 
   const notes: ValidationError[] = [];
-  const note = (message: string, path: string) => notes.push({ message, path, severity: 'info' });
+  const note = (message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity: 'info', ...(rule ? { rule } : {}) });
 
   // Waypoints: the request's vertices, found in order among the positions, within 0.6 of their usual spacing. Looser,
   // and the closed path's dropped vertex was "found" among the positions on the way back
@@ -664,7 +665,11 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
     const theirs = hasZ ? "the response's levels" : 'what the response sent, which has no z';
     note(asked.values.length === 1
       ? `z=${asked.values[0]} was asked for, and isn't among ${theirs}${span}`
-      : `z=${levelsListed(asked.values)} were asked for, and none of them is among ${theirs}${span}`, hasZ ? levelsAt : `${coverages[0].where}/domain/axes`);
+      : `z=${levelsListed(asked.values)} were asked for, and none of them is among ${theirs}${span}`, hasZ ? levelsAt : `${coverages[0].where}/domain/axes`,
+    // EDR /req/edr/z-response: "only resources that have a vertical geometry that intersects the vertical information
+    // in the z parameter SHALL be part of the result set", and in 1.2, "If the z parameter is provided and a vertical
+    // extent is not defined in a collection, the z value SHALL be ignored"
+    [EDR.zResponse, EDR.zIgnored]);
   }
   if (duplicates > 0) note(`${plural(duplicates, 'value')} ${one(duplicates, 'is', 'are')} sent again for a position, level and time already sent. The first is used`, firstDuplicate);
 

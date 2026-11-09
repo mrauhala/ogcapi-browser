@@ -8,6 +8,7 @@ import { capturedGet, type CapturedLoad, type CapturedResponse } from './capture
 import { makeRoomForWireTiming } from './responseSizes';
 import { pickOpenApiLink } from '../validation/openapi/loadServiceDescription';
 import { classifyDataLinks, dataLinkUrls, hasCollectionsList } from './landingPageLinks';
+import { COMMON1, EDR, FEATURES1 } from '../standards';
 
 export async function getCollections(apiUrl: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<GetCollectionsResult> {
   // Initialize the schema validator outside the try block so it's accessible in the catch block
@@ -57,7 +58,10 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
           title: 'Collections Link Missing',
           message: 'No data/collections link (rel="data") found in landing page. Using fallback URL.',
           type: 'unknown',
-          section: 'data link'
+          section: 'data link',
+          // EDR and Features /req/core/root-success B: the landing page includes "at least links to … /collections
+          // (relation type data)"
+          rule: [EDR.rootDataLink, FEATURES1.rootSuccessB],
         };
         console.warn('No data link (rel="data") found in landing page. Available links:',
           landingPageData.links.map((l: Link) => ({ rel: l.rel, href: l.href })));
@@ -102,6 +106,9 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
           type: 'unknown',
           section: 'conformance',
           severity: 'warning',
+          // A link to "/conformance (relation type conformance)", or in Common Part 1 the relation type
+          // ‘http://www.opengis.net/def/rel/ogc/1.0/conformance’
+          rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink],
         });
       }
     } else {
@@ -112,7 +119,8 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         title: 'Collections Link Missing',
         message: 'Landing page has no links array. No data/collections link could be found.',
         type: 'unknown',
-        section: 'data link'
+        section: 'data link',
+        rule: [EDR.rootSuccessB, FEATURES1.rootSuccessB],
       };
     }
 
@@ -227,7 +235,10 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         }
       }
 
-      conformanceError = { title: errorTitle, message: errorMessage, type: errorType, section: 'conformance' };
+      // EDR Recommendation 3: "cross-origin requests SHOULD be supported"; /req/core/conformance-success A: "A
+      // successful execution of the operation SHALL be reported as a response with an HTTP status code 200."
+      const rule = errorType === 'cors' ? EDR.crossOrigin : errorTitle === 'Conformance Not Found' ? EDR.conformanceSuccessA : undefined;
+      conformanceError = { title: errorTitle, message: errorMessage, type: errorType, section: 'conformance', ...(rule ? { rule } : {}) };
       console.warn('Error fetching conformance, will use default schema:', errorMessage);
     }
 
@@ -236,7 +247,8 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         title: 'Conformance Link Missing',
         message: 'Conformance link (rel="conformance") not found in landing page.',
         type: 'unknown',
-        section: 'conformance'
+        section: 'conformance',
+        rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink],
       };
     }
 
@@ -261,6 +273,8 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         message: `${collectionsUrl} answered without a "collections" array, so no collections can be listed.`,
         type: 'unknown',
         section: 'data link',
+        // "The content of that response SHALL be based upon the schema collections.yaml", which requires collections
+        rule: [EDR.collectionsSuccessB, FEATURES1.collectionsSuccessB],
       });
     }
 
@@ -495,6 +509,12 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
       }
     }
 
+    // Cross-origin requests "SHOULD be supported" (EDR Recommendation 3), and the landing page and the collections each
+    // "SHALL be reported as a response with an HTTP status code 200" (root-success A, rc-md-success A)
+    const fatalRule = errorType === 'cors' ? EDR.crossOrigin
+      : errorTitle.endsWith('Not Found') ? (isCollections ? EDR.collectionsSuccessA : EDR.rootSuccessA)
+        : undefined;
+
     // If there's an error with the request, return empty collections and the error.
     // Include any landing page data that was already fetched before the failure so
     // the UI can still display service info (title, description, links) even when
@@ -504,7 +524,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
       validation: {
         isValid: false,
         errors: [
-          { title: errorTitle, message: errorMessage, type: errorType, section: errorSection },
+          { title: errorTitle, message: errorMessage, type: errorType, section: errorSection, ...(fatalRule ? { rule: fatalRule } : {}) },
           // Include any non-fatal errors already computed before the fatal error
           ...(conformanceError ? [conformanceError] : []),
           ...(dataLinkError ? [dataLinkError] : []),

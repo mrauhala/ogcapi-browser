@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { detectEdrVersion, validateLocationsResponse } from './locationsValidator';
+import { validateLocationsResponse } from './locationsValidator';
+import { EDR11, EDR12 } from '../standards';
 import meteogate from './__fixtures__/meteogate-nl-daily-locations.json';
 
 // The validator fetches its schema from the app's public directory
@@ -9,20 +10,6 @@ beforeAll(() => {
   vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join('public', url), 'utf8')));
 });
 afterAll(() => vi.unstubAllGlobals());
-
-describe('detectEdrVersion', () => {
-  const core = (version: string) => `http://www.opengis.net/spec/ogcapi-edr-1/${version}/conf/core`;
-
-  it('picks the newest EDR version declared', () => {
-    expect(detectEdrVersion([core('1.0'), core('1.1')])).toBe('1.1');
-    expect(detectEdrVersion([core('1.2')])).toBe('1.2');
-  });
-
-  it('finds none for a service that is not EDR', () => {
-    expect(detectEdrVersion(['http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core'])).toBeNull();
-    expect(detectEdrVersion(null)).toBeNull();
-  });
-});
 
 describe('validateLocationsResponse', () => {
   it('reports a property missing from every feature once, with how many features lack it (Meteogate)', async () => {
@@ -34,6 +21,14 @@ describe('validateLocationsResponse', () => {
     // One error per kind, not per feature; each points at the first feature, for navigation
     expect(errors.length).toBeLessThan(10);
     expect(errors.every(error => error.path === '/features/0/properties' && error.section === 'Locations')).toBe(true);
+  });
+
+  it('cites /req/edr-geojson/content of the version its schema is, 1.0 as 1.1 words it', async () => {
+    for (const [version, rule] of [['1.1', EDR11.edrGeojsonContent], ['1.2', EDR12.edrGeojsonContent], ['1.0', EDR11.edrGeojsonContent]] as const) {
+      const { errors } = await validateLocationsResponse(meteogate.response, version);
+      expect(errors.length, version).toBeGreaterThan(0);
+      expect(errors.every(error => error.rule === rule), version).toBe(true);
+    }
   });
 
   it('keeps a single error as it is', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Temporal, ValidationError } from '../types/api';
 import { askedDatetime, timeFindings, timeSpan, type TimeContext } from './timeChecks';
-import { COVJSON } from '../standards';
+import { COVJSON, EDR } from '../standards';
 import polytopeArea from './__fixtures__/polytope-op-multipoint-area.json';
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -82,14 +82,15 @@ describe('askedDatetime', () => {
 
 describe('timeFindings: how t is referenced', () => {
   it('passes a temporal reference system, where it is', () => {
-    expect(findings(series(T))[0]).toEqual({ message: 't has a temporal reference system: TemporalRS, calendar Gregorian', path: '/domain/referencing/0/system', severity: 'pass' });
+    expect(findings(series(T))[0]).toEqual({ message: 't has a temporal reference system: TemporalRS, calendar Gregorian', path: '/domain/referencing/0/system', severity: 'pass', rule: COVJSON.timeReferenced });
   });
 
   it('makes an error of t without one, where it would be', () => {
     const none = "t isn't referenced by a temporal reference system";
-    expect(found(findings(series(T, [{ coordinates: ['x', 'y'], system: { type: 'GeographicCRS' } }])), /^t isn't referenced/)).toEqual({ message: none, path: '/domain/referencing', severity: 'error' });
-    expect(found(findings(series(T, null)), /^t isn't referenced/)).toMatchObject({ path: '/domain/axes/t/values/0' });
-    expect(found(findings(polytopeArea), /^t isn't referenced/)).toMatchObject({ path: '/referencing', severity: 'error' });
+    expect(found(findings(series(T, [{ coordinates: ['x', 'y'], system: { type: 'GeographicCRS' } }])), /^t isn't referenced/)).toEqual({ message: none, path: '/domain/referencing', severity: 'error', rule: COVJSON.timeReferenced });
+    expect(found(findings(series(T, null)), /^t isn't referenced/)).toMatchObject({ path: '/domain/axes/t/values/0', rule: [COVJSON.timeReferenced, COVJSON.referencing] });
+    // A referencing member there is: only t's reference is lacking, so 9.6.1's "MUST have a "referencing" member" isn't cited
+    expect(found(findings(polytopeArea), /^t isn't referenced/)).toMatchObject({ path: '/referencing', severity: 'error', rule: COVJSON.timeReferenced });
     // A coverage's referencing is its domain's: only a collection has one beside its coverages
     expect(found(findings({ ...series(T, null), referencing: [TRS] }), /^t isn't referenced/)).toMatchObject({ path: '/domain/axes/t/values/0' });
     expect(found(findings(series(T)), /referenced by/)).toBeUndefined();
@@ -103,19 +104,19 @@ describe('timeFindings: how t is referenced', () => {
   });
 
   it('names what else t is referenced by', () => {
-    expect(found(findings(series(T, [{ coordinates: ['t', 'x'], system: { type: 'GeographicCRS' } }])), /referenced/)).toEqual({ message: 't is referenced by GeographicCRS, not a temporal reference system', path: '/domain/referencing/0', severity: 'error' });
+    expect(found(findings(series(T, [{ coordinates: ['t', 'x'], system: { type: 'GeographicCRS' } }])), /referenced/)).toEqual({ message: 't is referenced by GeographicCRS, not a temporal reference system', path: '/domain/referencing/0', severity: 'error', rule: COVJSON.timeReferenced });
     expect(found(findings(series(T, [{ coordinates: ['t'], system: {} }])), /referenced/)?.message).toBe('t is referenced by a system with no type, not a temporal reference system');
   });
 
   it('says it once of many coverages, where it first is', () => {
     const notes = findings(collection(series(T), series(T, null), series(T, null)));
-    expect(found(notes, /referenced/)).toEqual({ message: "t isn't referenced by a temporal reference system, and likewise in 1 more coverage", path: '/coverages/1/domain/axes/t/values/0', severity: 'error' });
+    expect(found(notes, /referenced/)).toEqual({ message: "t isn't referenced by a temporal reference system, and likewise in 1 more coverage", path: '/coverages/1/domain/axes/t/values/0', severity: 'error', rule: [COVJSON.timeReferenced, COVJSON.referencing] });
     expect(found(notes, /^t has/)).toBeUndefined();
   });
 
   it('makes an error of a time scale given as UTC, which is to be left out', () => {
     const scaled = (timeScale: string) => findings(series(T, [{ coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'Gregorian', timeScale } }]));
-    expect(found(scaled('http://www.opengis.net/def/trs/BIPM/0/UTC'), /timeScale/)).toEqual({ message: 'timeScale is UTC, which is to be left out: UTC is what it is without one', path: '/domain/referencing/0/system/timeScale', severity: 'error' });
+    expect(found(scaled('http://www.opengis.net/def/trs/BIPM/0/UTC'), /timeScale/)).toEqual({ message: 'timeScale is UTC, which is to be left out: UTC is what it is without one', path: '/domain/referencing/0/system/timeScale', severity: 'error', rule: COVJSON.timeScale });
     expect(found(scaled('utc'), /timeScale/)).toBeDefined();
     expect(found(scaled('http://www.opengis.net/def/trs/BIPM/0/TAI'), /timeScale/)).toBeUndefined();
   });
@@ -132,6 +133,7 @@ describe('timeFindings: numbers for times, and other calendars', () => {
       message: `t is referenced by a TemporalCRS (${UNIX}), with numbers for times: in the CoverageJSON 1.0.1 draft, not in 1.0. They are read as seconds since 1970-01-01T00:00:00Z`,
       path: '/domain/referencing/0/system',
       severity: 'info',
+      rule: [COVJSON.temporalRsType, COVJSON.customValue],
     });
     expect(kinds(notes)[`Every time is inside the datetime asked for, ${T[0]}/${T[2]}`]).toBe('pass');
     expect(found(notes, /^t has/)).toBeUndefined();
@@ -144,7 +146,7 @@ describe('timeFindings: numbers for times, and other calendars', () => {
 
   it('reads Unix time spaced by start, stop and num', () => {
     const notes = findings(series({ start: seconds[0], stop: seconds[2], num: 3 }, crs(UNIX)), { url: request(T[1]) });
-    expect(found(notes, /datetime asked/)).toEqual({ message: `2 times aren't the datetime asked for, ${T[1]}: the first is ${seconds[0]}`, path: '/domain/axes/t', severity: 'error' });
+    expect(found(notes, /datetime asked/)).toEqual({ message: `2 times aren't the datetime asked for, ${T[1]}: the first is ${seconds[0]}`, path: '/domain/axes/t', severity: 'error', rule: EDR.datetimeResponse });
   });
 
   it('can’t place other numbers in time, and says so', () => {
@@ -158,8 +160,8 @@ describe('timeFindings: numbers for times, and other calendars', () => {
     // Its times may look Gregorian, and aren't
     const notes = findings(series(T, [{ coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'https://example.org/360day' } }]), { url: request(T[0]) });
     expect(notes).toEqual([
-      { message: 't has a temporal reference system: TemporalRS, calendar https://example.org/360day', path: '/domain/referencing/0/system', severity: 'pass' },
-      { message: "t's calendar is https://example.org/360day, not Gregorian: its times aren't checked for their form, or against the datetime asked for or the collection's extent", path: '/domain/referencing/0/system/calendar', severity: 'info' },
+      { message: 't has a temporal reference system: TemporalRS, calendar https://example.org/360day', path: '/domain/referencing/0/system', severity: 'pass', rule: COVJSON.timeReferenced },
+      { message: "t's calendar is https://example.org/360day, not Gregorian: its times aren't checked for their form, or against the datetime asked for or the collection's extent", path: '/domain/referencing/0/system/calendar', severity: 'info', rule: COVJSON.calendar },
     ]);
     expect(found(findings(series(['1-1'], [{ coordinates: ['t'], system: { type: 'TemporalRS', calendar: 'https://example.org/360day' } }])), /calendar is/)?.message).toMatch(/for their form$/);
   });
@@ -167,7 +169,7 @@ describe('timeFindings: numbers for times, and other calendars', () => {
 
 describe('timeFindings: the form of the times', () => {
   it('passes the Gregorian form, shorter ones too', () => {
-    expect(found(findings(series(T)), /Gregorian form/)).toEqual({ message: `Every time is in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z, like ${T[0]}`, path: '/domain/axes/t/values/0', severity: 'pass' });
+    expect(found(findings(series(T)), /Gregorian form/)).toEqual({ message: `Every time is in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z, like ${T[0]}`, path: '/domain/axes/t/values/0', severity: 'pass', rule: COVJSON.timeFormsMust });
     expect(found(findings(series(['2026-11', '2026-12', '+12026', '2026-11-08T12:00:00.123+02:00'])), /Gregorian form/)?.severity).toBe('pass');
   });
 
@@ -176,6 +178,7 @@ describe('timeFindings: the form of the times', () => {
       message: "t 2026-10-30T04:00:00.000000000 isn't in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z: it has no Z or offset",
       path: '/domain/axes/t/values/0',
       severity: 'error',
+      rule: COVJSON.timeFormsMust,
     });
   });
 
@@ -192,8 +195,11 @@ describe('timeFindings: the form of the times', () => {
     expect(found(findings(series(['2026-13-08T00:00:00Z'])), /Gregorian form/)?.severity).toBe('error');
   });
 
-  it('makes only an issue of it without a reference system, where the form is a SHOULD', () => {
-    expect(found(findings(series(['2026-11-08T00:00:00'], null)), /Gregorian form/)?.severity).toBe('warning');
+  it('makes only an issue of it without a reference system, where the form is a SHOULD, and cites the SHOULD then, passing or not', () => {
+    expect(found(findings(series(['2026-11-08T00:00:00'], null)), /Gregorian form/)).toMatchObject({ severity: 'warning', rule: COVJSON.timeFormsShould });
+    expect(found(findings(series(T, null)), /Gregorian form/)).toMatchObject({ severity: 'pass', rule: COVJSON.timeFormsShould });
+    // The MUST where any coverage read has a reference system
+    expect(found(findings(collection(series(T, null), series(T))), /Gregorian form/)).toMatchObject({ severity: 'pass', rule: COVJSON.timeFormsMust });
   });
 
   it('compares only the times it can read, and passes nothing it didn’t compare', () => {
@@ -205,7 +211,7 @@ describe('timeFindings: the form of the times', () => {
 describe('timeFindings: their order', () => {
   it('makes an error of times out of order, and an issue of one twice', () => {
     // The first step sets the way: falling to T0, then turning back up at T2
-    expect(found(findings(series([T[1], T[0], T[2]])), /order/)).toEqual({ message: `Times aren't in order: ${T[2]} comes after ${T[0]}`, path: '/domain/axes/t/values/2', severity: 'error', rule: COVJSON.domain });
+    expect(found(findings(series([T[1], T[0], T[2]])), /order/)).toEqual({ message: `Times aren't in order: ${T[2]} comes after ${T[0]}`, path: '/domain/axes/t/values/2', severity: 'error', rule: COVJSON.monotonic });
     expect(found(findings(series([T[0], T[1], T[0]])), /twice/)).toEqual({ message: `t has ${T[0]} twice`, path: '/domain/axes/t/values/2', severity: 'warning' });
     // The first of each
     expect(found(findings(series([T[0], T[2], T[1], T[0]])), /order/)?.path).toBe('/domain/axes/t/values/2');
@@ -225,8 +231,8 @@ describe('timeFindings: their order', () => {
   });
 
   it('makes an error of a Trajectory or a Section going back in time, as FMI’s do', () => {
-    expect(found(findings(trajectory([T[0], T[2], T[1]])), /order/)).toEqual({ message: `A Trajectory's points must follow the order of t, and ${T[1]} comes after ${T[2]}`, path: '/domain/axes/composite/values/2/0', severity: 'error', rule: COVJSON.trajectory });
-    expect(found(findings(trajectory([T[2], T[0]], 'Section')), /order/)).toMatchObject({ message: `A Section's points must follow the order of t, and ${T[0]} comes after ${T[2]}`, rule: COVJSON.section });
+    expect(found(findings(trajectory([T[0], T[2], T[1]])), /order/)).toEqual({ message: `A Trajectory's points must follow the order of t, and ${T[1]} comes after ${T[2]}`, path: '/domain/axes/composite/values/2/0', severity: 'error', rule: COVJSON.trajectoryOrder });
+    expect(found(findings(trajectory([T[2], T[0]], 'Section')), /order/)).toMatchObject({ message: `A Section's points must follow the order of t, and ${T[0]} comes after ${T[2]}`, rule: COVJSON.sectionOrder });
     expect(found(findings({ ...collection(trajectory([T[2], T[0]], null)), domainType: 'Trajectory' }), /order/)?.severity).toBe('error');
   });
 
@@ -241,20 +247,20 @@ describe('timeFindings: their order', () => {
 
 describe('timeFindings: against the datetime asked for', () => {
   it('passes the time asked for, however it’s written', () => {
-    expect(found(findings(series([T[2]]), { url: request(T[2]) }), /asked/)).toEqual({ message: `Every time is the datetime asked for, ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'pass' });
+    expect(found(findings(series([T[2]]), { url: request(T[2]) }), /asked/)).toEqual({ message: `Every time is the datetime asked for, ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'pass', rule: EDR.datetimeResponse });
     expect(found(findings(series(['2026-11-08T14:00:00+02:00']), { url: request(T[2]) }), /asked/)?.severity).toBe('pass');
   });
 
   it('makes an error of a time that isn’t it, as Polytope sends its forecast’s start', () => {
-    expect(found(findings(series([T[0]]), { url: request(T[2]) }), /asked/)).toEqual({ message: `t ${T[0]} isn't the datetime asked for, ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'error' });
+    expect(found(findings(series([T[0]]), { url: request(T[2]) }), /asked/)).toEqual({ message: `t ${T[0]} isn't the datetime asked for, ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'error', rule: EDR.datetimeResponse });
     expect(found(findings(series(T), { url: request(T[2]) }), /asked/)?.message).toBe(`2 times aren't the datetime asked for, ${T[2]}: the first is ${T[0]}`);
     const url = /^GET (\S+),/.exec(polytopeArea._comment)![1];
-    expect(found(findings(polytopeArea, { url }), /asked/)).toEqual({ message: "t 2026-11-06T00:00:00Z isn't the datetime asked for, 2026-11-08T12:00:00Z", path: '/coverages/0/domain/axes/t/values/0', severity: 'error' });
+    expect(found(findings(polytopeArea, { url }), /asked/)).toEqual({ message: "t 2026-11-06T00:00:00Z isn't the datetime asked for, 2026-11-08T12:00:00Z", path: '/coverages/0/domain/axes/t/values/0', severity: 'error', rule: EDR.datetimeResponse });
   });
 
   it('passes times inside an interval, and makes an error of those outside it', () => {
     expect(found(findings(series(T), { url: request(`${T[0]}/${T[2]}`) }), /asked/)).toMatchObject({ message: `Every time is inside the datetime asked for, ${T[0]}/${T[2]}`, severity: 'pass' });
-    expect(found(findings(series(T), { url: request(`${T[1]}/..`) }), /asked/)).toEqual({ message: `t ${T[0]} is outside the datetime asked for, ${T[1]}/..`, path: '/domain/axes/t/values/0', severity: 'error' });
+    expect(found(findings(series(T), { url: request(`${T[1]}/..`) }), /asked/)).toEqual({ message: `t ${T[0]} is outside the datetime asked for, ${T[1]}/..`, path: '/domain/axes/t/values/0', severity: 'error', rule: EDR.datetimeResponse });
     expect(found(findings(series(T), { url: request(`../${T[0]}`) }), /asked/)?.message).toBe(`2 times are outside the datetime asked for, ../${T[0]}: the first is ${T[1]}`);
     expect(found(findings(series(T), { url: request('2026-11-08') }), /asked/)?.severity).toBe('pass');
   });
@@ -286,11 +292,11 @@ describe('timeFindings: against the collection', () => {
   const against = (temporal: Temporal, t: unknown[] = T) => findings(series(t), { temporal }).filter(note => note.source === 'collection');
 
   it('passes times inside its extent, at the times', () => {
-    expect(against({ interval: [[T[0], T[2]]] })).toEqual([{ message: `Every time is inside the collection's extent, ${T[0]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'pass', source: 'collection' }]);
+    expect(against({ interval: [[T[0], T[2]]] })).toEqual([{ message: `Every time is inside the collection's extent, ${T[0]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'pass', source: 'collection', rule: EDR.extent }]);
   });
 
   it('makes an issue of times outside it', () => {
-    expect(against({ interval: [[T[1], T[2]]] })).toEqual([{ message: `t ${T[0]} is outside the collection's extent, ${T[1]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection' }]);
+    expect(against({ interval: [[T[1], T[2]]] })).toEqual([{ message: `t ${T[0]} is outside the collection's extent, ${T[1]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection', rule: EDR.extent }]);
     expect(messages(against({ interval: [[T[2], null]] }))).toEqual([`2 times are outside the collection's extent, from ${T[2]}: the first is ${T[0]}`]);
     expect(messages(against({ interval: [['..', T[0]]] }))).toEqual([`2 times are outside the collection's extent, to ${T[0]}: the first is ${T[1]}`]);
   });
@@ -325,15 +331,15 @@ describe('timeFindings: against the collection', () => {
 
   it('reads Polytope’s start/end/step, and makes an issue of it not being ISO 8601', () => {
     const notes = against({ values: [`${T[0]}/${T[1]}/PT6H`, `${T[1]}/${T[2]}/PT3H`] });
-    expect(notes[0]).toEqual({ message: `The collection lists its times as ${T[0]}/${T[1]}/PT6H and 1 more like it. EDR asks for ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that`, severity: 'warning', source: 'collection' });
+    expect(notes[0]).toEqual({ message: `The collection lists its times as ${T[0]}/${T[1]}/PT6H and 1 more like it. EDR's informative Annex C describes them as ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that`, severity: 'warning', source: 'collection', rule: EDR.temporalValues });
     expect(notes[1].message).toBe('Every time is among the times the collection lists');
-    expect(messages(against({ values: [`${T[0]}/${T[2]}/PT12H`] }))).toEqual([expect.stringMatching(/^The collection lists its times as .*\/PT12H\. EDR asks/), `t ${T[1]} isn't among the times the collection lists`]);
+    expect(messages(against({ values: [`${T[0]}/${T[2]}/PT12H`] }))).toEqual([expect.stringMatching(/^The collection lists its times as .*\/PT12H\. EDR's informative Annex C describes/), `t ${T[1]} isn't among the times the collection lists`]);
     // Up to its end and no further
     expect(messages(against({ values: [`${T[0]}/${T[1]}/PT6H`] }))[1]).toBe(`t ${T[2]} isn't among the times the collection lists`);
   });
 
   it('notes a list it can’t read, and checks nothing against it', () => {
-    expect(against({ values: [T[0], `R2/${T[0]}/P1M`] })).toEqual([{ message: `The collection lists a time that can't be read, R2/${T[0]}/P1M, so the times aren't checked against its list`, severity: 'info', source: 'collection' }]);
+    expect(against({ values: [T[0], `R2/${T[0]}/P1M`] })).toEqual([{ message: `The collection lists a time that can't be read, R2/${T[0]}/P1M, so the times aren't checked against its list`, severity: 'info', source: 'collection', rule: EDR.temporalValues }]);
     expect(messages(against({ values: [5] as unknown as string[] }))).toEqual(["The collection lists a time that can't be read, 5, so the times aren't checked against its list"]);
     expect(messages(against({ values: [2026] as unknown as string[] }))[0]).toMatch(/can't be read, 2026,/);
     expect(messages(against({ values: ['../..'] }))[0]).toMatch(/can't be read, \.\.\/\.\.,/);
@@ -345,7 +351,7 @@ describe('timeFindings: against the collection', () => {
     const temporal = { interval: [['2026-11-06T00:00:00Z', '2026-11-21T00:00:00Z']], values: ['2026-11-07T00:00:00Z/2026-11-10T18:00:00Z/PT1H', '2026-11-10T21:00:00Z/2026-11-13T00:00:00Z/PT3H', '2026-11-13T06:00:00Z/2026-11-17T00:00:00Z/PT6H'] };
     expect(kinds(findings(polytopeArea, { temporal }).filter(note => note.source === 'collection'))).toEqual({
       "Every time is inside the collection's extent, 2026-11-06T00:00:00Z to 2026-11-21T00:00:00Z": 'pass',
-      'The collection lists its times as 2026-11-07T00:00:00Z/2026-11-10T18:00:00Z/PT1H and 2 more like it. EDR asks for ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that': 'warning',
+      'The collection lists its times as 2026-11-07T00:00:00Z/2026-11-10T18:00:00Z/PT1H and 2 more like it. EDR\'s informative Annex C describes them as ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that': 'warning',
       "t 2026-11-06T00:00:00Z isn't among the times the collection lists": 'warning',
     });
   });

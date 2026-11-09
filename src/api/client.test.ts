@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import axios from 'axios';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getCollections } from './client';
+import { COMMON1, EDR, EDR11, EDR12, FEATURES1 } from '../standards';
 import meteogate from './__fixtures__/meteogate-climate.json';
 
 const MG = 'https://api.meteogate.eu/eu-eumetnet-climate-observations/v1';
@@ -42,6 +43,31 @@ describe('getCollections', () => {
     expect(result.validation.conformanceValidation?.isValid).toBe(true);
   });
 
+  it('cites the rule a finding rests on: Meteogate’s conformance linked as data', async () => {
+    serve(meteogate as Responses);
+    const { validation } = await getCollections(MG);
+    expect(validation.errors?.find(error => error.title === 'Conformance Linked as Data')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink]);
+  });
+
+  it('cites a schema’s findings by the requirement its schema is, in the version declared', async () => {
+    const API = 'https://edr12.example/edr';
+    const declares = (version: string) => serve({
+      [`${API}?f=json`]: { links: [{ rel: 'data', href: `${API}/collections` }, { rel: 'conformance', href: `${API}/conformance` }] },
+      [`${API}/conformance?f=json`]: { conformsTo: [`https://www.opengis.net/spec/ogcapi-edr-1/${version}/conf/core`] },
+      [`${API}/collections?f=json`]: { links: [], collections: [{ id: 'one', links: [] }] },
+    });
+    for (const [version, schema, rule] of [['1.2', 'OGC API EDR Part 1 v1.2', EDR12.collectionsSuccessB], ['1.1', 'OGC API EDR Part 1 v1.1', EDR11.collectionsSuccessB]] as const) {
+      declares(version);
+      const { validation } = await getCollections(API);
+      const found = validation.errors?.filter(error => error.schema === schema && error.section === 'Collections') ?? [];
+      expect(found.length, version).toBeGreaterThan(0);
+      expect(found.every(error => error.rule === rule), version).toBe(true);
+      // As the collection's Checks show them
+      expect(validation.collectionErrors?.one?.every(error => error.rule === rule), version).toBe(true);
+      vi.restoreAllMocks();
+    }
+  });
+
   it('moves on from a data link that answers without a collections list', async () => {
     const landing = { links: [{ rel: 'data', href: `${MG}/other` }, { rel: 'data', href: `${MG}/collections` }] };
     serve({ [`${MG}?f=json`]: landing, [`${MG}/other?f=json`]: { hello: 'world' }, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
@@ -60,6 +86,25 @@ describe('getCollections', () => {
     expect(result.collections).toEqual([]);
     expect(result.validation.errors?.find(error => error.title === 'No Collections List')?.message)
       .toBe(`${MG}/other answered without a "collections" array, so no collections can be listed.`);
+    expect(result.validation.errors?.find(error => error.title === 'No Collections List')?.rule).toEqual([EDR.collectionsSuccessB, FEATURES1.collectionsSuccessB]);
+    // No conformance link either: EDR's root-success B and Common's name it
+    expect(result.validation.errors?.find(error => error.title === 'Conformance Link Missing')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink]);
+  });
+
+  it('cites the landing page’s /collections link where it has none', async () => {
+    serve({ [`${MG}?f=json`]: { links: [] }, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
+    const result = await getCollections(MG);
+    expect(result.validation.errors?.find(error => error.title === 'Collections Link Missing')?.rule).toEqual([EDR.rootDataLink, FEATURES1.rootSuccessB]);
+    serve({ [`${MG}?f=json`]: {}, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
+    const bare = await getCollections(MG);
+    expect(bare.validation.errors?.find(error => error.message.startsWith('Landing page has no links array'))?.rule).toEqual([EDR.rootSuccessB, FEATURES1.rootSuccessB]);
+  });
+
+  it('cites a 200 for a conformance declaration not found', async () => {
+    const landing = { links: [{ rel: 'data', href: `${MG}/collections` }, { rel: 'conformance', href: `${MG}/conformance` }] };
+    serve({ [`${MG}?f=json`]: landing, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
+    const result = await getCollections(MG);
+    expect(result.validation.errors?.find(error => error.title === 'Conformance Not Found')?.rule).toBe(EDR.conformanceSuccessA);
   });
 });
 
@@ -92,6 +137,20 @@ describe('getCollections when a request fails', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     failAt(url, error);
     expect(await fatal()).toMatchObject({ title, type, message });
+  });
+
+  // CORS is EDR's Recommendation 3, a SHOULD; a 404 breaks the 200 the landing page and the collections SHALL answer
+  // with; nothing is cited for a request that got no answer, or for authentication
+  it.each([
+    [COLLECTIONS, new Error('Blocked by CORS policy'), EDR.crossOrigin],
+    [COLLECTIONS, new Error('Request failed with status code 404'), EDR.collectionsSuccessA],
+    [LANDING, new Error('Request failed with status code 404'), EDR.rootSuccessA],
+    [LANDING, new Error('Network Error'), undefined],
+    [LANDING, new Error('Request failed with status code 401'), undefined],
+  ])('%s: %s cites its rule', async (url, error, rule) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    failAt(url, error);
+    expect((await fatal())?.rule).toBe(rule);
   });
 
   it('treats an unclassified ERR_NETWORK as unreachable, without assuming CORS', async () => {
