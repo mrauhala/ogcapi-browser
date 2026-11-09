@@ -1,5 +1,5 @@
 import type { QueryModel } from './queryModel';
-import type { DimSelection } from './types';
+import { wholeValue } from './dimensionText';
 
 // Parameters a query type takes from the builder's fields (queryParams)
 export const TYPE_PARAMS: Readonly<Record<string, string[]>> = {
@@ -14,16 +14,10 @@ function pointsWkt(points: [number, number][]): string {
   return points.length === 1 ? `POINT(${lonLat(points[0])})` : `MULTIPOINT(${points.map(p => `(${lonLat(p)})`).join(',')})`;
 }
 
-const emptySelection: DimSelection = { mode: 'individual', value: '', start: '', end: '' };
-
-function setDimension(params: URLSearchParams, name: string, selection: DimSelection) {
-  if (selection.mode === 'range' && selection.start && selection.end) {
-    params.set(name, `${selection.start}/${selection.end}`);
-  } else if (selection.mode === 'individual' && selection.value) {
-    params.set(name, selection.value);
-  } else {
-    params.delete(name);
-  }
+// A dimension's text as it is
+function setDimension(params: URLSearchParams, name: string, text: string) {
+  if (text) params.set(name, text);
+  else params.delete(name);
 }
 
 // The request URL for a data query: the query's href with the chosen parameters and geometry
@@ -58,8 +52,10 @@ export function buildQueryUrl(model: QueryModel): string | null {
     if (selectsData && model.parameters.length > 0) params.set('parameter-name', model.parameters.join(','));
     else params.delete('parameter-name');
     setDimension(params, 'datetime', model.datetime);
-    setDimension(params, 'z', selectsData ? model.vertical : emptySelection);
-    Object.entries(model.customDims).forEach(([id, selection]) => setDimension(params, id, selectsData ? selection : emptySelection));
+    // A level range goes in once both ends are picked: EDR 1.1 has only min/max, and 1.2 adds ../level and level/..,
+    // so 850/ is neither, and 850/.. would choose the end for the user. The form says what's missing meanwhile.
+    setDimension(params, 'z', selectsData ? wholeValue(model.vertical) : '');
+    Object.entries(model.customDims).forEach(([id, text]) => setDimension(params, id, selectsData ? text : ''));
 
     const { points, polygons } = model;
     if (queryType === 'position' && points.length > 0) {

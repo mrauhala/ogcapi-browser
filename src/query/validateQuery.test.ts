@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
-import { buildQueryModel, emptyDim, type QueryModelInput } from './queryModel';
+import { buildQueryModel, type QueryModelInput } from './queryModel';
 import { addApiDocsIssues, summarizeIssues, validateQuery } from './validateQuery';
 import type { QueryIssue } from './types';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
@@ -18,7 +18,7 @@ const BERLIN: [number, number] = [13.4, 52.5];
 
 function issuesFor(collection: Collection, queryKey: string, overrides: Partial<QueryModelInput> = {}) {
   const model = buildQueryModel({
-    collection, queryKey, format: 'CoverageJSON', parameters: [], datetime: emptyDim(), vertical: emptyDim(),
+    collection, queryKey, format: 'CoverageJSON', parameters: [], datetime: '', vertical: '',
     customDims: {}, points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null, ...overrides,
   });
   return validateQuery(model!);
@@ -111,12 +111,15 @@ describe('EDR geometry rules', () => {
     // ecmwf has no levels: no height is asked for (FMI rejects one without z)
     expect(ids(issuesFor(FMI, 'corridor', { points: line, queryParams: width }))).toContain('edr:corridor-height:no-levels');
 
-    const corridor = (queryParams: Record<string, string>, vertical = emptyDim()) =>
+    const corridor = (queryParams: Record<string, string>, vertical = '') =>
       problems(issuesFor(FMI_LEVELS, 'corridor', { points: line, queryParams: { ...width, ...queryParams }, vertical }));
-    const at850 = { mode: 'individual' as const, value: '850', start: '', end: '' };
+    const at850 = '850';
     expect(corridor({ 'corridor-height': '100', 'height-units': 'hPa' }, at850)).toEqual([]);
     expect(corridor({})).toEqual(['missing corridor-height', 'missing height-units']);
     expect(corridor({ 'corridor-height': '100', 'height-units': 'hPa' })).toEqual(['missing z']);
+    // A level range with one end isn't a level for the centre yet
+    const half = issuesFor(FMI_LEVELS, 'corridor', { points: line, queryParams: { ...width, 'corridor-height': '100', 'height-units': 'hPa' }, vertical: '850/' });
+    expect(ids(half)).toContain('edr:z:corridor-centre');
     expect(corridor({ 'corridor-height': 'tall', 'height-units': 'km' }, at850)).toEqual(['error corridor-height', 'error height-units']);
   });
 
@@ -129,8 +132,8 @@ describe('EDR geometry rules', () => {
     expect(problems(items({ queryParams: { limit: '2.5' } }))).toEqual(['error limit']);
     expect(problems(items({ bbox: [25, 60, 24, 61] }))).toEqual(['error bbox']);
     // Leftover selections from another query type aren't checked: they aren't sent
-    expect(problems(items({ parameters: ['nope'], vertical: { mode: 'range', value: '', start: '1', end: '' } }))).toEqual([]);
-    expect(problems(items({ datetime: { mode: 'range', value: '', start: '2026-10-06T06:00:00Z', end: '' } }))).toEqual(['missing datetime']);
+    expect(problems(items({ parameters: ['nope'], vertical: '1/' }))).toEqual([]);
+    expect(problems(items({ datetime: '2026-10-06T06:00:00Z/' }))).toEqual(['missing datetime']);
   });
 
   it('calls a time left off a locations list no filter, and off a location the server\'s choice', () => {
@@ -139,16 +142,19 @@ describe('EDR geometry rules', () => {
     expect(noted({ locationFeature: { id: '658225' } })).toMatchObject({ id: 'metadata:datetime:unset', severity: 'info' });
   });
 
-  it('says items, not locations, for a time range left empty on items', () => {
-    const issues = issuesFor(METEOCORE, 'items', { format: 'GeoJSON', datetime: { mode: 'range', value: '', start: '', end: '' } });
-    expect(issues.find(issue => issue.field === 'datetime')?.message).toBe('No time filter: all items are listed');
+  it('says items, not locations, for a time left out of items', () => {
+    const issues = issuesFor(METEOCORE, 'items', { format: 'GeoJSON', datetime: '' });
+    expect(issues.find(issue => issue.field === 'datetime')?.message).toBe('No time filter: items from any time are listed');
   });
 
   it('takes an open-ended time interval', () => {
-    const range = (start: string, end: string) => problems(issuesFor(FMI, 'position', { points: [HELSINKI], datetime: { mode: 'range', value: '', start, end } })).filter(issue => issue.endsWith('datetime'));
+    const range = (start: string, end: string) => problems(issuesFor(FMI, 'position', { points: [HELSINKI], datetime: `${start}/${end}` })).filter(issue => issue.endsWith('datetime'));
     expect(range('..', '2026-11-05T00:00:00Z').filter(issue => issue.startsWith('error'))).toEqual([]);
     expect(range('2026-11-05T00:00:00Z', '..').filter(issue => issue.startsWith('error'))).toEqual([]);
     expect(range('..', 'garbage')).toContain('error datetime');
+    // As the time control writes a range with its start only: no end missing
+    expect(range('2026-11-05T00:00:00Z', '..')).not.toContain('missing datetime');
+    expect(range('2026-11-05T00:00:00Z', '')).toContain('missing datetime');
   });
 
   it('notes that a locations request without a location lists them all', () => {
@@ -181,29 +187,46 @@ describe('collection metadata checks', () => {
 
   it('checks the datetime: complete ranges, valid values, order and extent', () => {
     const at = (datetime: QueryModelInput['datetime']) => problems(issuesFor(FMI, 'position', { points: [HELSINKI], datetime }));
-    expect(at({ mode: 'individual', value: '2026-10-06T12:00:00Z', start: '', end: '' })).toEqual([]);
-    expect(at({ mode: 'range', value: '', start: '2026-10-06T00:00:00Z', end: '' })).toEqual(['missing datetime']);
-    expect(at({ mode: 'individual', value: 'yesterday', start: '', end: '' })).toEqual(['error datetime']);
-    expect(at({ mode: 'range', value: '', start: '2026-10-08T00:00:00Z', end: '2026-10-06T00:00:00Z' })).toEqual(['error datetime']);
-    expect(at({ mode: 'individual', value: '2025-01-01T00:00:00Z', start: '', end: '' })).toEqual(['warning datetime']);
+    expect(at('2026-10-06T12:00:00Z')).toEqual([]);
+    expect(at('2026-10-06T00:00:00Z/')).toEqual(['missing datetime']);
+    expect(at('yesterday')).toEqual(['error datetime']);
+    expect(at('2026-10-08T00:00:00Z/2026-10-06T00:00:00Z')).toEqual(['error datetime']);
+    expect(at('2025-01-01T00:00:00Z')).toEqual(['warning datetime']);
     // Extent bounds with +00:00 offsets (MeteoCore)
     expect(problems(issuesFor(METEOCORE, 'position', {
-      points: [HELSINKI], datetime: { mode: 'individual', value: '2026-10-01T00:00:00Z', start: '', end: '' },
+      points: [HELSINKI], datetime: '2026-10-01T00:00:00Z',
     }))).toEqual([]);
   });
 
   it('checks vertical levels against the listed levels and the interval', () => {
     const at = (vertical: QueryModelInput['vertical']) => problems(issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical }));
-    expect(at({ mode: 'individual', value: '850', start: '', end: '' })).toEqual([]);
-    expect(at({ mode: 'individual', value: '851', start: '', end: '' })).toEqual(['error z']);
-    expect(at({ mode: 'individual', value: 'high', start: '', end: '' })).toEqual(['error z']);
-    expect(at({ mode: 'range', value: '', start: '300', end: '' })).toEqual(['missing z']);
-    expect(at({ mode: 'range', value: '', start: '200', end: '2000' })).toEqual(['warning z']);
-    expect(at({ mode: 'range', value: '', start: '1000', end: '500' })).toEqual([]);
+    expect(at('850')).toEqual([]);
+    expect(at('851')).toEqual(['error z']);
+    expect(at('high')).toEqual(['error z']);
+    expect(at('300/')).toEqual(['missing z']);
+    expect(at('200/2000')).toEqual(['warning z']);
+    expect(at('1000/500')).toEqual([]);
+    expect(at('/300')).toEqual(['missing z']);
+  });
+
+  it('takes a range typed in the text field as a range, not as a level that isn’t a number', () => {
+    const at = (vertical: string) => problems(issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical }));
+    expect(at('1000/500')).toEqual([]);
+    expect(at('1000/abc')).toEqual(['error z']);
+  });
+
+  it('takes a range open at an end, as EDR 1.2 has them, and still checks its level', () => {
+    const at = (vertical: string) => problems(issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical }));
+    expect(at('500/..')).toEqual([]);
+    expect(at('../500')).toEqual([]);
+    expect(at('2000/..')).toEqual(['warning z']);
+    expect(at('abc/..')).toEqual(['error z']);
+    // A list isn't a range: an open end in it is no level
+    expect(at('500,..')).toEqual(['error z']);
   });
 
   describe('z as EDR 1.1 has it: a level, a list, a range or a repeating interval', () => {
-    const messages = (value: string) => issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical: { mode: 'individual', value, start: '', end: '' } })
+    const messages = (value: string) => issuesFor(FMI_LEVELS, 'position', { points: [HELSINKI], vertical: value })
       .filter(issue => issue.field === 'z').map(issue => `${issue.severity}: ${issue.message}`);
 
     it('takes a list of the collection’s levels, however it’s spaced', () => {
@@ -247,7 +270,7 @@ describe('collection metadata checks', () => {
 
   it('asks for both ends of a custom dimension range', () => {
     const issues = issuesFor(FMI, 'position', {
-      points: [HELSINKI], customDims: { member: { mode: 'range', value: '', start: '1', end: '' } },
+      points: [HELSINKI], customDims: { member: '1/' },
     });
     expect(problems(issues)).toEqual(['missing dim:member']);
   });
@@ -257,7 +280,7 @@ describe('ordering and summary', () => {
   it('sorts issues missing, error, warning, info and summarizes them', () => {
     const issues = issuesFor(DWD, 'area', {
       format: 'NetCDF', polygons: [[[24, 60], [25, 61], [24, 60]]],
-      datetime: { mode: 'range', value: '', start: '2026-10-05T12:00:00Z', end: '' },
+      datetime: '2026-10-05T12:00:00Z/',
     });
     const order = issues.map(issue => issue.severity);
     expect(order).toEqual([...order].sort((a, b) => ['missing', 'error', 'warning', 'info'].indexOf(a) - ['missing', 'error', 'warning', 'info'].indexOf(b)));
@@ -268,7 +291,7 @@ describe('ordering and summary', () => {
 
 describe('addApiDocsIssues', () => {
   const model = (overrides: Partial<QueryModelInput> = {}) => buildQueryModel({
-    collection: FMI, queryKey: 'position', format: 'CoverageJSON', parameters: [], datetime: emptyDim(), vertical: emptyDim(),
+    collection: FMI, queryKey: 'position', format: 'CoverageJSON', parameters: [], datetime: '', vertical: '',
     customDims: {}, points: [HELSINKI], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null, ...overrides,
   })!;
   const apiIssue = (field: string, severity: QueryIssue['severity'] = 'warning'): QueryIssue => ({
@@ -277,7 +300,7 @@ describe('addApiDocsIssues', () => {
 
   it('places API docs issues on the builder fields they concern', () => {
     const issues = addApiDocsIssues(
-      model({ customDims: { member: { mode: 'individual', value: '1', start: '', end: '' } } }),
+      model({ customDims: { member: '1' } }),
       [], { operation: null, issues: [apiIssue('member'), apiIssue('f'), apiIssue('coords'), apiIssue('query', 'info')] },
     );
     expect(issues.map(issue => [issue.id, issue.field, issue.input])).toEqual([
@@ -298,7 +321,7 @@ describe('addApiDocsIssues', () => {
 
   it("notes a missing parameter the API docs mark optional", () => {
     const corridor = buildQueryModel({
-      collection: FMI_LEVELS, queryKey: 'corridor', format: 'CoverageJSON', parameters: [], datetime: emptyDim(), vertical: emptyDim(),
+      collection: FMI_LEVELS, queryKey: 'corridor', format: 'CoverageJSON', parameters: [], datetime: '', vertical: '',
       customDims: {}, points: [HELSINKI, [25.5, 61.2]], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' },
       queryParams: { 'corridor-width': '10', 'width-units': 'km' }, locationFeature: null,
     })!;
@@ -315,7 +338,7 @@ describe('addApiDocsIssues', () => {
   });
 
   it('keeps the severity order, with the query\'s own issues first', () => {
-    const own = issuesFor(FMI, 'position', { points: [HELSINKI], datetime: { mode: 'range', value: '', start: '2026-10-05T12:00:00Z', end: '' } });
+    const own = issuesFor(FMI, 'position', { points: [HELSINKI], datetime: '2026-10-05T12:00:00Z/' });
     const merged = addApiDocsIssues(model(), own, { operation: null, issues: [apiIssue('query', 'info'), apiIssue('parameter-name')] });
     expect(merged.map(issue => `${issue.severity} ${issue.source}`)).toEqual([
       'missing metadata', 'warning openapi', ...own.filter(issue => issue.severity === 'info').map(issue => `info ${issue.source}`), 'info openapi',

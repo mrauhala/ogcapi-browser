@@ -68,28 +68,25 @@ describe('geoJsonLinksOf', () => {
 
   it('adds the time chosen, if the collection has time', () => {
     const timed = collection({ links: [GEOJSON], ...WITH_TIME } as Partial<Collection>);
-    expect(geoJsonLinksOf(timed, { datetime: '2026-01-02' })[0].url).toBe(`${GEOJSON.href}?datetime=2026-01-02`);
-    expect(geoJsonLinksOf(collection({ links: [GEOJSON] } as Partial<Collection>), { datetime: '2026-01-02' })[0].url).toBe(GEOJSON.href);
+    expect(geoJsonLinksOf(timed, '2026-01-02')[0].url).toBe(`${GEOJSON.href}?datetime=2026-01-02`);
+    expect(geoJsonLinksOf(collection({ links: [GEOJSON] } as Partial<Collection>), '2026-01-02')[0].url).toBe(GEOJSON.href);
   });
 
   it('adds nothing when no time is chosen', () => {
     expect(geoJsonLinksOf(collection({ links: [GEOJSON], ...WITH_TIME } as Partial<Collection>))[0].url).toBe(GEOJSON.href);
   });
 
-  it('adds a range, only when both ends are chosen', () => {
+  it('adds a range once both ends are chosen, an open one included', () => {
     const timed = collection({ links: [GEOJSON], ...WITH_TIME } as Partial<Collection>);
-    expect(geoJsonLinksOf(timed, { mode: 'range', start: 'a', end: 'b' })[0].url).toBe(`${GEOJSON.href}?datetime=a/b`);
-    expect(geoJsonLinksOf(timed, { mode: 'range', start: 'a', datetime: 'c' })[0].url).toBe(`${GEOJSON.href}?datetime=c`);
-  });
-
-  it('ignores range ends left over when a single time is chosen', () => {
-    const timed = collection({ links: [GEOJSON], ...WITH_TIME } as Partial<Collection>);
-    expect(geoJsonLinksOf(timed, { mode: 'individual', start: 'a', end: 'b', datetime: 'c' })[0].url).toBe(`${GEOJSON.href}?datetime=c`);
+    expect(geoJsonLinksOf(timed, 'a/b')[0].url).toBe(`${GEOJSON.href}?datetime=a/b`);
+    expect(geoJsonLinksOf(timed, 'a/..')[0].url).toBe(`${GEOJSON.href}?datetime=a/..`);
+    expect(geoJsonLinksOf(timed, 'a/')[0].url).toBe(GEOJSON.href);
+    expect(geoJsonLinksOf(timed, '/b')[0].url).toBe(GEOJSON.href);
   });
 
   it('adds to a query that is already there', () => {
     const links = [{ ...GEOJSON, href: 'https://api.test/a/items?f=json' }];
-    expect(geoJsonLinksOf(collection({ links, ...WITH_TIME } as Partial<Collection>), { datetime: 'x' })[0].url).toBe('https://api.test/a/items?f=json&datetime=x');
+    expect(geoJsonLinksOf(collection({ links, ...WITH_TIME } as Partial<Collection>), 'x')[0].url).toBe('https://api.test/a/items?f=json&datetime=x');
   });
 });
 

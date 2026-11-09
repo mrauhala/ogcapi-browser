@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
-import { buildQueryModel, emptyDim, type LocationFeature, type QueryModelInput } from './queryModel';
+import { buildQueryModel, type LocationFeature, type QueryModelInput } from './queryModel';
 import { buildQueryUrl } from './buildQueryUrl';
-import type { DimSelection } from './types';
+import { intervalText } from './dimensionText';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
 import dwdIcon from './__fixtures__/dwd-icon-d2-ruc-single-level.json';
@@ -88,6 +88,11 @@ function legacyBuildUrl(
   return url.toString();
 }
 
+// The selections the old form held, for the old builder, and the text the form now holds for them
+interface DimSelection { mode: 'individual' | 'range'; value: string; start: string; end: string }
+const emptyDim = (): DimSelection => ({ mode: 'individual', value: '', start: '', end: '' });
+const asText = ({ mode, value, start, end }: DimSelection, open = false) => (mode === 'range' ? intervalText(start, end, open) : value);
+
 const DATETIMES: DimSelection[] = [
   emptyDim(),
   { mode: 'individual', value: '2026-10-05T12:00:00Z', start: '', end: '' },
@@ -98,6 +103,7 @@ const VERTICALS: DimSelection[] = [
   emptyDim(),
   { mode: 'individual', value: '850', start: '', end: '' },
   { mode: 'range', value: '', start: '1000', end: '500' },
+  { mode: 'range', value: '', start: '1000', end: '' },
 ];
 const POINTS: [number, number][][] = [[], [[24.9384, 60.1699]], [[24.94, 60.17], [25.5, 61.25], [23.1, 62.8]]];
 const POLYGONS: [number, number][][][] = [
@@ -123,20 +129,25 @@ describe('buildQueryUrl serializes exactly like the previous URL builder', () =>
         if (queryKey !== 'locations' || location)
         for (const [f, parameters] of [['', []], [format, ['Temperature', 'Humidity']]] as [string, string[]][]) {
           const input: QueryModelInput = {
-            collection, queryKey, format: f, parameters, datetime, vertical, customDims, points, polygons, bbox: null, bboxAsCoords: false,
+            collection, queryKey, format: f, parameters, datetime: asText(datetime, true), vertical: asText(vertical),
+            customDims: Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, asText(s)])), points, polygons, bbox: null, bboxAsCoords: false,
             radius: { value: 25, units: 'km' }, queryParams: {}, locationFeature: location,
           };
           const model = buildQueryModel(input)!;
+          // A time range with its start only goes in open at its end, as EDR allows: the old builder gets that as typed
+          const time: DimSelection = datetime.mode === 'range' && datetime.start && !datetime.end
+            ? { mode: 'individual', value: `${datetime.start}/..`, start: '', end: '' }
+            : datetime;
           const legacy = legacyBuildUrl(
             baseUrl, f, parameters, points, polygons, 25, queryKey, location,
-            datetime.value, datetime.mode, datetime.start, datetime.end,
+            time.value, time.mode, time.start, time.end,
             vertical.value, vertical.mode, vertical.start, vertical.end,
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.value])),
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.mode])),
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.start])),
             Object.fromEntries(Object.entries(customDims).map(([id, s]) => [id, s.end])),
           );
-          // One difference, on purpose: a radius chosen before any point goes in, as it was chosen
+          // On purpose: a radius chosen before any point goes in, as it was chosen. A level range with one end stays out, as before.
           const expected = new URL(legacy);
           if (queryKey === 'radius' && points.length === 0) {
             expected.searchParams.set('within', '25');
@@ -145,7 +156,7 @@ describe('buildQueryUrl serializes exactly like the previous URL builder', () =>
           expect(buildQueryUrl(model)).toBe(expected.toString());
           compared++;
         }
-        expect(compared).toBe(4 * 3 * 3 * 3 * (queryKey === 'locations' ? 2 : 3) * 2 * 2);
+        expect(compared).toBe(4 * 4 * 3 * 3 * (queryKey === 'locations' ? 2 : 3) * 2 * 2);
       });
     }
   }
@@ -154,14 +165,31 @@ describe('buildQueryUrl serializes exactly like the previous URL builder', () =>
 describe('buildQueryUrl', () => {
   const request = (queryKey: string, overrides: Partial<QueryModelInput>) => buildQueryUrl(buildQueryModel({
     collection: COLLECTIONS.fmiEcmwf, queryKey, format: 'CoverageJSON', parameters: [],
-    datetime: emptyDim(), vertical: emptyDim(), customDims: {}, points: [[24.9384, 60.1699]], polygons: [], bbox: null, bboxAsCoords: false,
+    datetime: '', vertical: '', customDims: {}, points: [[24.9384, 60.1699]], polygons: [], bbox: null, bboxAsCoords: false,
     radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null, ...overrides,
   })!)!;
   const position = (overrides: Partial<QueryModelInput>) => request('position', overrides);
 
-  it('sends custom dimensions chosen as a range (dropped before the query model)', () => {
-    const url = new URL(position({ customDims: { member: { mode: 'range', value: '', start: '1', end: '5' } } }));
-    expect(url.searchParams.get('member')).toBe('1/5');
+  it('sends custom dimensions as they are, a range or a list', () => {
+    expect(new URL(position({ customDims: { member: '1/5' } })).searchParams.get('member')).toBe('1/5');
+    expect(new URL(position({ customDims: { member: '1,2,3' } })).searchParams.get('member')).toBe('1,2,3');
+  });
+
+  it('sends z in each of its forms, as it is', () => {
+    for (const z of ['850', '1000,925,850', '1000/500', 'R5/100/50', '500/..', '../500']) {
+      expect(new URL(position({ vertical: z })).searchParams.get('z')).toBe(z);
+    }
+  });
+
+  // EDR 1.1 has only min/max, and 1.2 adds ../level and level/..: 850/ is neither, and 850/.. would choose the end
+  it('puts no z in the URL for a level range with one end picked', () => {
+    expect(new URL(position({ vertical: '850/' })).searchParams.has('z')).toBe(false);
+    expect(new URL(position({ vertical: '/300' })).searchParams.has('z')).toBe(false);
+    expect(new URL(position({ vertical: '850/300' })).searchParams.get('z')).toBe('850/300');
+  });
+
+  it('sends a time range open at an end, which EDR allows for datetime', () => {
+    expect(new URL(position({ datetime: '2026-10-05T00:00:00Z/..' })).searchParams.get('datetime')).toBe('2026-10-05T00:00:00Z/..');
   });
 
   it('builds a position request', () => {
@@ -208,7 +236,7 @@ describe('buildQueryUrl', () => {
   it('sends a cube box, and on request the same box as coords', () => {
     const cube = (bboxAsCoords: boolean) => new URL(buildQueryUrl(buildQueryModel({
       collection: COLLECTIONS.fmiPainepinta, queryKey: 'cube', format: 'CoverageJSON', parameters: [],
-      datetime: emptyDim(), vertical: emptyDim(), customDims: {}, points: [[24.9384, 60.1699]], polygons: [],
+      datetime: '', vertical: '', customDims: {}, points: [[24.9384, 60.1699]], polygons: [],
       bbox: [24, 60.5, 25.25, 61], bboxAsCoords, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null,
     })!)!).searchParams;
     expect(cube(false).get('bbox')).toBe('24.000,60.500,25.250,61.000');
@@ -220,9 +248,7 @@ describe('buildQueryUrl', () => {
   it('sends items their box and limit, but no data selection', () => {
     const items = (overrides: Partial<QueryModelInput>) => new URL(buildQueryUrl(buildQueryModel({
       collection: COLLECTIONS.meteocoreObs, queryKey: 'items', format: 'GeoJSON', parameters: ['ta'],
-      datetime: { mode: 'individual', value: '2026-10-06T06:00:00Z', start: '', end: '' },
-      vertical: { mode: 'individual', value: '2', start: '', end: '' },
-      customDims: { member: { mode: 'individual', value: '5', start: '', end: '' } },
+      datetime: '2026-10-06T06:00:00Z', vertical: '2', customDims: { member: '5' },
       points: [[24.9384, 60.1699]], polygons: [], bbox: null, bboxAsCoords: false,
       radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null, ...overrides,
     })!)!).searchParams;
@@ -235,8 +261,7 @@ describe('buildQueryUrl', () => {
   it('lists locations with the time only; a picked location gets the data selection', () => {
     const locations = (locationFeature: QueryModelInput['locationFeature']) => buildQueryUrl(buildQueryModel({
       collection: COLLECTIONS.meteocoreObs, queryKey: 'locations', format: 'CoverageJSON', parameters: ['ta'],
-      datetime: { mode: 'individual', value: '2026-10-06T06:00:00Z', start: '', end: '' },
-      vertical: { mode: 'individual', value: '2', start: '', end: '' }, customDims: { member: { mode: 'individual', value: '5', start: '', end: '' } },
+      datetime: '2026-10-06T06:00:00Z', vertical: '2', customDims: { member: '5' },
       points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature,
     })!)!;
     expect(new URL(locations(null)).search).toBe('?datetime=2026-10-06T06%3A00%3A00Z');
@@ -245,8 +270,8 @@ describe('buildQueryUrl', () => {
 
   it('returns null for a query the collection does not offer', () => {
     expect(buildQueryModel({
-      collection: COLLECTIONS.fmiEcmwf, queryKey: 'nope', format: '', parameters: [], datetime: emptyDim(),
-      vertical: emptyDim(), customDims: {}, points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null,
+      collection: COLLECTIONS.fmiEcmwf, queryKey: 'nope', format: '', parameters: [], datetime: '',
+      vertical: '', customDims: {}, points: [], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' }, queryParams: {}, locationFeature: null,
     })).toBeNull();
   });
 });

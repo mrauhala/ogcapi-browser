@@ -28,6 +28,7 @@ import { useService } from './contexts/ServiceContext';
 import { useMapInteraction } from './contexts/MapInteractionContext';
 import { useCollection } from './contexts/CollectionContext';
 import { readableUrl } from './query/requestUrl';
+import { intervalEnds, wholeValue } from './query/dimensionText';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 
 const DEFAULT_STYLE_ID = '__default__';
@@ -60,38 +61,21 @@ function layerIdFor(
   return `${collectionId}::${styleId ?? 'default'}::${sourceType}::${datetime ?? 'now'}::${extras ?? ''}`;
 }
 
-// Build the OGC API Maps `datetime` parameter value from the query state, or undefined if none.
+// The OGC API Maps `datetime` from the query's, or undefined if none. A range still missing an end isn't one yet.
 function currentDatetime(q: UseQueryUrlReturn): string | undefined {
-  if (q.datetimeMode === 'range' && q.startDatetime && q.endDatetime) {
-    return `${q.startDatetime}/${q.endDatetime}`;
-  }
-  if (q.datetimeMode !== 'range' && q.selectedDatetime) {
-    return q.selectedDatetime;
-  }
-  return undefined;
+  return wholeValue(q.datetime) || undefined;
 }
 
-// Vertical dimension → OGC API Maps `elevation` (instant or "start/end" interval).
+// z → OGC API Maps `elevation`: as the query has it, once whole
 function currentElevation(q: UseQueryUrlReturn): string | undefined {
-  if (q.verticalMode === 'range' && q.startVertical && q.endVertical) {
-    return `${q.startVertical}/${q.endVertical}`;
-  }
-  if (q.verticalMode !== 'range' && q.selectedVertical) {
-    return q.selectedVertical;
-  }
-  return undefined;
+  return wholeValue(q.vertical) || undefined;
 }
 
-// Additional (UAD) dimensions the user selected → { dimensionId: value | "start/end" }.
+// Additional (UAD) dimensions the user selected → { dimensionId: text }, those that are whole
 function currentDimensions(q: UseQueryUrlReturn): Record<string, string> | undefined {
   const out: Record<string, string> = {};
-  for (const id of Object.keys(q.selectedCustomDimensions || {})) {
-    const mode = q.customDimensionModes[id] || 'individual';
-    if (mode === 'range' && q.customDimensionStarts[id] && q.customDimensionEnds[id]) {
-      out[id] = `${q.customDimensionStarts[id]}/${q.customDimensionEnds[id]}`;
-    } else if (mode !== 'range' && q.selectedCustomDimensions[id]) {
-      out[id] = q.selectedCustomDimensions[id];
-    }
+  for (const [id, text] of Object.entries(q.dimensions || {})) {
+    if (wholeValue(text)) out[id] = wholeValue(text);
   }
   return Object.keys(out).length ? out : undefined;
 }
@@ -235,9 +219,10 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
       if (!temporal) { setAddError('Collection has no temporal extent to animate.'); return; }
 
       // Window: the selected range if set, else the full temporal extent.
-      const useRange = queryState.datetimeMode === 'range' && queryState.startDatetime && queryState.endDatetime;
+      const ends = intervalEnds(queryState.datetime);
+      const useRange = ends && ends.start && ends.end && ends.start !== '..' && ends.end !== '..';
       const windowTemporal = useRange
-        ? { interval: [[queryState.startDatetime, queryState.endDatetime]] as (string | null)[][] }
+        ? { interval: [[ends.start, ends.end]] as (string | null)[][] }
         : temporal;
       let instants = expandTemporalValues(windowTemporal, 500);
       if (instants.length < 2) {
@@ -310,12 +295,7 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
 
   // Serialized custom-dimension selection, so the preview effect re-runs when any dim changes
   // (kept as one variable to avoid complex expressions in the dependency array).
-  const customDimSelectionKey = JSON.stringify([
-    queryState.selectedCustomDimensions,
-    queryState.customDimensionModes,
-    queryState.customDimensionStarts,
-    queryState.customDimensionEnds,
-  ]);
+  const customDimSelectionKey = JSON.stringify(queryState.dimensions);
 
   // Publish a copy-pasteable /map URL into the request URL reflecting style + datetime + current
   // map view. Only runs when no EDR data_query is active (which would otherwise own the URL).
@@ -344,8 +324,7 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
   }, [
     effectiveMapLink?.href, selectedFormat, viewExtent, viewSize,
     queryState.selectedDataQuery,
-    queryState.selectedDatetime, queryState.startDatetime, queryState.endDatetime, queryState.datetimeMode,
-    queryState.selectedVertical, queryState.startVertical, queryState.endVertical, queryState.verticalMode,
+    queryState.datetime, queryState.vertical,
     customDimSelectionKey,
   ]);
 

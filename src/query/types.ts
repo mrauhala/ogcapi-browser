@@ -19,14 +19,4 @@ export interface QueryIssue {
 // A lon/lat box: west, south, east, north
 export type BBox = [number, number, number, number];
 
-export type DimMode = 'individual' | 'range';
-
-// A dimension selection as the builder holds it: a single value or a start/end range
-export interface DimSelection {
-  mode: DimMode;
-  value: string;
-  start: string;
-  end: string;
-}
-
 export const SEVERITY_ORDER: Record<IssueSeverity, number> = { missing: 0, error: 1, warning: 2, info: 3 };

@@ -32,7 +32,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
   const { getAuthCredentials } = useService();
   const { apiUrl, conformsTo } = useApi();
   const { setValidationResult, setEndpointUrls, setRawResponses } = useValidation();
-  const { selectedDatetime, datetimeMode, startDatetime, endDatetime, resetQueryState, selectDataQuery } = useQueryBuilder();
+  const { datetime, resetQueryState, selectDataQuery } = useQueryBuilder();
 
   const [openSerial, setOpenSerial] = useState(0);
 
@@ -59,7 +59,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
     setSelectedCollection(collection);
     setSelectedFeature(null);
     const auth = getAuthCredentials(apiUrl);
-    setGeoJsonLayers(geoJsonLinksOf(collection, { datetime: selectedDatetime, mode: datetimeMode, start: startDatetime, end: endDatetime }).map(link => ({
+    setGeoJsonLayers(geoJsonLinksOf(collection, datetime).map(link => ({
       url: link.url,
       title: link.title,
       visible: false,
@@ -94,7 +94,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
       console.error('Error executing location query:', error);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiUrl, conformsTo, selectedDatetime, datetimeMode, startDatetime, endDatetime]);
+  }, [apiUrl, conformsTo, datetime]);
 
   const closeCollection = useCallback(() => {
     openRef.current = null;
@@ -122,7 +122,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!selectedCollection || geoJsonLayers.length === 0) return;
     const auth = getAuthCredentials(apiUrl);
-    setGeoJsonLayers(geoJsonLinksOf(selectedCollection, { datetime: selectedDatetime, mode: datetimeMode, start: startDatetime, end: endDatetime }).map((link, index) => {
+    setGeoJsonLayers(geoJsonLinksOf(selectedCollection, datetime).map((link, index) => {
       const existing = geoJsonLayers[index];
       return {
         url: link.url,
@@ -135,7 +135,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
       };
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDatetime, datetimeMode, startDatetime, endDatetime]);
+  }, [datetime]);
 
   const value = useMemo(() => ({ openCollection, closeCollection, leaveQuery, openSerial }), [openCollection, closeCollection, leaveQuery, openSerial]);
   return <OpenCollectionContext.Provider value={value}>{children}</OpenCollectionContext.Provider>;

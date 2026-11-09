@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Collection } from '../DataRetrievalAPI';
 import { useMapInteraction } from '../contexts/MapInteractionContext';
 import { useCollection } from '../contexts/CollectionContext';
 import { useQueryValidationContext } from '../contexts/QueryValidationContext';
 import { useOpenApi } from '../contexts/OpenApiContext';
 import { useRequestUrl } from '../contexts/RequestUrlContext';
-import { buildQueryModel, emptyDim, timeIsOnlyAFilter } from '../query/queryModel';
+import { buildQueryModel, timeIsOnlyAFilter } from '../query/queryModel';
+import { intervalEnds, modeOf, switchMode, withEnd, type DimMode } from '../query/dimensionText';
 import { buildQueryUrl } from '../query/buildQueryUrl';
 import { matchDataQuery, matchInstance, readQuerySelections, type QuerySelections } from '../query/parseQueryUrl';
 import { readableUrl } from '../query/requestUrl';
@@ -16,9 +17,10 @@ import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl
 import { useInstances, type InstancesState } from './useInstances';
 import { instanceStep, type Instance } from '../query/instances';
 import { normalizeHref } from '../utils/href';
-import type { DimSelection, QueryIssue } from '../query/types';
+import type { QueryIssue } from '../query/types';
 
-const isChosen = ({ mode, value, start, end }: DimSelection) => (mode === 'range' ? !!start && !!end : !!value);
+// A time range's end as the time control has it: '' where it's open or still to pick
+const openEnd = (end: string | undefined) => (end && end !== '..' ? end : '');
 
 export interface UseQueryUrlReturn {
   // Query states
@@ -28,30 +30,28 @@ export interface UseQueryUrlReturn {
   setSelectedFormat: (f: string) => void;
   selectedParameters: string[];
   setSelectedParameters: (p: string[]) => void;
+  // datetime, z and each custom dimension as sent, one text each, and the mode their controls show them in.
+  // Switching a mode keeps the text: see switchMode.
+  datetime: string;
+  setDatetime: (text: string) => void;
+  datetimeMode: DimMode;
+  setDatetimeMode: (mode: DimMode) => void;
+  // The time control's view of the datetime: one time, or a range's ends ('' for one open or still to pick).
+  // Writing one end keeps the other, and leaves one not picked open.
   selectedDatetime: string;
-  setSelectedDatetime: (d: string) => void;
-  datetimeMode: 'individual' | 'range';
-  setDatetimeMode: (m: 'individual' | 'range') => void;
+  setSelectedDatetime: (time: string) => void;
   startDatetime: string;
-  setStartDatetime: (d: string) => void;
+  setStartDatetime: (time: string) => void;
   endDatetime: string;
-  setEndDatetime: (d: string) => void;
-  selectedVertical: string;
-  setSelectedVertical: (v: string) => void;
-  verticalMode: 'individual' | 'range';
-  setVerticalMode: (m: 'individual' | 'range') => void;
-  startVertical: string;
-  setStartVertical: (v: string) => void;
-  endVertical: string;
-  setEndVertical: (v: string) => void;
-  selectedCustomDimensions: {[dimensionId: string]: string};
-  setSelectedCustomDimensions: React.Dispatch<React.SetStateAction<{[dimensionId: string]: string}>>;
-  customDimensionModes: {[dimensionId: string]: 'individual' | 'range'};
-  setCustomDimensionModes: React.Dispatch<React.SetStateAction<{[dimensionId: string]: 'individual' | 'range'}>>;
-  customDimensionStarts: {[dimensionId: string]: string};
-  setCustomDimensionStarts: React.Dispatch<React.SetStateAction<{[dimensionId: string]: string}>>;
-  customDimensionEnds: {[dimensionId: string]: string};
-  setCustomDimensionEnds: React.Dispatch<React.SetStateAction<{[dimensionId: string]: string}>>;
+  setEndDatetime: (time: string) => void;
+  vertical: string;
+  setVertical: (text: string) => void;
+  verticalMode: DimMode;
+  setVerticalMode: (mode: DimMode) => void;
+  dimensions: Record<string, string>;
+  setDimension: (id: string, text: string) => void;
+  dimensionModes: Record<string, DimMode>;
+  setDimensionMode: (id: string, mode: DimMode) => void;
   // Parameters of the query type set in their own fields (corridor width and height)
   queryParams: Record<string, string>;
   setQueryParam: (name: string, value: string) => void;
@@ -87,18 +87,12 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [selectedDataQuery, setSelectedDataQuery] = useState<string>('');
   const [selectedFormat, setSelectedFormat] = useState<string>('');
   const [selectedParameters, setSelectedParameters] = useState<string[]>([]);
-  const [selectedDatetime, setSelectedDatetime] = useState<string>('');
-  const [datetimeMode, setDatetimeMode] = useState<'individual' | 'range'>('individual');
-  const [startDatetime, setStartDatetime] = useState<string>('');
-  const [endDatetime, setEndDatetime] = useState<string>('');
-  const [selectedVertical, setSelectedVertical] = useState<string>('');
-  const [verticalMode, setVerticalMode] = useState<'individual' | 'range'>('individual');
-  const [startVertical, setStartVertical] = useState<string>('');
-  const [endVertical, setEndVertical] = useState<string>('');
-  const [selectedCustomDimensions, setSelectedCustomDimensions] = useState<{[dimensionId: string]: string}>({});
-  const [customDimensionModes, setCustomDimensionModes] = useState<{[dimensionId: string]: 'individual' | 'range'}>({});
-  const [customDimensionStarts, setCustomDimensionStarts] = useState<{[dimensionId: string]: string}>({});
-  const [customDimensionEnds, setCustomDimensionEnds] = useState<{[dimensionId: string]: string}>({});
+  const [datetime, setDatetime] = useState('');
+  const [datetimeMode, setDatetimeModeState] = useState<DimMode>('individual');
+  const [vertical, setVertical] = useState('');
+  const [verticalMode, setVerticalModeState] = useState<DimMode>('individual');
+  const [dimensions, setDimensions] = useState<Record<string, string>>({});
+  const [dimensionModes, setDimensionModes] = useState<Record<string, DimMode>>({});
   const [queryParams, setQueryParams] = useState<Record<string, string>>({});
   const [bboxAsCoords, setBboxAsCoords] = useState(false);
   const [filterByTime, setFilterByTime] = useState(false);
@@ -106,22 +100,40 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
   const setQueryParam = useCallback((name: string, value: string) => setQueryParams(params => ({ ...params, [name]: value })), []);
 
+  // A mode switched keeps the text, as far as the other control can hold it
+  const setDatetimeMode = useCallback((mode: DimMode) => {
+    setDatetimeModeState(mode);
+    setDatetime(text => switchMode(text, mode, true));
+  }, []);
+  const setVerticalMode = useCallback((mode: DimMode) => {
+    setVerticalModeState(mode);
+    setVertical(text => switchMode(text, mode));
+  }, []);
+  const setDimension = useCallback((id: string, text: string) => setDimensions(texts => ({ ...texts, [id]: text })), []);
+  const setDimensionMode = useCallback((id: string, mode: DimMode) => {
+    setDimensionModes(modes => ({ ...modes, [id]: mode }));
+    setDimensions(texts => (id in texts ? { ...texts, [id]: switchMode(texts[id], mode) } : texts));
+  }, []);
+
+  // The time control's view of the datetime. Each end is written on what the text has by then, so that writing
+  // both ends in a row keeps both. An end not picked is open, as EDR allows for datetime.
+  const timeEnds = intervalEnds(datetime);
+  const selectedDatetime = datetimeMode === 'individual' && !timeEnds ? datetime : '';
+  const startDatetime = datetimeMode === 'range' ? openEnd(timeEnds?.start) : '';
+  const endDatetime = datetimeMode === 'range' ? openEnd(timeEnds?.end) : '';
+  const setStartDatetime = useCallback((time: string) => setDatetime(text => withEnd(text, 'start', time, true)), []);
+  const setEndDatetime = useCallback((time: string) => setDatetime(text => withEnd(text, 'end', time, true)), []);
+
   const resetQueryState = useCallback(() => {
     setSelectedDataQuery('');
     setSelectedFormat('');
     setSelectedParameters([]);
-    setSelectedDatetime('');
-    setDatetimeMode('individual');
-    setStartDatetime('');
-    setEndDatetime('');
-    setSelectedVertical('');
-    setVerticalMode('individual');
-    setStartVertical('');
-    setEndVertical('');
-    setSelectedCustomDimensions({});
-    setCustomDimensionModes({});
-    setCustomDimensionStarts({});
-    setCustomDimensionEnds({});
+    setDatetime('');
+    setDatetimeModeState('individual');
+    setVertical('');
+    setVerticalModeState('individual');
+    setDimensions({});
+    setDimensionModes({});
     setQueryParams({});
     setBboxAsCoords(false);
     setFilterByTime(false);
@@ -163,9 +175,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   // this one, so it goes.
   const selectInstance = useCallback((id: string) => {
     setSelectedInstanceId(id);
-    setSelectedDatetime('');
-    setStartDatetime('');
-    setEndDatetime('');
+    setDatetime('');
     const instance = instances.instances.find(candidate => String(candidate.id) === id);
     if (instance && instanceQueryKey && instance.data_queries?.[instanceQueryKey]) {
       applyQueryDefaults(instance, instanceQueryKey);
@@ -186,20 +196,14 @@ export function useQueryUrl(): UseQueryUrlReturn {
     const { format, parameters, datetime, vertical, customDims, points, polygons, bbox, bboxAsCoords: boxAsCoords } = selections;
     setSelectedFormat(format);
     setSelectedParameters(parameters);
-    setDatetimeMode(datetime.mode);
-    setSelectedDatetime(datetime.value);
-    setStartDatetime(datetime.start);
-    setEndDatetime(datetime.end);
-    if (timeIsOnlyAFilter(queryType, hasLocation)) setFilterByTime(isChosen(datetime));
-    setVerticalMode(vertical.mode);
-    setSelectedVertical(vertical.value);
-    setStartVertical(vertical.start);
-    setEndVertical(vertical.end);
-    const eachDim = <T,>(pick: (selection: DimSelection) => T) => Object.fromEntries(Object.entries(customDims).map(([id, selection]) => [id, pick(selection)]));
-    setCustomDimensionModes(eachDim(selection => selection.mode));
-    setSelectedCustomDimensions(eachDim(selection => selection.value));
-    setCustomDimensionStarts(eachDim(selection => selection.start));
-    setCustomDimensionEnds(eachDim(selection => selection.end));
+    // Each as written, shown in the mode its form is in: an interval as a range
+    setDatetime(datetime);
+    setDatetimeModeState(modeOf(datetime));
+    if (timeIsOnlyAFilter(queryType, hasLocation)) setFilterByTime(!!datetime);
+    setVertical(vertical);
+    setVerticalModeState(modeOf(vertical));
+    setDimensions(customDims);
+    setDimensionModes(Object.fromEntries(Object.entries(customDims).map(([id, text]) => [id, modeOf(text)])));
     setClickedCoords(points);
     setSelectedArea(polygons);
     setSelectedBbox(bbox);
@@ -302,21 +306,6 @@ export function useQueryUrl(): UseQueryUrlReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFeature]);
 
-  // Custom dimensions as single values or ranges. A dimension switched to range mode has no
-  // single value, so take the ids from every map.
-  const customDims = useMemo(() => {
-    const ids = new Set([
-      ...Object.keys(selectedCustomDimensions), ...Object.keys(customDimensionModes),
-      ...Object.keys(customDimensionStarts), ...Object.keys(customDimensionEnds),
-    ]);
-    return Object.fromEntries([...ids].map((id): [string, DimSelection] => [id, {
-      mode: customDimensionModes[id] || 'individual',
-      value: selectedCustomDimensions[id] || '',
-      start: customDimensionStarts[id] || '',
-      end: customDimensionEnds[id] || '',
-    }]));
-  }, [selectedCustomDimensions, customDimensionModes, customDimensionStarts, customDimensionEnds]);
-
   // What is queried: the collection's data query, or in an instances query the picked instance's
   const target = useMemo(() => {
     if (instancesHref) return selectedInstance && instanceQueryKey ? { collection: selectedInstance, queryKey: instanceQueryKey } : null;
@@ -337,11 +326,9 @@ export function useQueryUrl(): UseQueryUrlReturn {
       queryKey: target.queryKey,
       format: selectedFormat,
       parameters: selectedParameters,
-      datetime: timeIsFilter && !filterByTime
-        ? emptyDim()
-        : { mode: datetimeMode, value: selectedDatetime, start: startDatetime, end: endDatetime },
-      vertical: { mode: verticalMode, value: selectedVertical, start: startVertical, end: endVertical },
-      customDims,
+      datetime: timeIsFilter && !filterByTime ? '' : datetime,
+      vertical,
+      customDims: dimensions,
       points: clickedCoords,
       polygons: selectedArea,
       bbox: selectedBbox,
@@ -352,9 +339,8 @@ export function useQueryUrl(): UseQueryUrlReturn {
     });
   }, [
     target, instancesHref, selectedFormat, selectedParameters,
-    datetimeMode, selectedDatetime, startDatetime, endDatetime, filterByTime,
-    verticalMode, selectedVertical, startVertical, endVertical,
-    customDims, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature,
+    datetime, filterByTime, vertical,
+    dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature,
   ]);
 
   // Publish the request URL and what the query is still missing, adding the API docs' view once
@@ -398,18 +384,15 @@ export function useQueryUrl(): UseQueryUrlReturn {
     selectedDataQuery, setSelectedDataQuery,
     selectedFormat, setSelectedFormat,
     selectedParameters, setSelectedParameters,
-    selectedDatetime, setSelectedDatetime,
+    datetime, setDatetime,
     datetimeMode, setDatetimeMode,
+    selectedDatetime, setSelectedDatetime: setDatetime,
     startDatetime, setStartDatetime,
     endDatetime, setEndDatetime,
-    selectedVertical, setSelectedVertical,
+    vertical, setVertical,
     verticalMode, setVerticalMode,
-    startVertical, setStartVertical,
-    endVertical, setEndVertical,
-    selectedCustomDimensions, setSelectedCustomDimensions,
-    customDimensionModes, setCustomDimensionModes,
-    customDimensionStarts, setCustomDimensionStarts,
-    customDimensionEnds, setCustomDimensionEnds,
+    dimensions, setDimension,
+    dimensionModes, setDimensionMode,
     queryParams, setQueryParam,
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,

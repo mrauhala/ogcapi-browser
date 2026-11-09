@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { instanceStep, instanceUrl, sortInstancesNewestFirst, type Instance } from './instances';
-import { buildQueryModel, emptyDim } from './queryModel';
+import { buildQueryModel } from './queryModel';
 import { buildQueryUrl } from './buildQueryUrl';
 import { validateQuery } from './validateQuery';
 
@@ -50,7 +50,7 @@ describe('instances', () => {
   it("builds and validates an instance's query against the instance", () => {
     const instance = fmiInstance('20261006T000000', '2026-10-06T03:00:00Z');
     const model = (queryKey: string, overrides = {}) => buildQueryModel({
-      collection: instance, queryKey, format: 'CoverageJSON', parameters: ['Temperature'], datetime: emptyDim(), vertical: emptyDim(),
+      collection: instance, queryKey, format: 'CoverageJSON', parameters: ['Temperature'], datetime: '', vertical: '',
       customDims: {}, points: [[24.94, 60.17]], polygons: [], bbox: null, bboxAsCoords: false, radius: { value: 10, units: 'km' },
       queryParams: {}, locationFeature: null, ...overrides,
     })!;
