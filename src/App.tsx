@@ -43,6 +43,7 @@ import { requestLink } from './query/requestLink';
 import CopyMenu from './CopyMenu';
 import Paper from '@mui/material/Paper';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { takesItsOwnKeys } from './utils/ownKeys';
 
 
 function App() {
@@ -194,8 +195,7 @@ function AppContent({ customServices, setCustomServices }: AppContentProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (takesItsOwnKeys(e.target)) return;
 
       switch (e.key.toLowerCase()) {
         case 'a':

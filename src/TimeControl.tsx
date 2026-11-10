@@ -1,7 +1,6 @@
 import React, { useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import FormLabel from '@mui/material/FormLabel';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Slider from '@mui/material/Slider';
@@ -132,8 +131,7 @@ const TimeControl: React.FC<TimeControlProps> = ({ temporal, queryState }) => {
   // Fallback: DateTimePicker
   if (tc.timeMode === 'fallback') {
     return (
-      <Box sx={{ mb: 2 }}>
-        <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>Date/Time Selection</FormLabel>
+      <Box>
 
         {temporal.trs && !temporal.trs.includes('Gregorian') && (
           <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
@@ -198,8 +196,7 @@ const TimeControl: React.FC<TimeControlProps> = ({ temporal, queryState }) => {
 
   // Slider-based time control
   return (
-    <Box sx={{ mb: 2 }}>
-      <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>Date/Time Selection</FormLabel>
+    <Box>
 
       {/* Mode toggle */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>

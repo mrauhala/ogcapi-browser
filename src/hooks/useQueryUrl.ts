@@ -68,6 +68,8 @@ export interface UseQueryUrlReturn {
   selectInstance: (id: string) => void;
   instanceQueryKey: string;
   selectInstanceQuery: (queryKey: string) => void;
+  // What is queried: the collection and its query, or the picked instance and the query on it. Null until both are
+  queryTarget: { collection: Collection; queryKey: string } | null;
   // Utilities
   resetQueryState: () => void;
   getEffectiveOutputFormats: (collection: Collection, queryType: string) => string[];
@@ -398,6 +400,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     filterByTime, setFilterByTime,
     instances, selectedInstance, selectInstance,
     instanceQueryKey, selectInstanceQuery,
+    queryTarget: target,
     resetQueryState,
     getEffectiveOutputFormats,
     selectDataQuery,

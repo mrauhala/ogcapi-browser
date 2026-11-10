@@ -169,3 +169,7 @@ export const words = (html: string) => {
     .replace(/\s+/g, ' ')
     .trim();
 };
+
+// How many elements carry a class, read from their class attributes, not from the styles written for them
+export const withClass = (html: string, name: string) => html.split('class="').slice(1)
+  .filter(rest => rest.slice(0, rest.indexOf('"')).split(' ').includes(name)).length;
