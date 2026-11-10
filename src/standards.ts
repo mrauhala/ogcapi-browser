@@ -29,6 +29,9 @@ const EDR_1_1 = 'https://docs.ogc.org/is/19-086r6/19-086r6.html';
 export const EDR11 = {
   // A response with data in CoverageJSON is application/prs.coverage+json
   covjsonContent: { label: 'EDR 1.1 /req/covjson/content', url: `${EDR_1_1}#req_covjson_content` } as Rule,
+  // A: "200-responses of the server SHALL support the following media types: application/geo+json for resources that
+  // include feature content, and application/json for all other resources." EDR 1.2's reads the same
+  edrGeojsonDefinition: { label: 'EDR 1.1 /req/edr-geojson/definition', url: `${EDR_1_1}#req_edr-geojson_definition` } as Rule,
 };
 
 // OGC API – EDR 1.2 (OGC 19-086r9), whose requirements are named

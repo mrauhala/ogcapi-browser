@@ -43,20 +43,10 @@ function detectCoverageJson(data: string, contentType: string): boolean {
   }
 }
 
-function detectEdrLocations(data: string, contentType: string, url?: string): boolean {
-  // URL must contain /locations (not deeper like /locations/id/position)
-  if (!url || !/\/locations\/?(\?|$)/.test(url)) return false;
-  if (!contentType.includes('json')) return false;
-  try {
-    const parsed = JSON.parse(data);
-    return parsed.type === 'FeatureCollection';
-  } catch {
-    return false;
-  }
-}
-
 // --- Schema registry ---
 
+// A locations list isn't here: validateQueryResponse checks it as the app checks a collection's locations, against the
+// EDR version the API declares, before any of these
 const SCHEMAS: QueryResultSchema[] = [
   {
     id: 'covjson',
@@ -65,13 +55,6 @@ const SCHEMAS: QueryResultSchema[] = [
     schemaPath: '/schemas/covjson/1.0/coveragejson.json',
     detect: detectCoverageJson,
     asRead: withInheritedDomainType,
-  },
-  {
-    id: 'edr-locations',
-    displayName: 'EDR Locations FeatureCollection',
-    schemaType: 'json-schema',
-    schemaPath: '/schemas/edr/1.1/edrFeatureCollectionGeoJSON.json',
-    detect: detectEdrLocations,
   },
 ];
 

@@ -4,24 +4,16 @@ import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
-import TextField from '@mui/material/TextField';
 import CollapsibleSection from './CollapsibleSection';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
-import CancelIcon from '@mui/icons-material/Cancel';
 import ListIcon from '@mui/icons-material/List';
 import axios from 'axios';
-import KeywordChips from './KeywordChips';
 import { useService } from './contexts/ServiceContext';
 import { getAxiosConfig, addApiKeyToUrl } from './api/auth';
-import { 
-  DataGrid, 
-  GridColDef,
-  Toolbar,
-  QuickFilter,
-  QuickFilterControl,
-  QuickFilterClear,
-} from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { featureIdColumn, propertyColumn, searchToolbar } from './featureColumns';
+import { featureRows, propertyKeysOf, type FeatureRow } from './featureRows';
+
+const ItemsToolbar = searchToolbar('Search items...');
 
 interface ItemsTableProps {
   url: string;
@@ -41,13 +33,6 @@ interface FeatureCollection {
   features: FeatureItem[];
   numberMatched?: number;
   numberReturned?: number;
-}
-
-interface ItemRow {
-  id: string | number;
-  geometryType: string;
-  originalFeature: FeatureItem;
-  [key: string]: any;
 }
 
 const ItemsTable: React.FC<ItemsTableProps> = ({ url, title, onFeatureClick }) => {
@@ -88,136 +73,31 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ url, title, onFeatureClick }) =
     }
   };
 
-  // Extract all unique property keys from features
-  const propertyKeys = useMemo(() => {
-    if (!data || !data.features || data.features.length === 0) return [];
-    
-    const keysSet = new Set<string>();
-    data.features.forEach(feature => {
-      if (feature.properties) {
-        Object.keys(feature.properties).forEach(key => keysSet.add(key));
-      }
-    });
-    
-    return Array.from(keysSet);
-  }, [data]);
+  const propertyKeys = useMemo(() => propertyKeysOf(data?.features ?? []), [data]);
+  const rows = useMemo(() => featureRows(data?.features ?? [], propertyKeys), [data, propertyKeys]);
 
-  // Transform features into rows for DataGrid
-  const rows: ItemRow[] = useMemo(() => {
-    if (!data || !data.features) return [];
-    
-    return data.features.map((feature, index) => {
-      const row: ItemRow = {
-        id: feature.id || `feature-${index}`,
-        geometryType: feature.geometry?.type || 'Unknown',
-        originalFeature: feature,
-      };
-      
-      // Add all properties as columns
-      if (feature.properties) {
-        Object.keys(feature.properties).forEach(key => {
-          const value = feature.properties![key];
-          row[key] = (key === 'keywords' && Array.isArray(value))
-            ? value
-            : typeof value === 'object' ? JSON.stringify(value) : value;
-        });
-      }
-      
-      return row;
-    });
-  }, [data]);
+  const columns = useMemo((): GridColDef<FeatureRow>[] => [
+    featureIdColumn,
+    {
+      field: 'geometryType',
+      headerName: 'Geometry',
+      width: 120,
+      valueGetter: (_value, row) => (row.feature.geometry as FeatureItem['geometry'])?.type || 'Unknown',
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          size="small"
+          variant="outlined"
+          color="primary"
+        />
+      ),
+    },
+    ...propertyKeys.map(propertyColumn),
+  ], [propertyKeys]);
 
-  // Define columns for DataGrid
-  const columns: GridColDef[] = useMemo(() => {
-    const cols: GridColDef[] = [
-      {
-        field: 'id',
-        headerName: 'ID',
-        width: 120,
-        flex: 0.5,
-      },
-      {
-        field: 'geometryType',
-        headerName: 'Geometry',
-        width: 120,
-        renderCell: (params) => (
-          <Chip 
-            label={params.value} 
-            size="small"
-            variant="outlined"
-            color="primary"
-          />
-        ),
-      },
-    ];
-    
-    // Add columns for each property
-    propertyKeys.forEach(key => {
-      cols.push({
-        field: key,
-        headerName: key,
-        flex: 1,
-        minWidth: 150,
-        ...(key === 'keywords' ? {
-          renderCell: (params) =>
-            Array.isArray(params.value)
-              ? <KeywordChips keywords={params.value as string[]} />
-              : String(params.value ?? ''),
-        } : {}),
-      });
-    });
-    
-    return cols;
-  }, [propertyKeys]);
-
-  const handleRowClick = (params: any) => {
-    if (onFeatureClick && params.row.originalFeature) {
-      onFeatureClick(params.row.originalFeature);
-    }
+  const handleRowClick = ({ row }: { row: FeatureRow }) => {
+    onFeatureClick?.(row.feature as FeatureItem);
   };
-
-  // Custom toolbar with QuickFilter
-  function CustomToolbar() {
-    return (
-      <Toolbar>
-        <QuickFilter>
-          <QuickFilterControl
-            render={({ ref, ...controlProps }, state) => (
-              <TextField
-                {...controlProps}
-                inputRef={ref}
-                placeholder="Search items..."
-                size="small"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                    endAdornment: state.value ? (
-                      <InputAdornment position="end">
-                        <QuickFilterClear
-                          edge="end"
-                          size="small"
-                          aria-label="Clear search"
-                        >
-                          <CancelIcon fontSize="small" />
-                        </QuickFilterClear>
-                      </InputAdornment>
-                    ) : null,
-                    ...controlProps.slotProps?.input,
-                  },
-                  ...controlProps.slotProps,
-                }}
-              />
-            )}
-          />
-        </QuickFilter>
-      </Toolbar>
-    );
-  }
 
   return (
     <CollapsibleSection
@@ -255,7 +135,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ url, title, onFeatureClick }) =
                     rows={rows}
                     columns={columns}
                     slots={{
-                      toolbar: CustomToolbar,
+                      toolbar: ItemsToolbar,
                     }}
                     showToolbar
                     initialState={{
@@ -263,7 +143,7 @@ const ItemsTable: React.FC<ItemsTableProps> = ({ url, title, onFeatureClick }) =
                         paginationModel: { pageSize: 10 },
                       },
                       sorting: {
-                        sortModel: [{ field: 'id', sort: 'asc' }],
+                        sortModel: [{ field: 'featureId', sort: 'asc' }],
                       },
                     }}
                     pageSizeOptions={[10, 25, 50, 100]}

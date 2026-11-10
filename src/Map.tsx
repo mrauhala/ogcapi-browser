@@ -19,6 +19,7 @@ import { useLocationFeatures } from './hooks/useLocationFeatures';
 import { useGeoJsonOverlays } from './hooks/useGeoJsonOverlays';
 import { useMapsOverlays } from './hooks/useMapsOverlays';
 import { useResponseCellsLayer } from './hooks/useResponseCellsLayer';
+import { useResponseLocation } from './hooks/useResponseLocation';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { useLayerManagerSync } from './hooks/useLayerManagerSync';
 import MapQueryOverlay from './MapQueryOverlay';
@@ -91,6 +92,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   const { geoJsonMetadata } = useGeoJsonOverlays(map);
   useMapsOverlays(map);
   const responseCells = useResponseCellsLayer(map, mapShown);
+  useResponseLocation(map);
 
   const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer);
 

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useState, useMemo, useRef, type
 import { geometryKindOf } from '../query/queryTypes';
 import { convertLength } from '../query/units';
 import type { BBox } from '../query/types';
+import type { GeoJsonFeature } from '../featureRows';
 
 interface MapInteractionContextValue {
   clickedCoords: [number, number][];
@@ -22,6 +23,9 @@ interface MapInteractionContextValue {
   // Asks the map to put the query in view once its geometry is in place, as when a link opens one
   queryZoom: number;
   zoomToQueryWhenPlaced: () => void;
+  // A location picked in a response's list, which the map goes to and marks. It isn't chosen for the query. Null for none
+  responseLocation: GeoJsonFeature | null;
+  showResponseLocation: (feature: GeoJsonFeature | null) => void;
   // Current OL view extent (EPSG:3857) and viewport size, updated on map move/resize.
   viewExtent: [number, number, number, number] | null;
   setViewExtent: (extent: [number, number, number, number] | null) => void;
@@ -44,6 +48,7 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
   const [viewSize, setViewSize] = useState<[number, number] | null>(null);
   const [queryZoom, setQueryZoom] = useState(0);
   const zoomToQueryWhenPlaced = useCallback(() => setQueryZoom(count => count + 1), []);
+  const [responseLocation, showResponseLocation] = useState<GeoJsonFeature | null>(null);
 
   // Points stay when switching position ↔ radius, a line trajectory ↔ corridor
   const setDataQuery = useCallback((queryType: string) => {
@@ -85,11 +90,13 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
     setDataQuery,
     queryZoom,
     zoomToQueryWhenPlaced,
+    responseLocation,
+    showResponseLocation,
     viewExtent,
     setViewExtent,
     viewSize,
     setViewSize,
-  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize, queryZoom, zoomToQueryWhenPlaced]);
+  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize, queryZoom, zoomToQueryWhenPlaced, responseLocation]);
 
   return (
     <MapInteractionContext.Provider value={value}>

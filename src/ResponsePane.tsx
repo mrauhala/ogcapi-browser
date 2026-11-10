@@ -18,6 +18,7 @@ import Tabs from '@mui/material/Tabs';
 import { useTheme } from '@mui/material/styles';
 import VirtualizedCodeView from './VirtualizedCodeView';
 import CoverageData, { type CoverageView } from './CoverageData';
+import LocationsData from './LocationsData';
 import { summarizeCoverage } from './coverage/coverageSummary';
 import { inheritedDomainType } from './coverage/inheritedDomainType';
 import FetchErrorAlert from './FetchErrorAlert';
@@ -30,6 +31,8 @@ import { useCollection } from './contexts/CollectionContext';
 import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
 import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
+import { locationsListOf } from './locations/locationsList';
+import { locationsMediaTypeFindings } from './locations/mediaType';
 import { shortUrl } from './query/requestUrl';
 import { collectionIdOf } from './query/requestLink';
 import { checksCount, responseTabs, shownTab, type ResponseTab } from './responseTabs';
@@ -115,11 +118,13 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
     }
   }, [parsedJson, url, vertical, temporal]);
   const [coverageView, setCoverageView] = useState<CoverageView | null>(null);
+  // A collection's locations, whatever the Content-Type says they are
+  const locations = useMemo(() => locationsListOf(url, data, parsedJson)?.features ?? null, [url, data, parsedJson]);
 
   const tabs = responseTabs({
     hasResponse: response !== null && !isLoading,
     // A response the app failed to read opens there too, on the line that says so
-    hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null,
+    hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null || locations !== null,
     hasImage: imageUrl !== null,
   });
   const tab = shownTab(preferredTab, tabs);
@@ -156,11 +161,12 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   // What the picture found joins what the summary did. It leaves out what the summary says already: nulls and ranges
   const { reading } = useResponseCells();
   const coverageNotes = useMemo(() => [...(coverage?.notes ?? []), ...cellFindings(reading)], [coverage, reading]);
-  // The media type of what's checked as CoverageJSON. Checks is only there with the response's details, and so its
-  // Content-Type
+  // The media type of what's checked as CoverageJSON, or of a locations list. Checks is only there with the response's
+  // details, and so its Content-Type
   const formatFindings = useMemo(
-    () => (validationSchemaName?.startsWith('CoverageJSON') ? mediaTypeFindings(contentType ?? '', parsedJson) : []),
-    [validationSchemaName, contentType, parsedJson],
+    () => (locations ? locationsMediaTypeFindings(contentType ?? '')
+      : validationSchemaName?.startsWith('CoverageJSON') ? mediaTypeFindings(contentType ?? '', parsedJson) : []),
+    [locations, validationSchemaName, contentType, parsedJson],
   );
   const allFindings = useMemo(() => [...validationErrors, ...formatFindings, ...coverageNotes], [validationErrors, formatFindings, coverageNotes]);
   // Only when they're asked for: each is a walk through the whole of the text
@@ -340,13 +346,15 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           <CoverageData summary={coverage} view={coverageView} onViewChange={setCoverageView} />
         )}
 
+        {!isLoading && tab === 'data' && locations && <LocationsData features={locations} />}
+
         {!isLoading && tab === 'data' && coverageFault && (
           <Alert severity="error" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" onClick={showRaw}>Show Raw</Button>}>
             The app failed to read this response as coverage data ({coverageFault}). That's a fault in the app, not a finding about the response. Raw has it as it came.
           </Alert>
         )}
 
-        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && (
+        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && !locations && (
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', backgroundColor: 'background.paper' }}>
             {transformedHtml && !isTransforming ? (
               <iframe
