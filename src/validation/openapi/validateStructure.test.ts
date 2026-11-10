@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
-import { validateOpenApiStructure, type OasVersion } from './validateStructure';
+import { uncheckedDefinition, validateOpenApiStructure, type OasVersion } from './validateStructure';
 import { COMMON1, EDR } from '../../standards';
 import { parseServiceDescription } from './loadServiceDescription';
 import { fixtureText, SERVERS, type ServerName } from './__fixtures__/servers';
@@ -68,6 +68,14 @@ describe('validateOpenApiStructure', () => {
     // The app cut the list short: its own notice, not one more error of the server's
     expect(errors[200]).toMatchObject({ keyword: 'truncated', message: '+5 more errors not shown', source: 'app', severity: 'info' });
     expect(errors.filter(isProblem)).toHaveLength(200);
+  });
+
+  it('says a check that couldn’t run is the app’s, which counts nothing against the server', () => {
+    expect(uncheckedDefinition(new Error('OpenAPI 3.1 schema not available (404)'))).toEqual({
+      message: 'The API definition could not be checked (OpenAPI 3.1 schema not available (404))', section: 'OpenAPI', schema: 'OpenAPI', type: 'unknown', severity: 'info', source: 'app',
+    });
+    expect(uncheckedDefinition('odd').message).toBe('The API definition could not be checked (unknown error)');
+    expect(isProblem(uncheckedDefinition(new Error('x')))).toBe(false);
   });
 
   it('validates 3.0 documents with the draft-04 based schema', async () => {

@@ -5,9 +5,9 @@ import { useCollection } from './CollectionContext';
 import { useValidation } from './ValidationContext';
 import { capturedOfFailure, loadServiceDescription, unavailable, type ServiceDescription } from '../validation/openapi/loadServiceDescription';
 import { buildOperationIndex, type OperationIndex } from '../validation/openapi/operationIndex';
-import { validateOpenApiStructure } from '../validation/openapi/validateStructure';
+import { uncheckedDefinition, validateOpenApiStructure } from '../validation/openapi/validateStructure';
 import { lintOpenApiForEdr } from '../validation/openapi/lintEdr';
-import { allSectionsValid, appFault, isProblem } from '../validation/severity';
+import { allSectionsValid, isProblem } from '../validation/severity';
 import type { ValidationResult } from '../types/api';
 
 // The service's API definition (service-desc): loaded and indexed for checking requests, then
@@ -103,7 +103,7 @@ export function OpenApiProvider({ children }: { children: ReactNode }) {
           // A check that couldn't run says so, rather than looking as if it's still running. It's the app's own fault
           mergeSection(setValidationResult, {
             isValid: true,
-            errors: [appFault(`The API definition could not be checked (${error instanceof Error ? error.message : 'unknown error'})`, { section: 'OpenAPI', schema: 'OpenAPI', type: 'unknown' })],
+            errors: [uncheckedDefinition(error)],
             schemaResults: [],
           });
         });

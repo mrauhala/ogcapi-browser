@@ -81,6 +81,12 @@ function summarizeRepeated(errors: ErrorObject[], doc: unknown, schemaName: stri
   });
 }
 
+// What's said when the check of an API definition couldn't run, such as a schema the app couldn't load: the app's own
+// notice, which says nothing of the server
+export function uncheckedDefinition(error: unknown): ValidationError {
+  return appFault(`The API definition could not be checked (${error instanceof Error ? error.message : 'unknown error'})`, { section: 'OpenAPI', schema: 'OpenAPI', type: 'unknown' });
+}
+
 // Validate an API definition against the official OpenAPI schema of its version
 export async function validateOpenApiStructure(
   doc: Record<string, unknown>,
