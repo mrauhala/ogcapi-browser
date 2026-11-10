@@ -30,8 +30,9 @@ export interface UseQueryUrlReturn {
   setSelectedFormat: (f: string) => void;
   selectedParameters: string[];
   setSelectedParameters: (p: string[]) => void;
-  // datetime, z and each custom dimension as sent, one text each, and the mode their controls show them in.
-  // Switching a mode keeps the text: see switchMode.
+  // datetime, z and each custom dimension as sent, one text each. The time control shows the datetime in a mode,
+  // Single or Range, and switching it keeps the text: see switchMode. z and the dimensions are typed, with a list of
+  // their values to pick from.
   datetime: string;
   setDatetime: (text: string) => void;
   datetimeMode: DimMode;
@@ -46,12 +47,8 @@ export interface UseQueryUrlReturn {
   setEndDatetime: (time: string) => void;
   vertical: string;
   setVertical: (text: string) => void;
-  verticalMode: DimMode;
-  setVerticalMode: (mode: DimMode) => void;
   dimensions: Record<string, string>;
   setDimension: (id: string, text: string) => void;
-  dimensionModes: Record<string, DimMode>;
-  setDimensionMode: (id: string, mode: DimMode) => void;
   // Parameters of the query type set in their own fields (corridor width and height)
   queryParams: Record<string, string>;
   setQueryParam: (name: string, value: string) => void;
@@ -92,9 +89,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [datetime, setDatetime] = useState('');
   const [datetimeMode, setDatetimeModeState] = useState<DimMode>('individual');
   const [vertical, setVertical] = useState('');
-  const [verticalMode, setVerticalModeState] = useState<DimMode>('individual');
   const [dimensions, setDimensions] = useState<Record<string, string>>({});
-  const [dimensionModes, setDimensionModes] = useState<Record<string, DimMode>>({});
   const [queryParams, setQueryParams] = useState<Record<string, string>>({});
   const [bboxAsCoords, setBboxAsCoords] = useState(false);
   const [filterByTime, setFilterByTime] = useState(false);
@@ -107,15 +102,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setDatetimeModeState(mode);
     setDatetime(text => switchMode(text, mode, true));
   }, []);
-  const setVerticalMode = useCallback((mode: DimMode) => {
-    setVerticalModeState(mode);
-    setVertical(text => switchMode(text, mode));
-  }, []);
   const setDimension = useCallback((id: string, text: string) => setDimensions(texts => ({ ...texts, [id]: text })), []);
-  const setDimensionMode = useCallback((id: string, mode: DimMode) => {
-    setDimensionModes(modes => ({ ...modes, [id]: mode }));
-    setDimensions(texts => (id in texts ? { ...texts, [id]: switchMode(texts[id], mode) } : texts));
-  }, []);
 
   // The time control's view of the datetime. Each end is written on what the text has by then, so that writing
   // both ends in a row keeps both. An end not picked is open, as EDR allows for datetime.
@@ -133,9 +120,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setDatetime('');
     setDatetimeModeState('individual');
     setVertical('');
-    setVerticalModeState('individual');
     setDimensions({});
-    setDimensionModes({});
     setQueryParams({});
     setBboxAsCoords(false);
     setFilterByTime(false);
@@ -203,9 +188,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setDatetimeModeState(modeOf(datetime));
     if (timeIsOnlyAFilter(queryType, hasLocation)) setFilterByTime(!!datetime);
     setVertical(vertical);
-    setVerticalModeState(modeOf(vertical));
     setDimensions(customDims);
-    setDimensionModes(Object.fromEntries(Object.entries(customDims).map(([id, text]) => [id, modeOf(text)])));
     setClickedCoords(points);
     setSelectedArea(polygons);
     setSelectedBbox(bbox);
@@ -392,9 +375,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     startDatetime, setStartDatetime,
     endDatetime, setEndDatetime,
     vertical, setVertical,
-    verticalMode, setVerticalMode,
     dimensions, setDimension,
-    dimensionModes, setDimensionMode,
     queryParams, setQueryParam,
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,

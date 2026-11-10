@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodedUrl, isSendableUrl, mergeEditedUrl, readableUrl, shortUrl, urlTokens } from './requestUrl';
+import { encodedUrl, isSendableUrl, mergeEditedUrl, paramOf, paramsIn, readableUrl, renameParam, shortUrl, urlTokens, withParam } from './requestUrl';
 
 const BASE = 'https://api.test/edr/collections/c/position';
 
@@ -318,5 +318,65 @@ describe('mergeEditedUrl', () => {
 
   it('removes all of the pairs the form had, when typed the same', () => {
     expect(mergeEditedUrl(built('z=1'), BASE, built('z=1&a=b&z=1'))).toBe(built('a=b'));
+  });
+});
+
+const LINE = 'https://a.example/edr/collections/ifs/position?coords=POINT(24.94 60.17)&z=1000,925&foo=a%2Bb#top';
+
+describe('paramOf and paramsIn', () => {
+  it('read a parameter of the line, decoded, as typed, and null where it has none', () => {
+    expect(paramOf(LINE, 'coords')).toBe('POINT(24.94 60.17)');
+    expect(paramOf(LINE, 'foo')).toBe('a+b');
+    expect(paramOf(LINE, 'datetime')).toBeNull();
+    expect(paramOf('https://a.example/x?flag', 'flag')).toBe('flag');
+    expect(paramOf('https://a.example/x?empty=', 'empty')).toBe('');
+    expect(paramOf('not a URL at all', 'z')).toBeNull();
+  });
+
+  it('list the line\'s parameters in order', () => {
+    expect(paramsIn(LINE)).toEqual([['coords', 'POINT(24.94 60.17)'], ['z', '1000,925'], ['foo', 'a+b']]);
+    expect(paramsIn('https://a.example/x')).toEqual([]);
+  });
+});
+
+describe('withParam', () => {
+  it('sets a parameter where it is, keeping the rest as typed', () => {
+    expect(withParam(LINE, 'z', '1000/500')).toBe('https://a.example/edr/collections/ifs/position?coords=POINT(24.94 60.17)&z=1000/500&foo=a%2Bb#top');
+  });
+
+  it('adds one at the end, and takes one out when its value goes', () => {
+    expect(withParam(LINE, 'datetime', '2026-11-10T00:00:00Z')).toBe('https://a.example/edr/collections/ifs/position?coords=POINT(24.94 60.17)&z=1000,925&foo=a%2Bb&datetime=2026-11-10T00:00:00Z#top');
+    expect(withParam(LINE, 'z', '')).toBe('https://a.example/edr/collections/ifs/position?coords=POINT(24.94 60.17)&foo=a%2Bb#top');
+    expect(withParam('https://a.example/x?z=1', 'z', '')).toBe('https://a.example/x');
+  });
+
+  it('keeps a parameter with no value when asked to, as name=', () => {
+    expect(withParam('https://a.example/x?a=1', 'debug', '', true)).toBe('https://a.example/x?a=1&debug=');
+  });
+
+  it('takes a value back exactly as typed, whatever it holds', () => {
+    for (const value of ['POINT(24.94 60.17)', 'a+b', '50%', 'x&y=z', 'R5/100/50', ' padded ']) {
+      expect(paramOf(withParam(LINE, 'foo', value), 'foo')).toBe(value);
+    }
+  });
+
+  it('drops a second copy of the parameter', () => {
+    expect(withParam('https://a.example/x?z=1&a=2&z=3', 'z', '5')).toBe('https://a.example/x?z=5&a=2');
+  });
+});
+
+describe('renameParam', () => {
+  it('renames a parameter where it is, with its value', () => {
+    expect(renameParam(LINE, 'foo', 'bar', 'a+b', true)).toBe('https://a.example/edr/collections/ifs/position?coords=POINT(24.94 60.17)&z=1000,925&bar=a%2Bb#top');
+  });
+
+  it('replaces one already under the new name, and adds it where the old one isn\'t there', () => {
+    expect(renameParam('https://a.example/x?a=1&b=2', 'a', 'b', '1', true)).toBe('https://a.example/x?b=1');
+    expect(renameParam('https://a.example/x?a=1', 'c', 'd', '4', true)).toBe('https://a.example/x?a=1&d=4');
+  });
+
+  it('takes it out when the new name is empty, or the value is and isn\'t to be kept', () => {
+    expect(renameParam('https://a.example/x?a=1&b=2', 'a', '', '1', true)).toBe('https://a.example/x?b=2');
+    expect(renameParam('https://a.example/x?a=1&b=2', 'a', 'c', '', false)).toBe('https://a.example/x?b=2');
   });
 });

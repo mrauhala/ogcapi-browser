@@ -115,6 +115,33 @@ const nameOf = (pair: string) => decoded(pair.split('=', 1)[0]);
 const valueOf = (pair: string) => decoded(pair.slice(pair.indexOf('=') + 1));
 const paramsOf = (url: string) => new Map(splitUrl(url).pairs.map(pair => [nameOf(pair), valueOf(pair)]));
 
+// One parameter's value in a request line, decoded, as typed: null where the line hasn't the parameter
+export function paramOf(url: string, name: string): string | null {
+  const pair = splitUrl(url).pairs.find(each => nameOf(each) === name);
+  return pair === undefined ? null : valueOf(pair);
+}
+
+// The line's parameters in order, decoded, as typed
+export const paramsIn = (url: string): [string, string][] => splitUrl(url).pairs.map(pair => [nameOf(pair), valueOf(pair)]);
+
+// The line with one parameter's value set where it is, or added at the end, and any second copy of it dropped. An empty
+// value takes the parameter out, unless it's to be kept, as `name=`. The rest stays as typed.
+export function withParam(url: string, name: string, value: string, keepEmpty = false): string {
+  return renameParam(url, name, name, value, keepEmpty);
+}
+
+// The line with a parameter renamed where it is, given a value, or added at the end under its new name
+export function renameParam(url: string, from: string, to: string, value: string, keepEmpty = false): string {
+  const { base, pairs, hash } = splitUrl(url);
+  const at = pairs.findIndex(pair => nameOf(pair) === from);
+  const gone = !to || (!value && !keepEmpty);
+  let next = pairs.filter((pair, index) => index === at || (nameOf(pair) !== from && nameOf(pair) !== to));
+  if (gone) next = next.filter(pair => nameOf(pair) !== from);
+  else if (at < 0) next = [...next, pairOf(to, value)];
+  else next = next.map(pair => (nameOf(pair) === from ? pairOf(to, value) : pair));
+  return `${base}${next.length > 0 ? `?${next.join('&')}` : ''}${hash}`;
+}
+
 const NUMBER = /[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g;
 const decimalsOf = (number: string) => number.split('.')[1]?.length ?? 0;
 

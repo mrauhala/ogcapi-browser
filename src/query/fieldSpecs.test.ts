@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Temporal, Vertical } from '../types/api';
-import { collectionOffers, dimensionTitle, fieldSpecs, levelsSaid, levelUnit, timesSaid, type FieldSpec } from './fieldSpecs';
+import { collectionOffers, crsOffered, dimensionTitle, fieldSpecs, heldNames, lacksTimeAndLevels, levelsSaid, levelUnit, timesSaid, type FieldSpec } from './fieldSpecs';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
 import dwdIcon from './__fixtures__/dwd-icon-d2-ruc-single-level.json';
@@ -157,6 +157,72 @@ describe('fieldSpecs', () => {
     });
     const worded = made({ custom: [{ id: 'step', interval: [['0', '10']], reference: 'minutes' }] });
     expect(one(specs(worded, 'position'), 'dim:step')).toMatchObject({ hints: ['In minutes'], link: undefined });
+  });
+});
+
+describe('fieldSpecs, typed values', () => {
+  it('says how each typed value is written', () => {
+    const grammar = (collection: Collection, queryKey: string, id: string) => one(specs(collection, queryKey), id).grammar;
+    expect(grammar(FMI, 'position', 'coords')).toBe('Typed: `POINT(lon lat)`, or `MULTIPOINT((lon lat),(lon lat))`');
+    expect(grammar(FMI, 'radius', 'coords')).toBe('Typed: `POINT(lon lat)`, or `MULTIPOINT((lon lat),(lon lat))`');
+    expect(grammar(FMI, 'trajectory', 'coords')).toBe('Typed: `LINESTRING(lon lat, lon lat, …)`');
+    expect(grammar(FMI, 'corridor', 'coords')).toBe('Typed: `LINESTRING(lon lat, lon lat, …)`');
+    expect(grammar(FMI, 'area', 'coords')).toBe('Typed: `POLYGON((lon lat, …, the first again))`, or `MULTIPOLYGON`');
+    expect(grammar(DWD, 'cube', 'bbox')).toBe('Typed: `west,south,east,north`, in degrees');
+    expect(grammar(METEOCORE, 'items', 'bbox')).toBe('Typed: `west,south,east,north`, in degrees');
+    expect(grammar(METEOCORE, 'items', 'limit')).toBe('A whole number of at least 1');
+    expect(grammar(FMI, 'radius', 'within')).toBe('A number');
+    expect(grammar(FMI, 'corridor', 'corridor-width')).toBe('A number');
+    expect(grammar(FMI, 'position', 'datetime')).toBe('One time, an interval `start/end`, or one open at an end, `start/..` or `../end`');
+    expect(grammar(FMI_LEVELS, 'position', 'z')).toBe('One level, a list `1000,850`, an interval `1000/500`, or `R5/100/50` for 5 levels 50 apart from 100');
+    expect(grammar(FMI, 'position', 'dim:timestep')).toBe('One value, a list `1,2,3`, or an interval `1/5`');
+    expect(grammar(FMI, 'position', 'f')).toBeUndefined();
+  });
+
+  it('gives a datetime or z the request has a field, though the collection has no time or levels', () => {
+    const bare = made({});
+    expect(ids(specs(bare, 'position'))).toEqual(['coords', 'f']);
+    const asked = specs(bare, 'position', 0, { inRequest: ['coords', 'datetime', 'z'] });
+    expect(ids(asked)).toEqual(['coords', 'datetime', 'z', 'f']);
+    expect(one(asked, 'datetime')).toMatchObject({ hints: ["The collection's extent has no time"], leftOut: 'the server decides which times' });
+    expect(one(asked, 'z')).toMatchObject({ hints: ["The collection's extent has no levels"], leftOut: 'the server decides which levels' });
+    // Not for a list, which takes no z
+    const list = made({}, {}, { data_queries: { items: { link: { href: 'h', variables: { query_type: 'items' } } } } });
+    expect(ids(specs(list, 'items', 0, { inRequest: ['z'] }))).toEqual(['bbox', 'limit', 'f']);
+    // Nor a second one where the collection has them
+    expect(ids(specs(FMI_LEVELS, 'position', 0, { inRequest: ['datetime', 'z'] })).filter(id => id === 'z' || id === 'datetime')).toEqual(['datetime', 'z']);
+  });
+});
+
+describe('crsOffered', () => {
+  it('lists the CRSs the query names in its crs_details', () => {
+    expect(crsOffered(made({}, { crs_details: [{ crs: 'OGC:CRS84', wkt: 'GEOGCS…' }, { crs: 'EPSG:4326' }] }), 'position')).toEqual(['OGC:CRS84', 'EPSG:4326']);
+    expect(crsOffered(made({}, { crs_details: [{ wkt: 'no name' }, { crs: '  ' }, { crs: 'CRS84' }] }), 'position')).toEqual(['CRS84']);
+    expect(crsOffered(made({}, { crs_details: 'CRS84' }), 'position')).toEqual([]);
+    expect(crsOffered(made({}), 'position')).toEqual([]);
+  });
+});
+
+describe('heldNames', () => {
+  it('holds the fields’ names and their units, a cube’s coords, and crs where the query lists any', () => {
+    const radius = specs(FMI, 'radius');
+    expect([...heldNames(radius, 'radius', [])].sort()).toEqual(['coords', 'datetime', 'f', 'parameter-name', 'timestep', 'within', 'within-units']);
+    expect(heldNames(radius, 'radius', ['CRS84']).has('crs')).toBe(true);
+    expect(heldNames(specs(DWD, 'cube'), 'cube', []).has('coords')).toBe(true);
+    expect(heldNames(specs(FMI, 'position'), 'position', []).has('foo')).toBe(false);
+  });
+});
+
+describe('lacksTimeAndLevels', () => {
+  it('says so for a data query on a collection with neither, unless the request has one', () => {
+    const bare = made({}, {}, { parameter_names: [{ id: 't' }] });
+    expect(lacksTimeAndLevels(bare, specs(bare, 'position'))).toBe(true);
+    expect(lacksTimeAndLevels(bare, specs(bare, 'position', 0, { inRequest: ['datetime'] }))).toBe(false);
+    expect(lacksTimeAndLevels(FMI, specs(FMI, 'position'))).toBe(false);
+    expect(lacksTimeAndLevels(made({ vertical: { values: ['1'] } }, {}, { parameter_names: [{ id: 't' }] }), specs(bare, 'position'))).toBe(false);
+    // A list selects no data
+    const list = made({}, {}, { parameter_names: [{ id: 't' }], data_queries: { items: { link: { href: 'h', variables: { query_type: 'items' } } } } });
+    expect(lacksTimeAndLevels(list, specs(list, 'items'))).toBe(false);
   });
 });
 

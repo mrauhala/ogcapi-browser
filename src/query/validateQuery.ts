@@ -8,6 +8,7 @@ import type { QueryModel } from './queryModel';
 import type { BBox, IssueSeverity, IssueSource, QueryIssue } from './types';
 import { intervalEnds, wholeValue } from './dimensionText';
 import { SEVERITY_ORDER } from './types';
+import { paramOf } from './requestUrl';
 import type { ApiDocsCheck } from '../validation/openapi/checkQueryUrl';
 
 // ── Collection extents, computed once per collection (validation runs on every slider tick) ──
@@ -205,6 +206,16 @@ function checkFormat(model: QueryModel, add: Add) {
   }
 }
 
+// A crs the query doesn't list in its crs_details, which a server may not know. With none listed, any goes
+function checkCrs(model: QueryModel, add: Add) {
+  const crs = model.queryParams.crs?.trim();
+  const details = model.variables?.crs_details;
+  const listed = Array.isArray(details) ? details.map(detail => detail?.crs).filter((name): name is string => typeof name === 'string') : [];
+  if (crs && listed.length > 0 && !listed.includes(crs)) {
+    add('error', 'metadata', 'crs', 'offered', `${crs} isn't in the query's crs_details (${listed.join(', ')})`, 'form');
+  }
+}
+
 function checkParameters(model: QueryModel, add: Add) {
   const ids = parameterIdsOf(model.collection);
   if (ids.length === 0) return;
@@ -306,6 +317,7 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
     if (model.datetime.trim()) checkDatetime(model, add);
   } else if (model.queryType !== 'instances') {
     checkParameters(model, add);
+    if (!(model.queryType === 'locations' && !model.locationFeature)) checkCrs(model, add);
     checkDatetime(model, add);
     checkVertical(model, add);
     Object.entries(model.customDims).forEach(([id, text]) => checkDimension(text, `dim:${id}`, id, add));
@@ -334,6 +346,16 @@ export function addApiDocsIssues(model: QueryModel | null, issues: QueryIssue[],
     })
     .filter(issue => !flagged.has(issue.field));
   return [...own, ...placed].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+}
+
+// The form's issues for the request line as typed: a parameter the line has isn't missing, though the form may not
+// have read it yet, or can't (the field says so). What's missing of a value it has, a range's other end, still is, and
+// its other issues stay.
+export function typedIssues(issues: QueryIssue[], requestUrl: string): QueryIssue[] {
+  const present = (field: string) => !!paramOf(requestUrl, field.startsWith('dim:') ? field.slice(4) : field)?.trim();
+  const absent = (issue: QueryIssue) => issue.severity === 'missing' && issue.id.endsWith(':required');
+  const kept = issues.filter(issue => !absent(issue) || !present(issue.field));
+  return kept.length === issues.length ? issues : kept;
 }
 
 export interface IssueSummary {

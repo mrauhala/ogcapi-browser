@@ -2,9 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CollectionQueryBuilder from './CollectionQueryBuilder';
 import type { Collection } from './DataRetrievalAPI';
-import { words } from './coverage/cellsTestData';
+import { withClass, words } from './coverage/cellsTestData';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
-import type { DimMode } from './query/dimensionText';
 import type { QueryIssue } from './query/types';
 import fmiEcmwf from './query/__fixtures__/fmi-ecmwf.json';
 import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
@@ -12,11 +11,13 @@ import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
 // The form: its fields as blocks, each a title and the name as sent, and the level and custom dimension fields for
 // each form their text can take. What they need from around them is stood in for
 const issues = vi.hoisted(() => ({ list: [] as QueryIssue[] }));
-const around = vi.hoisted(() => ({ requestUrl: 'https://a.example/edr/collections/ifs/position', radius: null as number | null, radiusUnits: '', mobile: false }));
-vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedFeature: null, collectionUrl: around.requestUrl, locationFeatures: [] }) }));
+// The request line, and what the form built: the same unless a test types something the form can't hold
+const around = vi.hoisted(() => ({ requestUrl: 'https://a.example/edr/collections/ifs/position', collectionUrl: null as string | null, radius: null as number | null, radiusUnits: '', mobile: false }));
+vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedFeature: null, collectionUrl: around.collectionUrl ?? around.requestUrl, locationFeatures: [] }) }));
 vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ showMap: () => {}, isMobile: around.mobile }) }));
 vi.mock('./contexts/OpenCollectionContext', () => ({ useOpenCollection: () => ({ leaveQuery: () => {} }) }));
-vi.mock('./contexts/RequestUrlContext', () => ({ useRequestUrl: () => ({ requestUrl: around.requestUrl }) }));
+vi.mock('./contexts/RequestUrlContext', () => ({ useRequestUrl: () => ({ requestUrl: around.requestUrl, editUrl: () => {} }) }));
+vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
 vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ apiUrl: 'https://a.example/edr/' }) }));
 vi.mock('./contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: 'none', description: null }) }));
 vi.mock('./contexts/MapInteractionContext', () => ({
@@ -32,6 +33,7 @@ vi.mock('./InstancePicker', () => ({ default: () => null }));
 beforeEach(() => {
   issues.list = [];
   around.requestUrl = 'https://a.example/edr/collections/ifs/position';
+  around.collectionUrl = null;
   around.radius = null;
   around.radiusUnits = '';
   around.mobile = false;
@@ -41,25 +43,26 @@ const LEVELS = ['1000', '925', '850', '700', '500'];
 const LISTED = { values: LEVELS, interval: [['1000', '500']] };
 // KNMI's ensemble member, as uwcw-ha-ens-nl-2km.hagl_member lists it (2026-11-08), five of its thirty
 const MEMBER = { id: 'member', values: ['1', '2', '3', '4', '5'], interval: [['1', '5']], reference: 'https://example.org/eps.pdf' };
+const BASE = 'https://a.example/edr/collections/ifs/position';
 
 interface Form {
   z?: string;
-  zMode?: DimMode;
   vertical?: Record<string, unknown>;
   member?: string;
-  memberMode?: DimMode;
   custom?: Record<string, unknown>[];
 }
 
-function render({ z = '', zMode = 'individual', vertical = LISTED, member, memberMode, custom = [] }: Form): string {
+// The form with z and member as the request line has them: the typed field reads the line, the picker the form's text
+function render({ z = '', vertical = LISTED, member, custom = [] }: Form): string {
   const nothing = () => {};
+  const line = [z && `z=${z}`, member && `member=${member}`].filter(Boolean).join('&');
+  around.requestUrl = `${BASE}${line ? `?${line}` : ''}`;
   const state = {
     selectedDataQuery: 'position', selectDataQuery: nothing, selectedInstance: null, instanceQueryKey: '',
     selectedFormat: '', setSelectedFormat: nothing, getEffectiveOutputFormats: () => [],
     selectedParameters: [], setSelectedParameters: nothing,
-    vertical: z, setVertical: nothing, verticalMode: zMode, setVerticalMode: nothing,
+    vertical: z, setVertical: nothing,
     dimensions: member === undefined ? {} : { member }, setDimension: nothing,
-    dimensionModes: memberMode ? { member: memberMode } : {}, setDimensionMode: nothing,
     queryParams: {}, setQueryParam: nothing, bboxAsCoords: false, setBboxAsCoords: nothing, filterByTime: false, setFilterByTime: nothing,
   } as unknown as UseQueryUrlReturn;
   const collection = {
@@ -81,146 +84,131 @@ const member = (options: Form) => field(render({ ...options, custom: [MEMBER] })
 // Only what shows, read tag by tag, without the zero-width space an outlined field's empty legend holds
 const shown = (html: string) => words(html).replace(/\u200b/g, '').replace(/\s+/g, ' ').trim();
 const count = (html: string, text: string) => html.split(text).length - 1;
+// The typed field's value, from its input: the one with the parameter's name as its label
+const typedValue = (html: string, name: string) => {
+  const at = html.indexOf(`aria-label="${name}"`);
+  const tag = html.slice(html.lastIndexOf('<input', at), html.indexOf('>', at));
+  const value = tag.split('value="')[1];
+  return value === undefined ? null : value.slice(0, value.indexOf('"'));
+};
 const LISTBOX = 'aria-haspopup="listbox"';
+// As words reads it: a space either side of each code span
+const LEVEL_GRAMMAR = 'One level, a list 1000,850 , an interval 1000/500 , or R5/100/50 for 5 levels 50 apart from 100';
 
 describe('the level field', () => {
-  it('chooses one level or several', () => {
+  it('is the levels as sent, typed, with the listed ones to pick from, and how to type them while empty', () => {
     const html = levels({});
-    expect(shown(html)).toContain('Individual Levels');
-    expect(shown(html)).toContain('Select Levels');
+    expect(typedValue(html, 'z')).toBe('');
+    expect(html).toContain('id="query-input-z"');
+    expect(html).toContain('placeholder="Pick levels below, or type them"');
     expect(html).toContain(LISTBOX);
+    expect(shown(html)).toContain('Pick from the 5 levels listed');
+    expect(shown(html)).toContain(LEVEL_GRAMMAR);
+    expect(shown(html)).toContain('Left out: the server decides which levels');
   });
 
-  it('shows a list, as from a link, as the levels it names', () => {
+  it('shows a list, as from a link, as typed, and ticks the levels it names', () => {
     const html = levels({ z: '1000,925,850' });
-    expect(shown(html)).toContain('1000, 925, 850');
-    expect(html).toContain('value="1000,925,850"');
+    expect(typedValue(html, 'z')).toBe('1000,925,850');
+    expect(shown(html)).toContain('3 picked');
+    expect(shown(html)).not.toContain(LEVEL_GRAMMAR);
+    expect(shown(html)).not.toContain('Left out');
   });
 
-  it('shows a level written otherwise as the collection writes it, and one it doesn’t list as it was', () => {
-    expect(levels({ z: '1000.0,777' })).toContain('value="1000,777"');
+  it('ticks a level written otherwise as the collection writes it, and one it doesn’t list as it was', () => {
+    const html = levels({ z: '1000.0,777' });
+    expect(typedValue(html, 'z')).toBe('1000.0,777');
+    expect(html).toContain('value="1000,777"');
+    expect(shown(html)).toContain('2 picked');
   });
 
-  it('keeps a repeating interval as text, which the list can’t show', () => {
-    const html = levels({ z: 'R3/500/100' });
-    expect(html).not.toContain(LISTBOX);
-    expect(html).toContain('value="R3/500/100"');
-    expect(shown(html)).toContain('A level, several separated by commas, a range as 1000/500, or R3/500/100 for 3 steps of 100 from 500');
+  it('leaves an interval or a repeat to the text, with nothing ticked', () => {
+    for (const z of ['1000/500', 'R3/500/100', '850/']) {
+      const html = levels({ z });
+      expect(typedValue(html, 'z')).toBe(z);
+      expect(shown(html)).toContain('Pick from the 5 levels listed');
+      expect(shown(html)).not.toContain('picked');
+    }
   });
 
-  it('takes text where the collection lists no levels, only an interval', () => {
+  it('is typed only where the collection lists no levels, only an interval', () => {
     const html = levels({ z: '1000,850', vertical: { interval: [['1000', '500']] } });
     expect(html).not.toContain(LISTBOX);
-    expect(html).toContain('value="1000,850"');
-    expect(html).toContain('placeholder="e.g. 1000, or 1000,850,500"');
+    expect(typedValue(html, 'z')).toBe('1000,850');
+    expect(levels({ vertical: { interval: [['1000', '500']] } })).toContain('placeholder="Type a level, or several"');
   });
 
-  it('says what’s wrong under it', () => {
-    issues.list = [{ id: 'metadata:z:offered', severity: 'error', source: 'metadata', field: 'z', message: "Level 777 isn't one of the collection's levels", input: 'form' }];
-    expect(shown(levels({ z: '1000,777' }))).toContain("Level 777 isn't one of the collection's levels");
-  });
-
-  it('has the range’s two ends in range mode', () => {
-    const html = levels({ zMode: 'range' });
-    expect(shown(html)).toContain('Start Level');
-    expect(shown(html)).toContain('End Level');
-    expect(shown(html)).not.toContain('Select Levels');
-    expect(count(html, LISTBOX)).toBe(2);
-  });
-
-  it('shows the mode it’s given as the radio checked', () => {
-    expect(levels({ zMode: 'range' })).toContain('checked="" value="range"');
-    expect(levels({})).toContain('checked="" value="individual"');
-  });
-});
-
-// The text holds what's sent whichever mode shows it, so a mode switched never hides or loses it
-describe('the level field, a range', () => {
-  it('shows a range’s ends in the range’s dropdowns', () => {
-    const html = levels({ z: '1000/500', zMode: 'range' });
-    expect(html).toContain('value="1000"');
-    expect(html).toContain('value="500"');
-    expect(shown(html)).not.toContain('Not a range of two ends, so shown as it is sent');
-  });
-
-  it('shows a range with one end picked, and the other still to pick', () => {
-    const html = levels({ z: '850/', zMode: 'range' });
-    expect(html).toContain('value="850"');
-    expect(count(html, 'value=""')).toBeGreaterThan(0);
-  });
-
-  it('shows an end the collection doesn’t list, rather than going blank', () => {
-    const html = levels({ z: '1000/777', zMode: 'range' });
-    expect(html).toContain('value="777"');
-    expect(shown(html)).toContain('777');
-    expect(shown(html)).toContain("Not one of the collection's levels");
-  });
-
-  it('shows a whole range as text in the one-value mode, which its dropdown can’t hold', () => {
-    const html = levels({ z: '1000/500' });
-    expect(html).not.toContain(LISTBOX);
-    expect(html).toContain('value="1000/500"');
-  });
-
-  it('shows a list as text in the range mode, saying it isn’t a range', () => {
-    const html = levels({ z: '1000,925,850', zMode: 'range' });
-    expect(html).not.toContain(LISTBOX);
-    expect(html).toContain('value="1000,925,850"');
-    expect(shown(html)).toContain('Not a range of two ends, so shown as it is sent');
-    expect(shown(html)).not.toContain('Start Level');
-  });
-
-  it('takes a range’s ends as text where the collection lists no levels', () => {
-    const html = levels({ z: '1000/500', zMode: 'range', vertical: { interval: [['1000', '500']] } });
-    expect(html).not.toContain(LISTBOX);
-    expect(shown(html)).toContain('Start Level');
-    expect(html).toContain('value="1000"');
-    expect(html).toContain('value="500"');
-  });
-
-  it('says when there are too many levels to list, and takes text', () => {
+  it('says when there are too many levels to pick from, and takes them typed', () => {
     const many = Array.from({ length: 300 }, (_, i) => String(i));
     const html = levels({ z: '5', vertical: { values: many } });
-    expect(shown(html)).toContain('This collection has a large vertical range (300 values, limit: 250). Using text input for easier selection.');
+    expect(shown(html)).toContain('300 levels listed, too many to pick from: type them');
     expect(html).not.toContain(LISTBOX);
-    expect(html).toContain('value="5"');
+    expect(typedValue(html, 'z')).toBe('5');
+  });
+
+  it('says what’s wrong under it, outlines it red, and how to type it', () => {
+    issues.list = [{ id: 'metadata:z:offered', severity: 'error', source: 'metadata', field: 'z', message: "Level 777 isn't one of the collection's levels", input: 'form' }];
+    const html = levels({ z: '1000,777' });
+    expect(shown(html)).toContain("Level 777 isn't one of the collection's levels");
+    expect(shown(html)).toContain(LEVEL_GRAMMAR);
+    expect(withClass(html, 'Mui-error')).toBeGreaterThan(0);
+    issues.list = [];
+    expect(withClass(levels({ z: '1000' }), 'Mui-error')).toBe(0);
+  });
+
+  it('says what the server does while the line has no level, or only a blank one', () => {
+    expect(shown(levels({ z: '%20' }))).toContain('Left out: the server decides which levels');
+    expect(shown(levels({ z: '1000' }))).not.toContain('Left out');
+  });
+
+  it('says what’s still to pick of a range typed with one end, which the form holds back, and not that it can’t read it', () => {
+    issues.list = [{ id: 'metadata:z:range', severity: 'missing', source: 'metadata', field: 'z', message: 'Pick the upper end of the level range', input: 'form' }];
+    around.collectionUrl = BASE;
+    const html = levels({ z: '850/' });
+    expect(shown(html)).toContain('Pick the upper end of the level range');
+    expect(shown(html)).not.toContain("can't read");
+    issues.list = [];
+    expect(shown(levels({ z: '850/' }))).toContain("The form can't read this. It's sent as typed");
+  });
+
+  it('outlines a warning orange', () => {
+    issues.list = [{ id: 'metadata:z:extent', severity: 'warning', source: 'metadata', field: 'z', message: 'Outside', input: 'form' }];
+    const outline = 'MuiOutlinedInput-notchedOutline{border-color:#ed6c02';
+    expect(count(levels({ z: '1000' }), outline)).toBeGreaterThan(0);
+    issues.list = [];
+    expect(count(levels({ z: '1000' }), outline)).toBe(0);
   });
 });
 
 describe('a custom dimension’s field', () => {
-  it('chooses one value or several, as the level field does', () => {
+  it('is the values as sent, typed, with the listed ones to pick from, as the level field', () => {
     const html = member({ member: '1,2,3' });
     expect(shown(html)).toContain('Member member 5 listed · optional');
     expect(html).toContain('href="https://example.org/eps.pdf"');
-    expect(shown(html)).toContain('Individual Values');
-    expect(shown(html)).toContain('Select Values');
-    expect(shown(html)).toContain('1, 2, 3');
-    expect(html).toContain('value="1,2,3"');
+    expect(typedValue(html, 'member')).toBe('1,2,3');
+    expect(html).toContain('id="query-input-member"');
+    expect(shown(html)).toContain('3 picked');
     expect(html).toContain(LISTBOX);
   });
 
   it('shows a value it doesn’t list, as from a link', () => {
-    expect(member({ member: '1,31' })).toContain('value="1,31"');
+    const html = member({ member: '1,31' });
+    expect(typedValue(html, 'member')).toBe('1,31');
+    expect(shown(html)).toContain('2 picked');
   });
 
-  it('has a range’s two ends in range mode', () => {
-    const html = member({ member: '1/5', memberMode: 'range' });
-    expect(shown(html)).toContain('Start Value');
-    expect(shown(html)).toContain('End Value');
-    expect(html).toContain('value="1"');
-    expect(html).toContain('value="5"');
+  it('leaves a range to the text', () => {
+    const html = member({ member: '1/5' });
+    expect(typedValue(html, 'member')).toBe('1/5');
+    expect(shown(html)).toContain('Pick from the 5 values listed');
   });
 
-  it('shows a list as text in the range mode', () => {
-    const html = member({ member: '1,2,3', memberMode: 'range' });
-    expect(html).toContain('value="1,2,3"');
-    expect(shown(html)).toContain('Not a range of two ends, so shown as it is sent');
-  });
-
-  it('starts empty, in the one-value mode', () => {
+  it('starts empty, saying how to type it', () => {
     const html = member({});
-    expect(html).toContain('checked="" value="individual"');
-    expect(html).toContain('value=""');
+    expect(typedValue(html, 'member')).toBe('');
+    expect(html).toContain('placeholder="Pick values below, or type them"');
+    expect(shown(html)).toContain('One value, a list 1,2,3 , or an interval 1/5');
+    expect(count(shown(html), 'Left out: the server decides')).toBe(1);
   });
 });
 
@@ -236,8 +224,8 @@ function form(collection: Collection, queryKey: string, overrides: Partial<Recor
       return Array.isArray(formats) ? formats : [];
     },
     selectedParameters: [], setSelectedParameters: nothing, datetime: '',
-    vertical: '', setVertical: nothing, verticalMode: 'individual', setVerticalMode: nothing,
-    dimensions: {}, setDimension: nothing, dimensionModes: {}, setDimensionMode: nothing,
+    vertical: '', setVertical: nothing,
+    dimensions: {}, setDimension: nothing,
     queryParams: {}, setQueryParam: nothing, bboxAsCoords: false, setBboxAsCoords: nothing, filterByTime: false, setFilterByTime: nothing,
     ...overrides,
   } as unknown as UseQueryUrlReturn;
@@ -250,7 +238,7 @@ describe('the form’s blocks', () => {
   it('has a block per parameter, titled in words with the name as sent, in the design’s order', () => {
     around.requestUrl = 'https://opendata.fmi.fi/edr/collections/ecmwf/position';
     const html = form(FMI, 'position');
-    expect(blockIds(html)).toEqual(['query', 'coords', 'parameter-name', 'datetime', 'dim:timestep', 'f']);
+    expect(blockIds(html)).toEqual(['query', 'coords', 'parameter-name', 'datetime', 'dim:timestep', 'f', 'more']);
     const text = shown(html);
     const order = ['Query query (path)', 'Position coords required', 'Parameters parameter-name 6 listed · optional', 'Time datetime optional', 'Timestep timestep', 'Output format f optional'];
     const at = order.map(part => text.indexOf(part));
@@ -260,11 +248,11 @@ describe('the form’s blocks', () => {
   });
 
   it('puts a radius and its unit in one block, the number then the unit toggles, the unit jumped to by its own id', () => {
-    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/radius';
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/radius?within=25';
     around.radius = 25;
     around.radiusUnits = 'km';
     const html = form(METEOCORE, 'radius');
-    expect(blockIds(html)).toEqual(['query', 'coords', 'within', 'within-units', 'parameter-name', 'datetime', 'f']);
+    expect(blockIds(html)).toEqual(['query', 'coords', 'within', 'within-units', 'parameter-name', 'datetime', 'f', 'more']);
     const within = field(html, 'within');
     expect(shown(within)).toBe('Radius within · within-units required');
     expect(html).toContain('id="query-input-within"');
@@ -311,11 +299,34 @@ describe('the form’s blocks', () => {
   it('shows coords as sent, with a Map button on a phone, where the map is a pane away', () => {
     around.requestUrl = 'https://opendata.fmi.fi/edr/collections/ecmwf/position?coords=POINT(24.94%2060.17)';
     const desktop = field(form(FMI, 'position'), 'coords');
-    expect(shown(desktop)).toBe('Position coords required POINT(24.94 60.17) Each click on the map adds a point');
+    expect(typedValue(desktop, 'coords')).toBe('POINT(24.94 60.17)');
+    expect(shown(desktop)).toBe('Position coords required Each click on the map adds a point');
     around.mobile = true;
-    expect(shown(field(form(FMI, 'position'), 'coords'))).toContain('POINT(24.94 60.17) Map');
+    const phone = field(form(FMI, 'position'), 'coords');
+    expect(typedValue(phone, 'coords')).toBe('POINT(24.94 60.17)');
+    expect(shown(phone)).toBe('Position coords required Map Each click on the map adds a point');
     around.requestUrl = 'https://opendata.fmi.fi/edr/collections/ecmwf/position';
-    expect(shown(field(form(FMI, 'position'), 'coords'))).toContain('Draw on the map Map');
+    const empty = field(form(FMI, 'position'), 'coords');
+    expect(empty).toContain('placeholder="Draw on the map, or type WKT"');
+    expect(shown(empty)).toContain('Typed: POINT(lon lat) , or MULTIPOINT((lon lat),(lon lat))');
+  });
+
+  it('says where a time and levels would be when the collection has neither, and gives one the request has its field', () => {
+    const bare = {
+      id: 'bare', extent: { spatial: { bbox: [[0, 0, 1, 1]] } }, parameter_names: [{ id: 't' }],
+      data_queries: { position: { link: { href: 'https://a.example/collections/bare/position', variables: { query_type: 'position' } } } },
+    } as unknown as Collection;
+    around.requestUrl = 'https://a.example/collections/bare/position?coords=POINT(0.5 0.5)';
+    const html = form(bare, 'position');
+    expect(blockIds(html)).toEqual(['query', 'coords', 'parameter-name', 'more']);
+    expect(shown(html)).toContain("No datetime or z : the collection's extent has no time or levels. To send one anyway, add it under More.");
+    expect(count(shown(html), 'No datetime or z')).toBe(1);
+    around.requestUrl = 'https://a.example/collections/bare/position?coords=POINT(0.5 0.5)&datetime=2026-11-10T00:00:00Z';
+    const asked = form(bare, 'position');
+    expect(blockIds(asked)).toEqual(['query', 'coords', 'parameter-name', 'datetime', 'more']);
+    expect(shown(field(asked, 'datetime'))).toContain("The collection's extent has no time");
+    expect(typedValue(field(asked, 'datetime'), 'datetime')).toBe('2026-11-10T00:00:00Z');
+    expect(shown(asked)).not.toContain('No datetime or z');
   });
 
   it('offers what the collection has while no query is picked, and no fields', () => {
@@ -327,7 +338,7 @@ describe('the form’s blocks', () => {
   it('gives a locations query its location, searched by typing', () => {
     around.requestUrl = 'https://opendata.fmi.fi/edr/collections/ecmwf/locations';
     const html = form(FMI, 'locations');
-    expect(blockIds(html)).toEqual(['query', 'location', 'datetime']);
+    expect(blockIds(html)).toEqual(['query', 'location', 'datetime', 'more']);
     expect(shown(field(html, 'location'))).toContain('Location location (path) 0 listed · optional');
     expect(html).toContain('placeholder="None: list them all, or type to search"');
   });
