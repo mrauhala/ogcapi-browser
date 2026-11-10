@@ -9,8 +9,8 @@ export function findingPath({ path, message }: ValidationError): string | undefi
   if (!path) return path;
   const shared = message.slice(0, Math.max(message.indexOf(':'), 0)).split('/');
   const own = path.split('/');
-  const matches = shared.includes('*') && shared.length === own.length
-    && shared.every((segment, index) => segment === own[index] || (segment === '*' && own[index] !== '' && [...own[index]].every(digit => digit >= '0' && digit <= '9')));
+  const isIndex = (segment: string) => segment !== '' && [...segment].every(digit => digit >= '0' && digit <= '9');
+  const matches = shared.length === own.length && shared.every((segment, index) => segment === own[index] || (segment === '*' && isIndex(own[index])));
   return matches ? shared.join('/') : path;
 }
 

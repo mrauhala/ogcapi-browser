@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { validateLocationsResponse } from './locationsValidator';
+import { locationsSchemaName, locationsSchemaRuleOf, validateLocationsResponse } from './locationsValidator';
 import { EDR11, EDR12 } from '../standards';
 import meteogate from './__fixtures__/meteogate-nl-daily-locations.json';
 
@@ -10,6 +10,19 @@ beforeAll(() => {
   vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join('public', url), 'utf8')));
 });
 afterAll(() => vi.unstubAllGlobals());
+
+describe('the schema’s name and rule', () => {
+  it('names each version’s schema, and finds its rule by that name only', () => {
+    expect(locationsSchemaName('1.2')).toBe('EDR 1.2 Locations');
+    expect(locationsSchemaRuleOf('EDR 1.2 Locations')).toBe(EDR12.edrGeojsonContent);
+    // EDR 1.0's text isn't cited
+    expect(locationsSchemaRuleOf('EDR 1.0 Locations')).toBe(EDR11.edrGeojsonContent);
+    // Another schema's name, though it has a version in it, isn't a locations schema's
+    expect(locationsSchemaRuleOf('CoverageJSON 1.0')).toBeUndefined();
+    expect(locationsSchemaRuleOf('EDR 1.2 Locations FeatureCollection')).toBeUndefined();
+    expect(locationsSchemaRuleOf(null)).toBeUndefined();
+  });
+});
 
 describe('validateLocationsResponse', () => {
   it('reports a property missing from every feature once, with how many features lack it (Meteogate)', async () => {

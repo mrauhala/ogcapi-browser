@@ -72,6 +72,8 @@ describe('ResponseChecks', () => {
     // An item's place has to be an index for a * to stand for it
     expect(findingPath({ path: '/features/a/properties', message: '/features/*/properties: x' })).toBe('/features/a/properties');
     expect(findingPath({ path: '/features/0', message: '/features/*/properties: x' })).toBe('/features/0');
+    expect(findingPath({ path: '/features/0/properties', message: '/features/*: x' })).toBe('/features/0/properties');
+    expect(findingPath({ path: '/features//properties', message: '/features/*/properties: x' })).toBe('/features//properties');
     expect(findingPath({ path: '/features/0/properties', message: 'no path here' })).toBe('/features/0/properties');
     expect(findingPath(FINDING)).toBe('/ranges/t');
     expect(findingPath({ message: '/features/*/properties: x' })).toBeUndefined();
