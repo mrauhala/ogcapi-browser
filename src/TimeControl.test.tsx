@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import TimeControl from './TimeControl';
 import { NO_TIME_LABEL } from './hooks/useTimeControl';
 import type { Temporal } from './types/api';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
+import { words } from './coverage/cellsTestData';
+
+// The loaded API's conformance, which says which EDR version a rule is cited in: none, so 1.1
+vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ conformsTo: null, apiUrl: 'https://a.example/edr' }) }));
 
 const TIMES: Temporal = { values: ['2026-11-05T00:00:00Z', '2026-11-05T06:00:00Z', '2026-11-05T12:00:00Z'] } as Temporal;
 const NON_GREGORIAN: Temporal = { interval: [['2026-11-01T00:00:00Z', '2026-11-05T00:00:00Z']], trs: 'datetime' } as Temporal;
@@ -46,5 +50,15 @@ describe('TimeControl', () => {
   it('offers the same with the date picker', () => {
     expect(render(NON_GREGORIAN)).not.toContain('Clear time');
     expect(render(NON_GREGORIAN, { selectedDatetime: '2026-11-02T00:00:00Z' })).toContain('Clear time');
+  });
+
+  // EDR's informative Annex C: trs "defaults to Gregorian, but other temporal systems can be supported". Another isn't
+  // "non-standard"
+  it('notes another temporal reference system, citing what EDR says of it', () => {
+    const html = render(NON_GREGORIAN);
+    expect(words(html)).toContain('The temporal reference system is datetime, not Gregorian, so times are picked by date and time. EDR 1.1 Annex C.7 (informative)');
+    expect(html).toContain('MuiAlert-colorInfo');
+    expect(html).not.toContain('Non-standard');
+    expect(render(TIMES)).not.toContain('temporal reference system');
   });
 });

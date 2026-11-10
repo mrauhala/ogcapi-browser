@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import { alpha, type Theme } from '@mui/material/styles';
 import type { Requirement } from '../query/fieldSpecs';
 import type { QueryIssue } from '../query/types';
+import RuleLinks from '../RuleLinks';
 
 // Text from the field specs, with `backticks` shown as code
 export const Said: React.FC<{ text: string }> = ({ text }) => (
@@ -87,7 +88,8 @@ const ParamField: React.FC<ParamFieldProps> = ({
         )}
         {issues.map(issue => (
           <Box key={issue.id} sx={{ ...SMALL, mt: 0.5, display: 'flex', gap: 0.75, alignItems: 'flex-start', color: COLOUR[issue.severity] }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>{issue.message}</Box>
+            {/* The rule it rests on, as Checks cites it */}
+            <Box sx={{ flex: 1, minWidth: 0 }}>{issue.message}{issue.rule && <RuleLinks rule={issue.rule} />}</Box>
             {issue.source === 'openapi' && (
               <Chip label="API docs" size="small" variant="outlined"
                 onClick={issue.pointer && openDocs ? () => openDocs(issue.pointer!) : undefined}

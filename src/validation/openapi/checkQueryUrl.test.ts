@@ -4,6 +4,7 @@ import { buildOperationIndex } from './operationIndex';
 import { parseServiceDescription } from './loadServiceDescription';
 import { fixtureCollections, fixtureText, SERVERS, type ServerName } from './__fixtures__/servers';
 import { normalizeHref } from '../../utils/href';
+import { COMMON1, OAS } from '../../standards';
 
 const DOC = {
   openapi: '3.0.3',
@@ -48,9 +49,10 @@ describe('checkQueryUrlAgainstOpenApi', () => {
     });
   });
 
+  // Common Part 1: "Parameter names and values SHALL be case sensitive", so another case is another value, as one not listed
   it('checks values against enums, telling a case difference from a wrong value', () => {
     expect(brief(`${POSITION}&f=CSV`)).toEqual(["warning f: The API docs don't list CSV for f (they list CoverageJSON, GeoJSON)"]);
-    expect(brief(`${POSITION}&f=coveragejson`)).toEqual(['info f: The API docs write f coveragejson as CoverageJSON']);
+    expect(brief(`${POSITION}&f=coveragejson`)).toEqual(['warning f: The API docs write f coveragejson as CoverageJSON, and values are case sensitive']);
   });
 
   it('reads comma lists and repeated keys', () => {
@@ -69,8 +71,11 @@ describe('checkQueryUrlAgainstOpenApi', () => {
       .toEqual(['warning path:collectionId: The API docs don\'t list "radar" for collectionId (they list obs, model)']);
   });
 
-  it('notes parameters the document does not declare, in one note', () => {
-    expect(brief(`${POSITION}&foo=1&bar=2&foo=3`)).toEqual(["info query: The API docs don't declare foo, bar: the server may ignore them"]);
+  // Common Part 1: "The server SHALL return a response with the status code 400 IF the request URI includes a query
+  // parameter that is not specified in the API definition", unless it tolerates them
+  it('makes one issue of parameters the document does not declare', () => {
+    expect(brief(`${POSITION}&foo=1&bar=2&foo=3`)).toEqual(["warning query: The API docs don't declare foo, bar: a server answers 400 for those, unless it ignores unknown parameters"]);
+    expect(brief(`${POSITION}&foo=1`)).toEqual(["warning query: The API docs don't declare foo: a server answers 400 for that, unless it ignores unknown parameters"]);
     expect(check(`${POSITION}&foo=1`).issues[0].pointer).toBe('/paths/~1collections~1{collectionId}~1position/get');
     // An exploded object parameter takes any key
     expect(brief('https://example.org/edr/collections/obs/items?foo=1')).toEqual([]);
@@ -80,6 +85,18 @@ describe('checkQueryUrlAgainstOpenApi', () => {
     const result = check('https://example.org/edr/collections/obs/cube?bbox=1,2,3,4');
     expect(result.operation).toBeNull();
     expect(brief('https://example.org/edr/collections/obs/cube?bbox=1,2,3,4')).toEqual(["warning query: The API docs don't describe this request"]);
+  });
+
+  // No standard asks a request to fit the docs, and Common Part 1 asks no API definition to list everything: each is an
+  // issue, citing what it rests on
+  it('cites the rule each rests on', () => {
+    const rules = (url: string) => Object.fromEntries(check(url).issues.map(issue => [issue.id, issue.rule]));
+    expect(rules('https://example.org/edr/collections/obs/position?f=GeoJSON')).toEqual({ 'openapi:coords:required': OAS.parameterRequired });
+    expect(rules(`${POSITION}&f=CSV`)).toEqual({ 'openapi:f:enum': COMMON1.notEverything });
+    expect(rules(`${POSITION}&f=coveragejson`)).toEqual({ 'openapi:f:enum-case': COMMON1.caseSensitive });
+    expect(rules(`${POSITION}&foo=1`)).toEqual({ 'openapi:query:undeclared': COMMON1.unknownParameter });
+    expect(rules('https://example.org/edr/collections/radar/position?coords=POINT(25 60)')).toEqual({ 'openapi:path:collectionId:enum': COMMON1.notEverything });
+    expect(rules('https://example.org/edr/collections/obs/cube?bbox=1,2,3,4')).toEqual({ 'openapi:query:no-operation': COMMON1.notEverything });
   });
 });
 
@@ -117,7 +134,7 @@ describe('checkQueryUrlAgainstOpenApi on the real servers', () => {
     expect(metoffice.brief(`${position}&parameter-name=dd,rain`)).toEqual(['warning parameter-name']);
     expect(metoffice.brief(`${position}&datetime=2026-10-05T12:00:00Z`)).toEqual([]);
     expect(metoffice.brief(`${metoffice.href('pop_density', 'position')}?coords=POINT(-2 52)&datetime=2026-10-05T12:00:00Z`))
-      .toEqual(['info query']);
+      .toEqual(['warning query']);
     expect(metoffice.brief(`${metoffice.href('moukv-height-levels', 'position')}?coords=POINT(-2 52)`)).toEqual(['warning query']);
     // ...which the document describes per instance
     const instancePosition = 'https://labs.metoffice.gov.uk/edr/collections/moukv-height-levels/instances/2022070912/position';

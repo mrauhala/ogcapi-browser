@@ -33,7 +33,8 @@ const ParamText: React.FC<{
   const before = useRef<string | null>(null);
   const undoing = useRef(false);
   const typed = paramOf(requestUrl, name) ?? '';
-  // In the line but not in what the form builds: the form couldn't read it, so it's sent as typed
+  // In the line but not in what the form builds: the form couldn't read it, so it's sent as typed. That's what the form
+  // can read, and says nothing of whether the value is right: a note, not an issue
   const unread = !focused && !noted && typed.trim() !== '' && paramOf(collectionUrl, name) === null;
 
   const commit = () => {
@@ -73,12 +74,12 @@ const ParamText: React.FC<{
         }}
         sx={{
           ...(width !== undefined ? { width } : {}),
-          ...((unread || warning) && !error ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' } } : {}),
+          ...(warning && !error ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' } } : {}),
         }}
         slotProps={{ htmlInput: { 'aria-label': name, spellCheck: false, autoComplete: 'off', sx: VALUE_SX } }}
       />
       {unread && (
-        <Typography component="div" sx={{ fontSize: 12, lineHeight: '16px', mt: 0.5, color: 'warning.main' }}>
+        <Typography component="div" sx={{ fontSize: 12, lineHeight: '16px', mt: 0.5, color: 'text.secondary' }}>
           The form can&apos;t read this. It&apos;s sent as typed
         </Typography>
       )}

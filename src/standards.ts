@@ -148,6 +148,29 @@ export const EDR11 = {
   // A: "If the datetime parameter is provided, only resources that have a temporal geometry that intersects the
   // temporal information in the datetime parameter SHALL be part of the result set."
   datetimeResponse: edr11('/req/core/datetime-response A', '_59cff66f-5182-e0b2-50c6-d3e40a6cc844'),
+  // D: "The temporal information is either a date-time or a time interval. The parameter value SHALL conform to the
+  // following syntax (using ABNF): interval-closed = date-time "/" date-time · interval-open-start = "../" date-time ·
+  // interval-open-end = date-time "/.." …". E: "The syntax of date-time is specified by RFC 3339, 5.6."
+  datetimeSyntax: edr11('/req/core/datetime-response D', '_68e9ebb5-7396-47ba-56ef-9e997bb18b2b'),
+  datetimeRfc3339: edr11('/req/core/datetime-response E', '_160e82cf-e82b-7144-0ab2-845cf6bf460d'),
+  // How z is written, each with no keyword: B "The z can be defined as a height range by specifying a min-level and
+  // max-level separated by a forward slash "/"", C "A list of z can be defined be specifying a comma delimited list of
+  // values level1, level2, level3 etc", D "An Arithmetic sequence using Recurring height intervals can be specified by
+  // Rnumber of intervals/min height/height interval"
+  zRange: edr11('/req/edr/z-response B', '_669d718f-5b33-59c8-8dfe-ff13a2f33626'),
+  zList: edr11('/req/edr/z-response C', '_7ea1afab-2a7f-5ee9-e5b7-1ed348c53b9a'),
+  zRepeating: edr11('/req/edr/z-response D', '_83dbb348-3297-b631-47fd-1d8b4020c79e'),
+  // A bbox: D "The bounding box is provided as four or six numbers …: Lower left corner, coordinate axis 1 · Lower left
+  // corner, coordinate axis 2 · … · Upper right corner, coordinate axis 1 · …", with no keyword; H "The coordinate values
+  // SHALL be within the extent specified for the coordinate reference system."
+  bboxCorners: edr11('/req/core/rc-bbox-response D', '_a7d3f6b2-979a-bd3d-9939-20add7d27bc2'),
+  bboxWithinCrs: edr11('/req/core/rc-bbox-response H', '_e7214197-a2aa-929a-cd1c-3581afe32967'),
+  // B: "The coordinates SHALL consist of a Well Known Text (WKT) POLYGON or (if supported by the collection)
+  // MULTIPOLYGON geometry string."
+  polygonCoords: edr11('/req/edr/polygon-coords-response B', '_5065ab1c-19d9-dd77-3718-5d3f019330ae'),
+  // B: "The crs parameter SHALL consist of an identifier selected from the enumerated list of valid values supplied in
+  // the collections metadata."
+  crsResponseB: edr11('/req/edr/REQ_rc-crs-response B', '_1a07dd12-933c-b6ed-87c1-28f097cf121b'),
   // A: "If the z parameter is provided, only resources that have a vertical geometry that intersects the vertical
   // information in the z parameter SHALL be part of the result set." E: "If the z parameter is not provided, the server
   // SHOULD return data at all available vertical levels"
@@ -217,6 +240,10 @@ export const EDR11 = {
   corridorHeight: edr11('/req/edr/rc-corridor H', '_fdcd499d-7441-c077-6504-0257462bd7c8'),
   corridorWidthUnits: edr11('/req/edr/rc-corridor J', '_58017117-57f4-fe3a-c03d-683d6a43c4f2'),
   corridorHeightUnits: edr11('/req/edr/rc-corridor M', '_3f6fca65-ce13-3910-328a-13ff8fce1cc2'),
+  // L, O: "If the width-units [height-units] query parameter value is not one of the supported values a HTTP 400 error
+  // should be generated"
+  corridorWidthUnitsUnsupported: edr11('/req/edr/rc-corridor L', '_44ede6eb-f916-c610-117f-1ccef8744dbb'),
+  corridorHeightUnitsUnsupported: edr11('/req/edr/rc-corridor O', '_534096a2-9648-0fd3-4483-e0fbc640579f'),
 };
 
 export const EDR12 = {
@@ -260,6 +287,22 @@ export const EDR12 = {
   parameterLabel: edr12('/req/edr/rc-parameters D', '_59f2d7e2-242f-8571-ec80-543153e1f2fd', 'B.26'),
   parameterUnit: edr12('/req/edr/rc-parameters G', '_5047a43b-0afc-3b92-6bab-228999e4d7ae', 'B.26'),
   datetimeResponse: edr12('/req/core/datetime-response A', '_fab3a148-185f-b720-f07c-2b384ea2ba73', 'B.53'),
+  // As 1.1's D and E, the syntax adding a repeating interval and a list of date-times
+  datetimeSyntax: edr12('/req/core/datetime-response D', '_70039415-8dad-3ec7-c08a-249b635c0558', 'B.53'),
+  datetimeRfc3339: edr12('/req/core/datetime-response E', '_9b0d745e-98a2-e78b-d0f2-3af2d156c1c1', 'B.53'),
+  // As 1.1's B, C and D, now C "The z MAY be defined as a height range …", D "A list of z MAY be defined …", E "An
+  // Arithmetic sequence using Recurring height intervals MAY be specified …"
+  zRange: edr12('/req/edr/z-response C', '_6832ca68-9704-30de-e88d-1fa63aa3cda4', 'B.55'),
+  zList: edr12('/req/edr/z-response D', '_dfce0c58-3e4d-faba-b702-6e5157c62802', 'B.55'),
+  zRepeating: edr12('/req/edr/z-response E', '_d469b061-34f8-54a8-0e27-ebde94cbc0e1', 'B.55'),
+  // As 1.1's
+  bboxCorners: edr12('/req/core/rc-bbox-response D', '_36d917d1-0470-60d4-8ba1-ab0f0a8bb9df', 'B.143'),
+  bboxWithinCrs: edr12('/req/core/rc-bbox-response H', '_a760316a-4ac1-9edf-dcb6-2cda63d85590', 'B.143'),
+  polygonCoords: edr12('/req/edr/polygon-coords-response B', '_218be6fb-1f05-ab62-9655-af5648b46f67'),
+  crsResponseB: edr12('/req/edr/REQ_rc-crs-response B', '_d2a10b07-8915-9c3d-224f-bf3f5d6aacfe'),
+  // A: "The operation SHALL support a parameter limit with the following characteristics …", its fragment "type:
+  // integer / minimum: 1 / maximum: 10000 / default: 10". Linked to the fragment. 1.1 has no limit
+  limitDefinition: edr12('/req/edr/rc-limit-definition A', '_ce8f259f-ce1a-2bc4-4f4e-cb620db1ed2c', 'B.62'),
   // A, new: "If the z parameter is provided and a vertical extent is not defined in a collection, the z value SHALL be
   // ignored". B and F say what 1.1's A and E do
   zIgnored: edr12('/req/edr/z-response A', '_ab1fb9fa-774a-ac74-efe7-4e5804c0ab43', 'B.55'),
@@ -306,6 +349,9 @@ export const EDR12 = {
   corridorHeight: edr12('/req/edr/rc-corridor G', '_3d8916ab-6378-1e70-dfee-c60a5c2799d7', 'B.112'),
   corridorWidthUnits: edr12('/req/edr/rc-corridor I', '_dd7889dd-0cc8-cfd0-8c28-a3f6def9022e', 'B.112'),
   corridorHeightUnits: edr12('/req/edr/rc-corridor L', '_e456bdfa-5010-05cb-95b2-1578b0afaa0d', 'B.112'),
+  // K, N: as 1.1's L and O, "… a HTTP 400 error SHOULD be generated"
+  corridorWidthUnitsUnsupported: edr12('/req/edr/rc-corridor K', '_e98e127e-f6a0-ed77-3a1c-7dc9e75f70c1', 'B.112'),
+  corridorHeightUnitsUnsupported: edr12('/req/edr/rc-corridor N', '_714e7636-d5f4-4c35-ba3c-995d17e4c425', 'B.112'),
 };
 
 // An EDR rule as both versions word it, for Checks to cite the one the API declares. A version without one cites none
@@ -335,6 +381,18 @@ export const EDR = {
   collectionOutputFormats: both(EDR11.collectionInfoJ, EDR12.collectionInfoK),
   collectionParameterNames: both(EDR11.collectionInfoK, EDR12.collectionInfoL),
   datetimeResponse: both(EDR11.datetimeResponse, EDR12.datetimeResponse),
+  datetimeSyntax: both(EDR11.datetimeSyntax, EDR12.datetimeSyntax),
+  datetimeRfc3339: both(EDR11.datetimeRfc3339, EDR12.datetimeRfc3339),
+  zRange: both(EDR11.zRange, EDR12.zRange),
+  zList: both(EDR11.zList, EDR12.zList),
+  zRepeating: both(EDR11.zRepeating, EDR12.zRepeating),
+  bboxCorners: both(EDR11.bboxCorners, EDR12.bboxCorners),
+  bboxWithinCrs: both(EDR11.bboxWithinCrs, EDR12.bboxWithinCrs),
+  polygonCoords: both(EDR11.polygonCoords, EDR12.polygonCoords),
+  crsResponseB: both(EDR11.crsResponseB, EDR12.crsResponseB),
+  limitDefinition: both(undefined, EDR12.limitDefinition),
+  corridorWidthUnitsUnsupported: both(EDR11.corridorWidthUnitsUnsupported, EDR12.corridorWidthUnitsUnsupported),
+  corridorHeightUnitsUnsupported: both(EDR11.corridorHeightUnitsUnsupported, EDR12.corridorHeightUnitsUnsupported),
   zResponse: both(EDR11.zResponse, EDR12.zResponse),
   zIgnored: both(undefined, EDR12.zIgnored),
   zAllLevels: both(EDR11.zAllLevels, EDR12.zAllLevels),
@@ -389,6 +447,11 @@ export const COMMON1 = {
   conformanceSuccessB: common1('/req/landing-page/conformance-success B', '_1419e71c-6dac-65d3-46f1-8caead08cafb'),
   // A: "Parameter names and values SHALL be case sensitive."
   caseSensitive: common1('/req/core/query-param-capitalization A', '_48554098-bbeb-a114-43e1-ea1340770228'),
+  // A: "The server SHALL return a response with the status code 400 IF · the request URI includes a query parameter that
+  // is not specified in the API definition · /per/core/query-param-name-specified does not apply, and ·
+  // /per/core/query-param-name-tolerance does not apply." The latter: "Servers MAY display tolerance for requests with
+  // incorrect query parameter names", such as "Ignore unknown/unrecognized parameters"
+  unknownParameter: common1('/req/core/query-param-name-unknown A', '_e5765c7a-dfcd-59aa-9c61-ddb071d20944'),
   // Informative: "there is no requirement for the API definition to list every endpoint for which there is a non-404
   // behavior, for it to list every possible query parameter that might affect the behavior of an endpoint, or for it to
   // list every possible value that each query parameter might accept."
@@ -414,12 +477,19 @@ export const FEATURES1 = {
   conformanceSuccessB: features1('/req/core/conformance-success B', 'req_core_conformance-success'),
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema collections.yaml."
   collectionsSuccessB: features1('/req/core/fc-md-success B', 'req_core_fc-md-success'),
+  // The informative text after the requirement: "In case of a degenerated bounding box, the resulting geometry is used.
+  // For example, if the lower left corner is the same as the upper right corner, all features match where the geometry
+  // intersects with this point." and "in cases where the box spans the anti-meridian the first value (west-most box
+  // edge) is larger than the third value (east-most box edge)."
+  bboxResponse: features1('/req/core/fc-bbox-response, its notes', 'req_core_fc-bbox-response'),
 };
 
 // ---- OpenAPI 3.0.3 and BCP 47 ----
 export const OAS = {
   // "The path is appended to the URL from the Server Object in order to construct the full URL."
   paths: { label: 'OpenAPI 3.0.3 §4.7.8', url: 'https://spec.openapis.org/oas/v3.0.3.html#paths-object' } as Rule,
+  // A Parameter Object's required: "Determines whether this parameter is mandatory."
+  parameterRequired: { label: 'OpenAPI 3.0.3 §4.7.12, required', url: 'https://spec.openapis.org/oas/v3.0.3.html#parameterRequired' } as Rule,
 };
 export const RFC = {
   // "A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range

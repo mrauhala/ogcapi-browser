@@ -38,13 +38,18 @@ describe('ParamText', () => {
     expect(words(html)).toBe('');
   });
 
-  it('says when the form can’t read what was typed, which is sent as it is', () => {
+  // What the form can read says nothing of whether the value is right: a note, not an issue's orange
+  it('notes when the form can’t read what was typed, which is sent as it is', () => {
     around.requestUrl = `${BASE}?coords=POINT(abc)`;
     around.collectionUrl = BASE;
     const html = render();
     expect(html).toContain('value="POINT(abc)"');
     expect(words(html)).toBe("The form can't read this. It's sent as typed");
-    expect(count(html, ORANGE_OUTLINE)).toBeGreaterThan(0);
+    expect(count(html, ORANGE_OUTLINE)).toBe(0);
+    expect(html).toContain('color:rgba(0, 0, 0, 0.6)');
+    expect(html).not.toContain('color:#ed6c02');
+    // A field with an issue of its own keeps its orange
+    expect(count(render({ warning: true }), ORANGE_OUTLINE)).toBeGreaterThan(0);
   });
 
   it('leaves it to the field’s own issues where it has some', () => {
