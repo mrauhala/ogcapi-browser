@@ -331,6 +331,8 @@ const COMMON_1 = 'https://docs.ogc.org/is/19-072/19-072.html';
 const common1 = (requirement: string, anchor: string): Rule => ({ label: `Common 1 ${requirement}`, url: `${COMMON_1}#${anchor}` });
 
 export const COMMON1 = {
+  // A: "The server SHALL support the HTTP GET operation on the URI {root}/"
+  rootOpA: common1('/req/landing-page/root-op A', '_6fb8dd73-5b9d-ed6a-7d7f-69a66a8020aa'),
   // B: "The content of that response SHALL be based upon the schema landingPage.yaml and include links to the following
   // resources: API Definition (relation type ‘service-desc’ or ‘service-doc’) · Conformance Declaration (relation type
   // ‘http://www.opengis.net/def/rel/ogc/1.0/conformance’)"

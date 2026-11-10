@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import axios from 'axios';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { getCollections } from './client';
+import { getCollections, landingUrlOf } from './client';
 import { COMMON1, EDR, EDR11, EDR12, FEATURES1 } from '../standards';
 import meteogate from './__fixtures__/meteogate-climate.json';
 
@@ -22,17 +22,21 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => vi.restoreAllMocks());
 
+// The recorded responses with the landing page at {root}/, where the client asks first
+const atRoot = (responses: Responses, root: string): Responses =>
+  Object.fromEntries(Object.entries(responses).map(([url, body]) => [url === `${root}?f=json` ? `${root}/?f=json` : url, body]));
+
 const titles = (errors: { title?: string; severity?: string }[] | null | undefined) =>
   (errors ?? []).map(error => `${error.severity ?? 'error'}: ${error.title}`);
 
 describe('getCollections', () => {
   it('uses a conformance link misfiled as data, and the collections from /collections (Meteogate)', async () => {
-    const get = serve(meteogate as Responses);
+    const get = serve(atRoot(meteogate as Responses, MG));
     const result = await getCollections(MG);
 
     expect(result.collections.map(collection => collection.id)).toEqual(['nl-daily']);
     // The conformance declaration is fetched once, as conformance, not tried as a collections list
-    expect(get.mock.calls.map(([url]) => url)).toEqual([`${MG}?f=json`, `${MG}/conformance?f=json`, `${MG}/collections?f=json`]);
+    expect(get.mock.calls.map(([url]) => url)).toEqual([`${MG}/?f=json`, `${MG}/conformance?f=json`, `${MG}/collections?f=json`]);
 
     const problems = titles(result.validation.errors);
     expect(problems).toContain('warning: Conformance Linked as Data');
@@ -70,7 +74,7 @@ describe('getCollections', () => {
 
   it('moves on from a data link that answers without a collections list', async () => {
     const landing = { links: [{ rel: 'data', href: `${MG}/other` }, { rel: 'data', href: `${MG}/collections` }] };
-    serve({ [`${MG}?f=json`]: landing, [`${MG}/other?f=json`]: { hello: 'world' }, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
+    serve({ [`${MG}/?f=json`]: landing, [`${MG}/other?f=json`]: { hello: 'world' }, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
     const result = await getCollections(MG);
 
     expect(result.collections.map(collection => collection.id)).toEqual(['nl-daily']);
@@ -80,7 +84,7 @@ describe('getCollections', () => {
   });
 
   it('says so when no data link gives a collections list', async () => {
-    serve({ [`${MG}?f=json`]: { links: [{ rel: 'data', href: `${MG}/other` }] }, [`${MG}/other?f=json`]: { hello: 'world' } });
+    serve({ [`${MG}/?f=json`]: { links: [{ rel: 'data', href: `${MG}/other` }] }, [`${MG}/other?f=json`]: { hello: 'world' } });
     const result = await getCollections(MG);
 
     expect(result.collections).toEqual([]);
@@ -106,10 +110,49 @@ describe('getCollections', () => {
     const result = await getCollections(MG);
     expect(result.validation.errors?.find(error => error.title === 'Conformance Not Found')?.rule).toBe(EDR.conformanceSuccessA);
   });
+
+  it("asks for the landing page at {root}/, as OGC API Common has it, and from there on as before", async () => {
+    // KNMI answers 404 at https://geoservices.knmi.nl/edr and 200 at …/edr/, which a link's root, worked out without
+    // the slash, missed
+    const get = serve(atRoot(meteogate as Responses, MG));
+    const result = await getCollections(MG);
+    expect(get.mock.calls[0][0]).toBe(`${MG}/?f=json`);
+    expect(result.landingPageUrl).toBe(`${MG}/?f=json`);
+    expect(titles(result.validation.errors)).not.toContain('warning: Landing Page Not at {root}/');
+  });
+
+  it('reads it from the root as given when {root}/ answers 404, and says so', async () => {
+    const get = serve(meteogate as Responses);
+    const result = await getCollections(MG);
+    expect(result.collections.map(collection => collection.id)).toEqual(['nl-daily']);
+    expect(get.mock.calls.map(([url]) => url).slice(0, 2)).toEqual([`${MG}/?f=json`, `${MG}?f=json`]);
+    expect(result.landingPageUrl).toBe(`${MG}?f=json`);
+    const warning = result.validation.errors?.find(error => error.title === 'Landing Page Not at {root}/');
+    expect(warning?.severity).toBe('warning');
+    expect(warning?.message).toBe(`${MG}/?f=json answered 404, so the landing page was read from ${MG}?f=json. OGC API Common puts it at {root}/, with the slash.`);
+    expect(warning?.rule).toEqual(COMMON1.rootOpA);
+  });
+
+  it('asks once for a root that ends in a slash', async () => {
+    const get = serve({});
+    await getCollections(`${MG}/`);
+    expect(get.mock.calls.map(([url]) => url)).toEqual([`${MG}/?f=json`]);
+  });
+});
+
+describe('landingUrlOf', () => {
+  it('is {root}/ with f=json, or the root as given, keeping what the root asks with', () => {
+    expect(landingUrlOf('https://geoservices.knmi.nl/edr', true)).toBe('https://geoservices.knmi.nl/edr/?f=json');
+    expect(landingUrlOf('https://geoservices.knmi.nl/edr', false)).toBe('https://geoservices.knmi.nl/edr?f=json');
+    expect(landingUrlOf('https://geoservices.knmi.nl/edr/', true)).toBe('https://geoservices.knmi.nl/edr/?f=json');
+    expect(landingUrlOf('https://api.test/edr?f=html&key=1', true)).toBe('https://api.test/edr/?f=html&key=1');
+    expect(landingUrlOf('https://api.test', true)).toBe(landingUrlOf('https://api.test', false));
+  });
 });
 
 describe('getCollections when a request fails', () => {
-  const LANDING = `${MG}?f=json`;
+  // The first request goes to {root}/; only a 404 there is tried again without the slash
+  const LANDING = `${MG}/?f=json`;
   const COLLECTIONS = `${MG}/collections?f=json`;
 
   // The landing page answers unless it is the URL that fails; the failing URL throws like axios does
@@ -173,7 +216,7 @@ describe('getCollections when a request fails', () => {
       ],
     };
     const responses = {
-      [`${API}?f=json`]: LANDING,
+      [`${API}/?f=json`]: LANDING,
       [`${API}/conformance?f=json`]: { conformsTo: ['a', 'b'] },
       [`${API}/collections?f=json`]: { links: [], collections: [{ id: 'one', links: [], extent: {} }] },
     };
@@ -181,7 +224,7 @@ describe('getCollections when a request fails', () => {
     it('keeps each answer, with the URL as asked for', async () => {
       serve(responses);
       const { captured } = await getCollections(API);
-      expect(captured?.landingPage?.url).toBe(`${API}?f=json`);
+      expect(captured?.landingPage?.url).toBe(`${API}/?f=json`);
       expect(captured?.landingPage?.response?.status).toBe(200);
       expect(captured?.conformance?.url).toBe(`${API}/conformance?f=json`);
       expect(captured?.collections?.url).toBe(`${API}/collections?f=json`);
@@ -206,7 +249,7 @@ describe('getCollections when a request fails', () => {
     });
 
     it('keeps what came back from a failed conformance request, and carries on', async () => {
-      serve({ [`${API}?f=json`]: LANDING, [`${API}/collections?f=json`]: responses[`${API}/collections?f=json`] });
+      serve({ [`${API}/?f=json`]: LANDING, [`${API}/collections?f=json`]: responses[`${API}/collections?f=json`] });
       const { captured, collections } = await getCollections(API);
       expect(captured?.conformance?.response?.status).toBe(404);
       expect(captured?.collections?.response?.status).toBe(200);
@@ -214,7 +257,7 @@ describe('getCollections when a request fails', () => {
     });
 
     it('keeps what it got when the load fails at the list', async () => {
-      serve({ [`${API}?f=json`]: LANDING, [`${API}/conformance?f=json`]: { conformsTo: ['a'] } });
+      serve({ [`${API}/?f=json`]: LANDING, [`${API}/conformance?f=json`]: { conformsTo: ['a'] } });
       const { captured, collections } = await getCollections(API);
       expect(collections).toEqual([]);
       expect(captured?.landingPage?.response?.status).toBe(200);
@@ -222,18 +265,19 @@ describe('getCollections when a request fails', () => {
     });
 
     it('still says what conformance declares when the load fails at the list', async () => {
-      serve({ [`${API}?f=json`]: LANDING, [`${API}/conformance?f=json`]: { conformsTo: ['a'] } });
+      serve({ [`${API}/?f=json`]: LANDING, [`${API}/conformance?f=json`]: { conformsTo: ['a'] } });
       const { conformsTo } = await getCollections(API);
       expect(conformsTo).toEqual(['a']);
     });
 
-    it('keeps what it got when the load fails at the landing page, and asks for nothing more', async () => {
+    it('keeps what it got when the load fails at the landing page, at {root}/ and then as given, and asks for nothing more', async () => {
       const get = serve({});
       const { captured } = await getCollections(API);
+      expect(captured?.landingPage?.url).toBe(`${API}?f=json`);
       expect(captured?.landingPage?.response?.status).toBe(404);
       expect(captured?.conformance).toBeUndefined();
       expect(captured?.collections).toBeUndefined();
-      expect(get).toHaveBeenCalledTimes(1);
+      expect(get.mock.calls.map(([url]) => url)).toEqual([`${API}/?f=json`, `${API}?f=json`]);
     });
 
     it('says when no response came', async () => {
@@ -246,7 +290,7 @@ describe('getCollections when a request fails', () => {
     it('keeps the answer it used, with several links to try', async () => {
       const second = `${API}/second`;
       serve({
-        [`${API}?f=json`]: { links: [...LANDING.links, { href: second, rel: 'data', type: 'application/json' }] },
+        [`${API}/?f=json`]: { links: [...LANDING.links, { href: second, rel: 'data', type: 'application/json' }] },
         [`${API}/conformance?f=json`]: { conformsTo: [] },
         [`${API}/collections?f=json`]: { nothing: 'here' },
         [`${second}?f=json`]: { links: [], collections: [{ id: 'one', links: [], extent: {} }] },
@@ -259,7 +303,7 @@ describe('getCollections when a request fails', () => {
     it('keeps the first answer when none has a list, as it does for the validation', async () => {
       const second = `${API}/second`;
       serve({
-        [`${API}?f=json`]: { links: [...LANDING.links, { href: second, rel: 'data', type: 'application/json' }] },
+        [`${API}/?f=json`]: { links: [...LANDING.links, { href: second, rel: 'data', type: 'application/json' }] },
         [`${API}/conformance?f=json`]: { conformsTo: [] },
         [`${API}/collections?f=json`]: { first: true },
         [`${second}?f=json`]: { second: true },
