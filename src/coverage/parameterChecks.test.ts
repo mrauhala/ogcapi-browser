@@ -28,7 +28,7 @@ describe('parameterFindings: the KNMI response', () => {
   it('finds its four faults, each once', () => {
     expect(found.map(each => [each.severity, each.message])).toEqual([
       ['error', 'air_temperature_pl\'s label has the language "en:", and likewise for 1 more parameter. That isn\'t a language tag, such as "en"'],
-      ['warning', 'air_temperature_pl\'s unit type is http://www.opengis.net/def/uom/UCUM, and likewise for 1 more parameter. For UCUM it must be http://www.opengis.net/def/uom/UCUM/'],
+      ['error', 'air_temperature_pl\'s unit type is http://www.opengis.net/def/uom/UCUM, and likewise for 1 more parameter. For UCUM it must be http://www.opengis.net/def/uom/UCUM/'],
       ['warning', 'air_temperature_pl\'s unit is "C" in UCUM. That\'s the coulomb. Degrees Celsius is "Cel"'],
       ['warning', 'relative_humidity_pl\'s unit is "-" in UCUM. That isn\'t a UCUM code. UCUM writes no unit as "1"'],
     ]);
@@ -74,10 +74,11 @@ describe('parameterFindings: unit types', () => {
     });
   });
 
-  it('calls any other spelling of UCUM an issue', () => {
+  // ""type" MUST HAVE the value "http://www.opengis.net/def/uom/UCUM/" if UCUM is used"
+  it('calls any other spelling of UCUM an error', () => {
     for (const type of ['http://www.opengis.net/def/uom/UCUM', 'https://www.opengis.net/def/uom/UCUM', 'http://www.opengis.net/def/uom/ucum/']) {
       const [found] = findings(coverage({ t: parameter({ unit: ucum('K', type) }) }));
-      expect(found.severity, type).toBe('warning');
+      expect(found.severity, type).toBe('error');
       expect(found.message, type).toBe(`t's unit type is ${type}. For UCUM it must be http://www.opengis.net/def/uom/UCUM/`);
     }
   });
@@ -147,11 +148,12 @@ describe('parameterFindings: labels', () => {
     expect(findings(coverage({ t: parameter({ label: { en: 'Temperature at 2 m', 'en-GB': 'Temperature at 2 m', und: 'T2m' } }) }))).toEqual([]);
   });
 
-  it('notes a label the same as its observed property’s, as FMI sends them', () => {
+  // "Note that this SHOULD be left out if it would be identical to the "label" of the "observedProperty" member."
+  it('makes an issue of a label the same as its observed property’s, as FMI sends them', () => {
     const found = findings(fmi);
     expect(found[0]).toEqual({
-      severity: 'info',
-      message: 'geopheight\'s label repeats its observed property\'s, and likewise for 3 more parameters. CoverageJSON says to leave it out then',
+      severity: 'warning',
+      message: 'geopheight\'s label repeats its observed property\'s, and likewise for 3 more parameters. CoverageJSON says it should be left out then',
       path: '/parameters/geopheight/label',
       rule: COVJSON.label,
     });

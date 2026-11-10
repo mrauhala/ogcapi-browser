@@ -18,13 +18,13 @@ import { useValidation } from './contexts/ValidationContext';
 import { useOpenApi } from './contexts/OpenApiContext';
 import type { EndpointUrls, RawResponses } from './contexts/ValidationContext';
 import type { ValidationError } from './DataRetrievalAPI';
-import { isProblem, problemCount } from './validation/severity';
+import { isAppFault, isProblem, problemCount } from './validation/severity';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
 
 // Rendering tens of thousands of errors froze the popover (a 10 MB locations response)
 const MAX_ITEMS_PER_GROUP = 100;
 
-function SectionStatus({ label, validation, loading, countSectionErrors }: {
+export function SectionStatus({ label, validation, loading, countSectionErrors }: {
   label: string;
   validation?: { isValid: boolean; errors: ValidationError[] | null; schemaResults?: Array<{ schema: string; isValid: boolean }> };
   loading?: boolean;
@@ -40,17 +40,23 @@ function SectionStatus({ label, validation, loading, countSectionErrors }: {
     );
   }
 
-  const errorCount = validation.errors?.filter(e => e.type !== 'cors' && e.type !== 'network'
+  // The app's own faults aren't the server's, so they aren't counted. With nothing else wrong, one means the section
+  // wasn't checked, such as a schema that didn't load
+  const errorCount = validation.errors?.filter(e => !isAppFault(e) && e.type !== 'cors' && e.type !== 'network'
     && (countSectionErrors ? isProblem(e) : !e.section)).length ?? 0;
+  const unchecked = validation.isValid && (validation.errors?.some(isAppFault) ?? false);
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      {validation.isValid ? (
+      {unchecked ? (
+        <RemoveCircleOutlineIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+      ) : validation.isValid ? (
         <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
       ) : (
         <ErrorIcon sx={{ fontSize: 18, color: 'warning.main' }} />
       )}
       <Typography variant="body2" sx={{ flex: 1 }}>{label}</Typography>
+      {unchecked && <Typography variant="caption" sx={{ color: 'text.secondary' }}>not checked</Typography>}
       {errorCount > 0 && (
         <Typography variant="caption" sx={{ color: 'text.secondary' }}>
           {errorCount} {countSectionErrors ? 'issue' : 'error'}{errorCount === 1 ? '' : 's'}
@@ -58,6 +64,18 @@ function SectionStatus({ label, validation, loading, countSectionErrors }: {
       )}
     </Box>
   );
+}
+
+// What kind a finding is, where it isn't an error: the app's own notice, then the server's classes by the names Checks
+// gives them
+export function FindingChip({ error }: { error: ValidationError }) {
+  const chip = { size: 'small', variant: 'outlined', sx: { fontSize: '0.6rem', height: 16 } } as const;
+  if (isAppFault(error)) return <Chip label="the app's" {...chip} />;
+  if (!error.severity || error.severity === 'error') return null;
+  const { label, color } = error.severity === 'warning' ? { label: 'issue', color: 'warning' } as const
+    : error.severity === 'pass' ? { label: 'pass', color: 'success' } as const
+      : { label: 'note', color: 'info' } as const;
+  return <Chip label={label} color={color} {...chip} />;
 }
 
 function getUrlForSection(section: string | undefined, urls: EndpointUrls): string | undefined {
@@ -302,15 +320,7 @@ const ValidationPopover: React.FC = () => {
                               </Box>
                             )}
                             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, flexWrap: 'wrap' }}>
-                              {error.severity && error.severity !== 'error' && (
-                                <Chip
-                                  label={error.severity === 'warning' ? 'warning' : 'note'}
-                                  size="small"
-                                  color={error.severity === 'warning' ? 'warning' : 'info'}
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.6rem', height: 16 }}
-                                />
-                              )}
+                              <FindingChip error={error} />
                               {error.keyword && (
                                 <Chip label={error.keyword} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />
                               )}

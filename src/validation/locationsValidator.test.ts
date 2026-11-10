@@ -163,3 +163,20 @@ describe('validateLocationsResponse', () => {
     expect(await validateLocationsResponse(response, edrGeojson('1.1'))).toEqual({ isValid: true, errors: [] });
   });
 });
+
+describe('validateLocationsResponse: a schema the app couldn’t load', () => {
+  // A fresh module, whose schemas aren't compiled yet, and nothing to fetch them from
+  it('is the app’s own fault: the list isn’t checked, and nothing counts against the server', async () => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', async () => new Response('', { status: 404 }));
+    try {
+      const fresh = await import('./locationsValidator');
+      expect(await fresh.validateLocationsResponse({ type: 'FeatureCollection', features: [] }, GEOJSON)).toEqual({
+        isValid: true,
+        errors: [{ message: `Failed to load schema: ${GEOJSON.name}`, type: 'schema', section: 'Locations', severity: 'info', source: 'app' }],
+      });
+    } finally {
+      vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join('public', url), 'utf8')));
+    }
+  });
+});

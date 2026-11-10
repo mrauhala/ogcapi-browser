@@ -7,7 +7,9 @@ import CheckIcon from '@mui/icons-material/Check';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import { checksCount } from './responseTabs';
+import { isAppFault } from './validation/severity';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
 import { useCitedEdr } from './hooks/useCitedEdr';
 import { findingMessage, findingPath } from './findingText';
@@ -22,6 +24,8 @@ const SEVERITY_ICON = {
   info: <InfoOutlinedIcon fontSize="inherit" color="info" aria-label="Note" />,
   pass: <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />,
 };
+// The app's own notice, such as a schema it couldn't load: not a finding about the server
+const APP_ICON = <BuildOutlinedIcon fontSize="inherit" color="action" aria-label="The app’s own notice" />;
 const WORST_FIRST = ['error', 'warning', 'info', 'pass'] as const;
 // A finding about the data, and its line in Raw if it's about something there
 type DataNote = { message: string; line?: number; severity?: ValidationError['severity']; source?: ValidationError['source']; rule?: ValidationError['rule'] };
@@ -104,7 +108,10 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
     );
   }
 
-  const count = checksCount(findings);
+  // A fault in the app, such as a schema it couldn't load, is said apart and counts for nothing against the server
+  const appNotices = findings.filter(isAppFault);
+  const serverFindings = findings.filter(finding => !isAppFault(finding));
+  const count = checksCount(serverFindings);
   const hasFormat = Boolean(schemaName) || findings.length > 0 || formatNotes.length > 0;
   const noteItem = (note: DataNote) => (
     <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
@@ -118,8 +125,8 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
       {hasFormat && <Heading>The format</Heading>}
       <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
         {schemaName && (
-          <Item icon={count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
-            {schemaName} schema: {count ? count.label : '0 errors'}
+          <Item icon={appNotices.length > 0 ? APP_ICON : count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
+            {schemaName} schema: {appNotices.length > 0 ? 'not checked' : count ? count.label : '0 errors'}
             <RuleLinks rule={schemaRule} edr={edr} />
             {checkedAs && (
               <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
@@ -128,8 +135,16 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
             )}
           </Item>
         )}
+        {appNotices.map(notice => (
+          <Item key={notice.message} icon={APP_ICON}>
+            {notice.message}
+            <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
+              A fault in the app, not in the response: not counted against the server
+            </Box>
+          </Item>
+        ))}
         {worstFirst(formatNotes).map(noteItem)}
-        {findings.slice(0, MOST_SHOWN).map((finding, index) => {
+        {serverFindings.slice(0, MOST_SHOWN).map((finding, index) => {
           const lineIndex = lines.findIndex(entry => entry.errors.includes(finding));
           return (
             <Item
@@ -146,9 +161,9 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
           );
         })}
       </Box>
-      {findings.length > MOST_SHOWN && (
+      {serverFindings.length > MOST_SHOWN && (
         <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mt: 1 }}>
-          And {findings.length - MOST_SHOWN} more, flagged in Raw.
+          And {serverFindings.length - MOST_SHOWN} more, flagged in Raw.
         </Typography>
       )}
       {[

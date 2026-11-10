@@ -3,6 +3,7 @@ import addFormats from 'ajv-formats';
 import { COMMON1, EDR11, EDR12, FEATURES1 } from './standards';
 import type { ValidationError } from './types/api';
 import { publicUrl } from './utils/publicUrl';
+import { appFault, isProblem } from './validation/severity';
 
 // Schema type definitions
 type SchemaType = 'edr-p1-v1.0' | 'edr-p1-v1.1' | 'edr-p1-v1.2' | 'features-p1-v1.0' | 'features-p2-v1.0' | 'common-p1-v1.0' | 'common-p2-v1.0' | 'records-p1-v1.0' | 'maps-p1-v1.0';
@@ -130,6 +131,41 @@ interface ValidatorSet {
   conformance?: any;
 }
 
+// EDR 1.2's text against OGC's schema for a data query's variables, which requires all of these. The text,
+// /req/edr/rc-common-variables: B "A variables property MAY include a title property of type string", C "… MAY include
+// an output_formats property which SHALL be a string array", D "… SHOULD include a default_output_format property of
+// type string", F "… MAY include a crs_details property which SHALL be an array of objects", and nothing of a
+// description. The text is followed over the schema: a MAY left out is a note, a SHOULD left out an issue
+const VARIABLES_PATH = /^\/collections\/\d+\/data_queries\/[^/]+\/link\/variables$/;
+const VARIABLES_TEXT: Record<string, { severity: 'info' | 'warning'; says: string; rule?: ValidationError['rule'] }> = {
+  title: { severity: 'info', says: 'EDR 1.2 says a variables property MAY include one, where its schema requires it', rule: EDR12.variablesTitle },
+  output_formats: { severity: 'info', says: 'EDR 1.2 says a variables property MAY include one, where its schema requires it', rule: EDR12.variablesOutputFormats },
+  default_output_format: { severity: 'warning', says: 'EDR 1.2 says a variables property SHOULD include one', rule: EDR12.variablesDefaultOutputFormat },
+  crs_details: { severity: 'info', says: 'EDR 1.2 says a variables property MAY include one, where its schema requires it', rule: EDR12.variablesCrsDetails },
+  description: { severity: 'info', says: "EDR 1.2's text doesn't ask for one, where its schema requires it" },
+};
+
+// A schema's finding, with the schema it's of
+type Found = ValidationError & { schemaType?: SchemaType };
+
+// A schema error as the text rates it. Only EDR 1.2's collections schema asks more than its text
+function asTheTextSays(error: Found, schemaType: SchemaType): Found {
+  if (schemaType !== 'edr-p1-v1.2' || error.keyword !== 'required' || !VARIABLES_PATH.test(error.path ?? '')) return error;
+  const missing = error.params?.missingProperty;
+  const text = typeof missing === 'string' && Object.prototype.hasOwnProperty.call(VARIABLES_TEXT, missing) ? VARIABLES_TEXT[missing] : null;
+  if (!text) return error;
+  return { ...error, severity: text.severity, message: `${error.path}: no ${missing}. ${text.says}`, ...(text.rule ? { rule: text.rule } : {}) };
+}
+
+// A schema the API doesn't declare, used because it declares none the app has: its findings rest on a standard the
+// server doesn't claim, so none is an error. Each is an issue, for the server to declare its classes or fix, and the
+// schema's name says so
+const UNDECLARED = ' (not declared: assumed)';
+const asUndeclared = (error: Found): Found => (isProblem(error) ? { ...error, severity: 'warning' } : error);
+
+// What the app says when it couldn't check at all: its own fault, not counted against the server
+const NOTHING_LOADED = () => ({ valid: true, errors: [appFault('No schemas loaded. Validation skipped.')] });
+
 interface SchemaSet {
   collections?: any;
   landingPage?: any;
@@ -142,6 +178,8 @@ export class SchemaValidator {
   private loadedSchemas: Map<SchemaType, SchemaSet> = new Map();
   private validators: Map<SchemaType, ValidatorSet> = new Map();
   private schemaLoadError: string | null = null;
+  // Whether the schemas loaded are a default, the API declaring none the app has
+  private assumed = false;
   private ajv: Ajv;
 
   private constructor() {
@@ -161,6 +199,21 @@ export class SchemaValidator {
     return SchemaValidator.instance;
   }
 
+  // The name a schema's results go under, which says when the API doesn't declare it
+  private nameOf(displayName: string): string {
+    return this.assumed ? `${displayName}${UNDECLARED}` : displayName;
+  }
+
+  // A schema's finding, which is no error where the API doesn't declare the schema
+  private rated(error: Found): Found {
+    return this.assumed ? asUndeclared(error) : error;
+  }
+
+  // A validator that threw: the app's own fault, which leaves the schema unchecked
+  private couldNotCheck(displayName: string, error: unknown, extra: Pick<Found, 'schemaType'> = {}): Found {
+    return { ...extra, ...appFault(`${displayName} could not be checked: ${error instanceof Error ? error.message : 'unknown error'}`, { schema: displayName }) };
+  }
+
   /**
    * Detect and load all schemas that match the conformance classes
    * Clears previously loaded schemas to ensure only matching schemas are used
@@ -171,6 +224,7 @@ export class SchemaValidator {
       // Clear existing schemas before loading default
       this.loadedSchemas.clear();
       this.validators.clear();
+      this.assumed = true;
       return this.loadSingleSchema('edr-p1-v1.1');
     }
 
@@ -190,6 +244,7 @@ export class SchemaValidator {
       // Clear existing schemas before loading default
       this.loadedSchemas.clear();
       this.validators.clear();
+      this.assumed = true;
       return this.loadSingleSchema('edr-p1-v1.1');
     }
 
@@ -197,6 +252,7 @@ export class SchemaValidator {
     console.log(`🧹 Clearing previously loaded schemas...`);
     this.loadedSchemas.clear();
     this.validators.clear();
+    this.assumed = false;
 
     // Load all matching schemas
     console.log(`📥 Loading ${matchingSchemas.length} schema(s)...`);
@@ -303,12 +359,7 @@ export class SchemaValidator {
     collectionErrors?: { [collectionId: string]: any[] };
     schemaResults?: Array<{ schema: string; isValid: boolean }>;
   }> {
-    if (this.validators.size === 0) {
-      return {
-        valid: true,
-        errors: [{ message: 'No schemas loaded. Validation skipped.' }]
-      };
-    }
+    if (this.validators.size === 0) return NOTHING_LOADED();
 
     console.log(`\n🔍 Validating collections against ${this.validators.size} schema(s)...`);
     const schemaNames = Array.from(this.validators.keys()).map(type => {
@@ -338,37 +389,39 @@ export class SchemaValidator {
       }
 
       const config = SCHEMA_CONFIGS.find(c => c.type === schemaType);
-      const displayName = config?.displayName || schemaType;
+      const displayName = this.nameOf(config?.displayName || schemaType);
 
       try {
-        const isValid = validatorSet.collections(data);
-        
+        const passed = validatorSet.collections(data);
+        // As its standard's text rates each, and none an error where the API doesn't declare the schema
+        const errors = passed || !validatorSet.collections.errors ? [] : validatorSet.collections.errors.map((error: any) => this.rated(asTheTextSays({
+          schema: displayName,
+          schemaType: schemaType,
+          section: 'Collections',
+          path: error.instancePath || error.dataPath || 'root',
+          message: `${error.instancePath || error.dataPath || ''}: ${error.message}`,
+          keyword: error.keyword,
+          params: error.params,
+          data: error.data,
+          ...(config?.rules?.collections ? { rule: config.rules.collections } : {}),
+        }, schemaType)));
+        // Valid where nothing found counts against the server: a MAY the schema requires doesn't
+        const isValid = !errors.some(isProblem);
+
         // Record this schema's result
         schemaResults.push({
           schema: displayName,
           isValid: isValid
         });
-        
-        if (isValid) {
+
+        if (passed) {
           console.log(`   ✅ ${displayName}: Valid`);
         } else {
           console.warn(`   ❌ ${displayName}: Validation FAILED`);
-          overallValid = false;
-          
+          if (!isValid) overallValid = false;
+
           // Add schema-specific errors
-          if (validatorSet.collections.errors) {
-            const errors = validatorSet.collections.errors.map((error: any) => ({
-              schema: displayName,
-              schemaType: schemaType,
-              section: 'Collections',
-              path: error.instancePath || error.dataPath || 'root',
-              message: `${error.instancePath || error.dataPath || ''}: ${error.message}`,
-              keyword: error.keyword,
-              params: error.params,
-              data: error.data,
-              ...(config?.rules?.collections ? { rule: config.rules.collections } : {}),
-            }));
-            
+          if (errors.length > 0) {
             // Group errors by collection and tag each error with collectionId
             errors.forEach((err: any) => {
               // Parse path to extract collection index: /collections/0/... or /collections/1/...
@@ -399,17 +452,9 @@ export class SchemaValidator {
           }
         }
       } catch (error) {
+        // The app's own fault: the schema wasn't checked, and that says nothing of the server
         console.error(`   ❌ ${displayName}: Validation error:`, error);
-        overallValid = false;
-        schemaResults.push({
-          schema: displayName,
-          isValid: false
-        });
-        allErrors.push({
-          schema: displayName,
-          schemaType: schemaType,
-          message: error instanceof Error ? error.message : 'Unknown validation error'
-        });
+        allErrors.push(this.couldNotCheck(displayName, error, { schemaType }));
       }
     });
 
@@ -435,15 +480,10 @@ export class SchemaValidator {
     errors: any[] | null;
     schemaResults?: Array<{ schema: string; isValid: boolean }>;
   }> {
-    if (this.validators.size === 0) {
-      return {
-        valid: true,
-        errors: [{ message: 'No schemas loaded. Validation skipped.' }]
-      };
-    }
+    if (this.validators.size === 0) return NOTHING_LOADED();
 
     console.log(`🔍 Validating landing page against ${this.validators.size} schema(s)...`);
-    
+
     let overallValid = true;
     const allErrors: any[] = [];
     const schemaResults: Array<{ schema: string; isValid: boolean }> = [];
@@ -454,7 +494,7 @@ export class SchemaValidator {
       }
 
       const config = SCHEMA_CONFIGS.find(c => c.type === schemaType);
-      const displayName = config?.displayName || schemaType;
+      const displayName = this.nameOf(config?.displayName || schemaType);
 
       try {
         const isValid = validatorSet.landingPage(data);
@@ -472,7 +512,7 @@ export class SchemaValidator {
           overallValid = false;
           
           if (validatorSet.landingPage.errors) {
-            const errors = validatorSet.landingPage.errors.map((error: any) => ({
+            const errors = validatorSet.landingPage.errors.map((error: any) => this.rated({
               schema: displayName,
               section: 'Landing Page',
               path: error.instancePath || error.dataPath || 'root',
@@ -486,16 +526,9 @@ export class SchemaValidator {
           }
         }
       } catch (error) {
+        // The app's own fault: the schema wasn't checked, and that says nothing of the server
         console.error(`   ❌ ${displayName}: Validation error:`, error);
-        overallValid = false;
-        schemaResults.push({
-          schema: displayName,
-          isValid: false
-        });
-        allErrors.push({
-          schema: displayName,
-          message: error instanceof Error ? error.message : 'Unknown validation error'
-        });
+        allErrors.push(this.couldNotCheck(displayName, error));
       }
     });
 
@@ -514,15 +547,10 @@ export class SchemaValidator {
     errors: any[] | null;
     schemaResults?: Array<{ schema: string; isValid: boolean }>;
   }> {
-    if (this.validators.size === 0) {
-      return {
-        valid: true,
-        errors: [{ message: 'No schemas loaded. Validation skipped.' }]
-      };
-    }
+    if (this.validators.size === 0) return NOTHING_LOADED();
 
     console.log(`🔍 Validating conformance against ${this.validators.size} schema(s)...`);
-    
+
     let overallValid = true;
     const allErrors: any[] = [];
     const schemaResults: Array<{ schema: string; isValid: boolean }> = [];
@@ -533,7 +561,7 @@ export class SchemaValidator {
       }
 
       const config = SCHEMA_CONFIGS.find(c => c.type === schemaType);
-      const displayName = config?.displayName || schemaType;
+      const displayName = this.nameOf(config?.displayName || schemaType);
 
       try {
         const isValid = validatorSet.conformance(data);
@@ -551,7 +579,7 @@ export class SchemaValidator {
           overallValid = false;
           
           if (validatorSet.conformance.errors) {
-            const errors = validatorSet.conformance.errors.map((error: any) => ({
+            const errors = validatorSet.conformance.errors.map((error: any) => this.rated({
               schema: displayName,
               section: 'Conformance',
               path: error.instancePath || error.dataPath || 'root',
@@ -565,16 +593,9 @@ export class SchemaValidator {
           }
         }
       } catch (error) {
+        // The app's own fault: the schema wasn't checked, and that says nothing of the server
         console.error(`   ❌ ${displayName}: Validation error:`, error);
-        overallValid = false;
-        schemaResults.push({
-          schema: displayName,
-          isValid: false
-        });
-        allErrors.push({
-          schema: displayName,
-          message: error instanceof Error ? error.message : 'Unknown validation error'
-        });
+        allErrors.push(this.couldNotCheck(displayName, error));
       }
     });
 

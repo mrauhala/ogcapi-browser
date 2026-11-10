@@ -1,4 +1,5 @@
 import type { ValidationError } from './types/api';
+import { isAppFault } from './validation/severity';
 
 export type ResponseTab = 'data' | 'raw' | 'headers' | 'sizes' | 'checks';
 
@@ -26,10 +27,12 @@ const WORST_FIRST = [
   { severity: 'info', noun: 'note', color: 'info' },
 ] as const;
 
-// What the Checks tab says on it: how many of the worst kind of finding there are
-export function checksCount(findings: Pick<ValidationError, 'severity'>[]): { label: string; color: 'error' | 'warning' | 'info' } | null {
+// What the Checks tab says on it: how many of the worst kind of finding there are. The app's own faults aren't the
+// server's, so they aren't counted
+export function checksCount(findings: Pick<ValidationError, 'severity' | 'source'>[]): { label: string; color: 'error' | 'warning' | 'info' } | null {
+  const server = findings.filter(finding => !isAppFault(finding));
   for (const { severity, noun, color } of WORST_FIRST) {
-    const count = findings.filter(finding => (finding.severity ?? 'error') === severity).length;
+    const count = server.filter(finding => (finding.severity ?? 'error') === severity).length;
     if (count > 0) return { label: `${count} ${noun}${count === 1 ? '' : 's'}`, color };
   }
   return null;

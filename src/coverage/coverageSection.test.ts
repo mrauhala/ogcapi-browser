@@ -302,11 +302,11 @@ describe('toSection: what it says of z, as a profile does', () => {
     ]);
   });
 
-  it('says where z is referenced to a CRS with no vertical axis', () => {
+  it('makes an error of z referenced to a CRS with no vertical axis, and says where', () => {
     const json = copy(mcRadarFikorZ);
     const referencing = (json.domain as { referencing: { coordinates: string[]; system: unknown }[] }).referencing;
     referencing.find(entry => entry.coordinates.includes('z'))!.system = { type: 'GeographicCRS', id: 'http://www.opengis.net/def/crs/OGC/1.3/CRS84' };
-    expect(zOf(sectionOf(json))).toContainEqual({ message: 'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis', path: '/domain/referencing', severity: 'warning', rule: COVJSON.spatialReferenced });
+    expect(zOf(sectionOf(json))).toContainEqual({ message: 'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis', path: '/domain/referencing', severity: 'error', rule: [COVJSON.spatialReferenced, COVJSON.referencedAxes] });
   });
 
   it('says nothing of z where there’s none', () => {
@@ -361,14 +361,15 @@ describe('toSection: notes on the levels and values', () => {
     expect(pathNotes(section)).toEqual([{ message: 'windspeedms is null at every position on 2 levels: 50, 200 hPa', path: '/coverages/0/ranges/windspeedms/values/0', severity: 'info' }]);
   });
 
-  it('keeps the first of a value sent twice, and says how many were', () => {
+  // An issue, as a profile's and a grid's: the server's to fix, since a client can't tell which value is meant
+  it('keeps the first of a value sent twice, and makes an issue of how many were', () => {
     const json = copy(fmiEc2param);
     const again = copy(json.coverages[0]);
     again.ranges.temperature.values = [1, 2, 3];
     json.coverages.push(again);
     const section = sectionOf(json);
-    expect(messages(section)).toEqual(['6 values are sent again for a position, level and time already sent. The first is used']);
-    expect(pathNotes(section)[0].path).toBe('/coverages/3/ranges/temperature/values/0');
+    expect(messages(section)).toEqual([]);
+    expect(section.notes.filter(note => note.message.includes('sent again'))).toEqual([{ message: '6 values are sent again for a position, level and time already sent. The first is used', path: '/coverages/3/ranges/temperature/values/0', severity: 'warning' }]);
     expect(valueOf(section, 'temperature', 0, 500, 0)).toBe(-23.1);
     expect(section.parameters[0].count).toBe(9);
   });

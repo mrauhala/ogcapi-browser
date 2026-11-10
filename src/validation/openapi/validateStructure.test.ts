@@ -4,6 +4,7 @@ import { validateOpenApiStructure, type OasVersion } from './validateStructure';
 import { COMMON1, EDR } from '../../standards';
 import { parseServiceDescription } from './loadServiceDescription';
 import { fixtureText, SERVERS, type ServerName } from './__fixtures__/servers';
+import { isProblem } from '../severity';
 
 // The schemas as the app serves them (public/schemas/openapi, written by scripts/download-schemas.js)
 const loadSchema = async (version: OasVersion) =>
@@ -64,7 +65,9 @@ describe('validateOpenApiStructure', () => {
     const paths = Object.fromEntries(Array.from({ length: 205 }, (_, i) => [`/p${i}`, { [`x${i}`]: {} }]));
     const { errors } = await validateOpenApiStructure({ openapi: '3.1.0', info: { title: 'x', version: '1' }, paths }, loadSchema);
     expect(errors).toHaveLength(201);
-    expect(errors[200]).toMatchObject({ keyword: 'truncated', message: '+5 more errors not shown' });
+    // The app cut the list short: its own notice, not one more error of the server's
+    expect(errors[200]).toMatchObject({ keyword: 'truncated', message: '+5 more errors not shown', source: 'app', severity: 'info' });
+    expect(errors.filter(isProblem)).toHaveLength(200);
   });
 
   it('validates 3.0 documents with the draft-04 based schema', async () => {

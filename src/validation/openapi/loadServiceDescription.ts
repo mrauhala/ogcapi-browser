@@ -43,9 +43,16 @@ export class WebPageError extends Error {}
 // A description that parses as neither JSON nor YAML's object
 export class NotADocumentError extends Error {}
 
-// A description that can't be loaded is reported, but isn't a flaw in the document
+// A description that can't be loaded is reported, but isn't a flaw in the document. A 404 breaks EDR's
+// /req/core/api-definition-op A, "The server SHALL support the HTTP GET operation on all links from the landing page
+// which have the relation type service-desc", and its success A, a 200. A web page, or a text that's neither JSON nor
+// YAML, is the server's to fix, but no SHALL says so: EDR leaves the API definition's language to the server
+// ("Other API definition languages may be used along with, or instead of OpenAPI"), so its B, "The content of that
+// response SHALL be an API Definition document", isn't shown broken. Anything else, a network error or a 401, may not
+// be the server's at all
 export function unavailable(error: unknown): ValidationError {
   const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+  const notADocument = error instanceof WebPageError || error instanceof NotADocumentError;
   return {
     message: status
       ? `The API definition could not be loaded (HTTP ${status})`
@@ -53,12 +60,9 @@ export function unavailable(error: unknown): ValidationError {
     section: 'OpenAPI',
     schema: 'OpenAPI',
     keyword: 'unavailable',
-    // A missing document or a web page in its place is the server's problem; a network error may not be
-    severity: status === 404 || error instanceof WebPageError ? 'warning' : 'info',
-    type: status ? 'unknown' : 'network',
-    // EDR /req/core/api-definition-success A: "A successful execution of the operation SHALL be reported as a response
-    // with an HTTP status code 200", and B: "The content of that response SHALL be an API Definition document."
-    ...(status === 404 ? { rule: EDR.apiDefinitionSuccessA } : error instanceof WebPageError || error instanceof NotADocumentError ? { rule: EDR.apiDefinitionSuccessB } : {}),
+    severity: status === 404 ? 'error' : notADocument ? 'warning' : 'info',
+    type: status || notADocument ? 'unknown' : 'network',
+    ...(status === 404 ? { rule: EDR.apiDefinitionSuccessA } : notADocument ? { rule: EDR.apiDefinitionSuccessB } : {}),
   };
 }
 

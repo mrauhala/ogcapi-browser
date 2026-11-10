@@ -127,12 +127,13 @@ describe('timeFindings: numbers for times, and other calendars', () => {
   const UNIX = 'http://www.opengis.net/def/axis/OGC/0/UnixTime';
   const seconds = T.map(time => at(time) / 1000);
 
-  it('reads Unix time as seconds, and says the TemporalCRS is the 1.0.1 draft’s', () => {
+  // In 1.0 TemporalCRS is a custom type, which SHOULD be a URI: an issue. A draft defining it isn't a standard
+  it('reads Unix time as seconds, and makes an issue of the TemporalCRS, which only the 1.0.1 draft has', () => {
     const notes = findings(series(seconds, crs(UNIX)), { url: request(T[0] + '/' + T[2]) });
     expect(found(notes, /TemporalCRS/)).toEqual({
-      message: `t is referenced by a TemporalCRS (${UNIX}), with numbers for times: in the CoverageJSON 1.0.1 draft, not in 1.0. They are read as seconds since 1970-01-01T00:00:00Z`,
+      message: `t is referenced by a TemporalCRS (${UNIX}), with numbers for times. CoverageJSON 1.0 has no such type, and a type of one's own should be a URI; it's in the 1.0.1 draft. They are read as seconds since 1970-01-01T00:00:00Z`,
       path: '/domain/referencing/0/system',
-      severity: 'info',
+      severity: 'warning',
       rule: [COVJSON.temporalRsType, COVJSON.customValue],
     });
     expect(kinds(notes)[`Every time is inside the datetime asked for, ${T[0]}/${T[2]}`]).toBe('pass');
@@ -295,8 +296,9 @@ describe('timeFindings: against the collection', () => {
     expect(against({ interval: [[T[0], T[2]]] })).toEqual([{ message: `Every time is inside the collection's extent, ${T[0]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'pass', source: 'collection', rule: EDR.extent }]);
   });
 
-  it('makes an issue of times outside it', () => {
-    expect(against({ interval: [[T[1], T[2]]] })).toEqual([{ message: `t ${T[0]} is outside the collection's extent, ${T[1]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection', rule: EDR.extent }]);
+  // "the extent property, if provided, SHALL provide … time intervals that include all temporal geometries"
+  it('makes an error of times outside it', () => {
+    expect(against({ interval: [[T[1], T[2]]] })).toEqual([{ message: `t ${T[0]} is outside the collection's extent, ${T[1]} to ${T[2]}`, path: '/domain/axes/t/values/0', severity: 'error', source: 'collection', rule: EDR.extent }]);
     expect(messages(against({ interval: [[T[2], null]] }))).toEqual([`2 times are outside the collection's extent, from ${T[2]}: the first is ${T[0]}`]);
     expect(messages(against({ interval: [['..', T[0]]] }))).toEqual([`2 times are outside the collection's extent, to ${T[0]}: the first is ${T[1]}`]);
   });

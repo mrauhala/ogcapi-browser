@@ -5,6 +5,8 @@ import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
 import { findingMessage, findingPath } from './findingText';
 import type { ValidationError } from './types/api';
 import { COVJSON, EDR, EDR12 } from './standards';
+import { appFault } from './validation/severity';
+import { words } from './coverage/cellsTestData';
 
 // The loaded API's conformance, which says which EDR version is cited
 const api = vi.hoisted(() => ({ conformsTo: null as string[] | null, apiUrl: 'https://a.example/edr/' }));
@@ -307,6 +309,31 @@ describe('ResponseChecks', () => {
     expect(html).toContain('finding 99');
     expect(html).not.toContain('finding 100');
     expect(html).toContain('And 3 more');
+  });
+});
+
+describe('ResponseChecks: a fault in the app itself', () => {
+  const LOAD = appFault('Failed to load schema: CoverageJSON 1.0', { type: 'schema' });
+
+  it('says the schema wasn’t checked, and why, apart from what’s found of the response', () => {
+    const shown = words(render({ schemaName: 'CoverageJSON 1.0', findings: [LOAD] }));
+    expect(shown).toContain('CoverageJSON 1.0 schema: not checked');
+    expect(shown).toContain('Failed to load schema: CoverageJSON 1.0 A fault in the app, not in the response: not counted against the server');
+    expect(shown).not.toContain('0 errors');
+  });
+
+  it('marks it as the app’s, and as none of the server’s classes', () => {
+    const html = render({ schemaName: 'CoverageJSON 1.0', findings: [LOAD] });
+    expect(html.split('aria-label="The app’s own notice"').length - 1).toBe(2);
+    for (const label of ['Passed', 'Error', 'Issue', 'Note']) expect(html, label).not.toContain(`aria-label="${label}"`);
+  });
+
+  it('counts only the server’s findings beside it', () => {
+    const html = render({ schemaName: 'CoverageJSON 1.0', findings: [LOAD, FINDING] });
+    expect(words(html)).toContain('CoverageJSON 1.0 schema: not checked');
+    expect(html.split('aria-label="Error"').length - 1).toBe(1);
+    expect(renderToStaticMarkup(<ChecksTabLabel findings={[LOAD]} />)).toBe('<span>Checks</span>');
+    expect(renderToStaticMarkup(<ChecksTabLabel findings={[LOAD, FINDING]} />)).toContain('>1 error<');
   });
 });
 

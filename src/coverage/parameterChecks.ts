@@ -80,9 +80,11 @@ function labelFaults({ id, parameter, path }: Definition, faults: Fault[]) {
   if (badTag !== undefined) faults.push({ kind: 'label-tag', severity: 'error', message: `${id}'s label has the language "${badTag}"`, why: `That isn't a language tag, such as "en"`, path: at, rule: [COVJSON.i18n, COVJSON.conformance, RFC.languageTag] });
   const notText = Object.entries(label).find(([, text]) => typeof text !== 'string');
   if (notText) faults.push({ kind: 'label-text', severity: 'error', message: `${id}'s label in "${notText[0]}" isn't text`, path: `${at}/${pointerPart(notText[0])}`, rule: [COVJSON.i18n, COVJSON.conformance] });
+  // CoverageJSON 9.3: "Note that this SHOULD be left out if it would be identical to the "label" of the
+  // "observedProperty" member." A SHOULD, an issue
   const observed = isObject(parameter.observedProperty) ? parameter.observedProperty.label : undefined;
   if (isObject(observed) && sameText(label, observed)) {
-    faults.push({ kind: 'label-repeats', severity: 'info', message: `${id}'s label repeats its observed property's`, why: 'CoverageJSON says to leave it out then', path: at, rule: COVJSON.label });
+    faults.push({ kind: 'label-repeats', severity: 'warning', message: `${id}'s label repeats its observed property's`, why: 'CoverageJSON says it should be left out then', path: at, rule: COVJSON.label });
   }
 }
 
@@ -99,7 +101,9 @@ function unitFaults({ id, parameter, path }: Definition, faults: Fault[]) {
       why: `That's EDR 1.2's, for a collection's parameters. CoverageJSON's is ${UCUM}, so the two standards differ`,
     });
   } else if (type !== UCUM && LOOKS_LIKE_UCUM.test(type)) {
-    faults.push({ kind: 'ucum-spelling', severity: 'warning', message: `${id}'s unit type is ${type}`, why: `For UCUM it must be ${UCUM}`, path: `${at}/type`, rule: COVJSON.unit });
+    // CoverageJSON 9.3: ""type" MUST HAVE the value "http://www.opengis.net/def/uom/UCUM/" if UCUM is used", and this
+    // one means UCUM: an error
+    faults.push({ kind: 'ucum-spelling', severity: 'error', message: `${id}'s unit type is ${type}`, why: `For UCUM it must be ${UCUM}`, path: `${at}/type`, rule: COVJSON.unit });
   } else if (NAMES_A_UNIT.test(type)) {
     faults.push({
       // Where the standards differ: the MetOcean Common profile, a draft, has unit.symbol.type a QUDT unit's URI
@@ -110,6 +114,7 @@ function unitFaults({ id, parameter, path }: Definition, faults: Fault[]) {
   }
   if (!LOOKS_LIKE_UCUM.test(type) || typeof value !== 'string') return;
   const name = `${id} ${i18nText(parameter.label) ?? ''} ${isObject(parameter.observedProperty) ? i18nText(parameter.observedProperty.label) ?? '' : ''}`.toLowerCase();
+  // An issue: whether a code is UCUM's is UCUM's to say, and its text hasn't been read here
   const mixup = UCUM_MIXUPS.find(each => each.code === value && (!each.named || each.named.test(name)));
   if (mixup) faults.push({ kind: `ucum-${mixup.code}`, severity: 'warning', message: `${id}'s unit is "${value}" in UCUM`, why: mixup.says, path: `${at}/value`, rule: COVJSON.unit });
 }

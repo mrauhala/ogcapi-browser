@@ -27,10 +27,10 @@ const TemporalExtent: React.FC<TemporalExtentProps> = ({ temporal, collectionId,
     return subsection ?? "TEMPORAL EXTENT";
   };
 
-  // If no temporal extent, show appropriate message
+  // If no temporal extent, show appropriate message. It's optional, and the data may have no time: a note
   if (!temporal) {
     return (
-      <Alert severity="warning">
+      <Alert severity="info">
         <AlertTitle>{getAlertTitle()}</AlertTitle>
         No temporal extent information available for this collection. 
         The collection may not have time-dependent data or temporal metadata may be missing.

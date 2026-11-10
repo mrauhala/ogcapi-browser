@@ -4,6 +4,7 @@ import { withInheritedDomainType } from './coverage/inheritedDomainType';
 import { COVJSON, EDR } from './standards';
 import { ValidationError } from './types/api';
 import { condenseAjvErrors } from './validation/ajvErrors';
+import { appFault } from './validation/severity';
 import { locationsSchemaRuleOf } from './validation/locationsValidator';
 import { publicUrl } from './utils/publicUrl';
 
@@ -127,13 +128,13 @@ export class QueryResultValidator {
     }
 
     // Get or compile validator
+    // A schema the app couldn't load is the app's fault, which says nothing of the response
     const validator = await this.getValidator(schema);
     if (!validator) {
       return {
         matched: true,
         schemaName: schema.displayName,
-        valid: false,
-        errors: [{ message: `Failed to load schema: ${schema.displayName}`, type: 'schema' }],
+        errors: [appFault(`Failed to load schema: ${schema.displayName}`, { type: 'schema' })],
       };
     }
 

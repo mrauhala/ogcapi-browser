@@ -215,7 +215,7 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   }
   const notes: ValidationError[] = [];
   const note = (severity: ValidationError['severity'], message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, ...(rule ? { rule } : {}) });
-  const against = (severity: 'warning' | 'pass', message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, source: 'collection', ...(rule ? { rule } : {}) });
+  const against = (severity: 'error' | 'warning' | 'pass', message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, source: 'collection', ...(rule ? { rule } : {}) });
 
   // ---- How t is referenced, per coverage that has times ----
   const timed = [...new Set(times.map(time => time.coverage))];
@@ -252,10 +252,12 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   if (temporalCrs) {
     const unix = numericAt.has(timed.find(c => references.get(c) === temporalCrs)!);
     const id = typeof temporalCrs.system!.id === 'string' ? temporalCrs.system!.id : 'no id';
-    note('info', `t is referenced by a TemporalCRS (${id}), with numbers for times: in the CoverageJSON 1.0.1 draft, not in 1.0. ${unix
+    // CoverageJSON 9.5.2: "The only currently defined value of it is "TemporalRS"". In 1.0 any other is a custom type, and
+    // 9.7.2: "The custom value of those members SHOULD be either an absolute URI or a compact URI", which TemporalCRS
+    // isn't: a SHOULD, an issue. The 1.0.1 draft defines it, but a draft isn't a standard
+    note('warning', `t is referenced by a TemporalCRS (${id}), with numbers for times. CoverageJSON 1.0 has no such type, and a type of one's own should be a URI; it's in the 1.0.1 draft. ${unix
       ? 'They are read as seconds since 1970-01-01T00:00:00Z'
       : `This can't place them in time${comparing ? ', so they aren\'t checked against the datetime asked for or the collection\'s extent' : ''}`}`, temporalCrs.path,
-    // CoverageJSON 9.5.2: "The only currently defined value of it is "TemporalRS"", and 9.7.2 on custom values
     [COVJSON.temporalRsType, COVJSON.customValue]);
   }
   const otherCalendar = systems.find(reference => reference.system!.type === 'TemporalRS' && reference.system!.calendar !== 'Gregorian');
@@ -329,6 +331,8 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     else if (kind === 'Trajectory' || kind === 'Section') note('error', `A ${kind}'s points must follow the order of t, and ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, kind === 'Trajectory' ? COVJSON.trajectoryOrder : COVJSON.sectionOrder);
     else note('info', `The composite axis's points aren't in time order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path);
   }
+  // A time twice on one axis: whether "monotonically, that is, increasing or decreasing" allows a step of none isn't
+  // said, so no MUST is shown broken, but two values for one time are the server's to fix: an issue
   if (twice) note('warning', `t has ${shown(twice.raw)} twice`, twice.path);
 
   // ---- Against the datetime asked for, or what the server chose without one ----
@@ -356,12 +360,14 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   }
 
   // ---- Against the collection's temporal extent ----
+  // EDR /req/core/rc-extent A: "the extent property, if provided, SHALL provide … time intervals that include all
+  // temporal geometries in this collection". A time outside it breaks that, whichever of the two is wrong: an error
   const interval = extentInterval(context.temporal);
   if (interval) {
     const outside = distinct(read.filter(time => !meets(spans.get(time)!, interval.span)));
     if (outside.length) {
       const what = outside.length === 1 ? `t ${shown(outside[0].raw)} is` : `${plural(outside.length, 'time')} are`;
-      against('warning', `${what} outside the collection's extent, ${interval.text}${outside.length === 1 ? '' : `: the first is ${shown(outside[0].raw)}`}`, outside[0].path, EDR.extent);
+      against('error', `${what} outside the collection's extent, ${interval.text}${outside.length === 1 ? '' : `: the first is ${shown(outside[0].raw)}`}`, outside[0].path, EDR.extent);
     } else if (all) {
       against('pass', `Every time is inside the collection's extent, ${interval.text}`, read[0].path, EDR.extent);
     }

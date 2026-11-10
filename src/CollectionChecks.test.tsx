@@ -92,11 +92,20 @@ describe('CollectionChecks', () => {
     expect(render({ ...full, id: 'three' }, { ...VALID, collectionErrors: errors })).not.toContain('schema errors');
   });
 
-  it('flags a flat bounding box', () => {
+  // The collections "SHALL be based upon the schema collections.yaml", which has an array of boxes
+  it('makes an error of a flat bounding box', () => {
     const html = render({ ...full, extent: { spatial: { bbox: [20, 55, 30, 65], crs: 'CRS84' } } });
     expect(html).toContain('Legacy bbox format');
+    expect(severityOf(html, 'Legacy bbox format')).toBe('Error');
     expect(html).toContain('[20, 55, 30, 65]');
     expect(render(full)).not.toContain('Legacy bbox format');
+  });
+
+  // A temporal extent is optional, and the data may have no time
+  it('notes a collection without a temporal extent', () => {
+    const html = render(full);
+    expect(html).toContain('No temporal extent information available');
+    expect(severityOf(html, 'No temporal extent information available')).toBe('Info');
   });
 
   it('lists several bounding boxes', () => {

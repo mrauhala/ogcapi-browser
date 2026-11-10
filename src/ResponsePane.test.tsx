@@ -193,11 +193,11 @@ describe('ResponsePane', () => {
     expect(withOpen('a')).toContain('>1 issue<');
     expect(withOpen('b')).not.toMatch(/(note|issue)</);
     expect(withOpen('a')).toContain('1 point, 2 levels, 1 parameter');
-    // And the request's own levels: 777 was asked for, and didn't come
+    // And the request's own levels: 777 was asked for, and didn't come, which no rule asks for, so a note
     open.collection = { id: 'b' };
     try {
       const asked = render({ data: profile, contentType: 'application/prs.coverage+json', response: OK, url: 'https://api.example.com/collections/a/position?coords=POINT(1%202)&z=1000,850,777' });
-      expect(asked).toContain('>1 issue<');
+      expect(asked).toContain('>1 note<');
     } finally {
       open.collection = null;
     }
@@ -212,9 +212,9 @@ describe('ResponsePane', () => {
         open.collection = null;
       }
     };
-    // Both times are before the collection's extent
-    expect(withOpen('a')).toContain('>1 issue<');
-    expect(withOpen('b')).not.toContain('issue<');
+    // Both times are before the collection's extent, which SHALL include them
+    expect(withOpen('a')).toContain('>1 error<');
+    expect(withOpen('b')).not.toContain('error<');
   });
 
   it('adds what the data is worth noting to what the schema found', () => {

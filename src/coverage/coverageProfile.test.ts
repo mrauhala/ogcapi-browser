@@ -423,14 +423,15 @@ describe('coverageToProfile: what kind of finding each is', () => {
     expect(missing).toMatchObject({ severity: 'warning', source: 'collection', path: '/coverages/0/domain/axes/z/values' });
   });
 
-  it('makes an issue of a level asked for and not sent, and notes levels out of order', () => {
-    expect(kinds(profileOf(mcIfsAsked777, MC))["z=777 was asked for, and isn't in the response"]).toBe('warning');
+  // EDR only limits what's returned to what meets z, so a level asked for and not sent is a note, as on a path
+  it('notes a level asked for and not sent, and makes an error of levels out of order', () => {
+    expect(kinds(profileOf(mcIfsAsked777, MC))["z=777 was asked for, and isn't in the response"]).toBe('info');
     expect(messages(profileOf(mcIfsAsked777, MC)).some(message => /^Every level asked for/.test(message))).toBe(false);
     expect(kinds(profileOf(mcIfsZunsorted, MC))["Levels aren't in order: 500, 1000, 850"]).toBe('error');
     expect(profileOf(mcIfsZunsorted, MC).notes.find(note => note.message.startsWith("Levels aren't in order"))?.rule).toEqual(COVJSON.monotonic);
   });
 
-  it('makes an issue of z with nothing to go on, of a direction against the usual, and of a value sent twice', () => {
+  it('makes an issue of z with nothing to go on and of a value sent twice, and notes a direction against the usual', () => {
     const plain = { type: 'Coverage', domain: { axes: { x: { values: [1] }, y: { values: [2] }, z: { values: [10, 100] } } }, ranges: { v: { axisNames: ['z'], shape: [2], values: [1, 2] } } };
     expect(kinds(profileOf(plain))).toEqual({
       "z's direction isn't in the response, and nothing says what z is: assumed up": 'warning',
@@ -438,7 +439,8 @@ describe('coverageToProfile: what kind of finding each is', () => {
     });
     const json = copy(mcIfs1tAll);
     json.coverages[0].domain.referencing.find((entry: Json) => entry.coordinates.includes('z')).system.cs.csAxes[0].direction = 'up';
-    expect(kinds(profileOf(json))['z is pressure and says it runs up, against the usual']).toBe('warning');
+    // The response's own word, which may be right
+    expect(kinds(profileOf(json))['z is pressure and says it runs up, against the usual']).toBe('info');
     const twice = { type: 'CoverageCollection', coverages: [plain, plain] };
     expect(kinds(profileOf(twice))['2 values sent again for a level already sent. The first is used']).toBe('warning');
   });
@@ -531,16 +533,17 @@ describe('coverageToProfile: KNMI, a coverage per parameter', () => {
     expect(profile.parameters[1]).toMatchObject({ count: 2, nulls: 0 });
   });
 
-  it('makes an issue of levels one parameter was asked for and left out, and of z referenced to CRS84', () => {
+  // z referenced by a 2D CRS breaks CoverageJSON's MUSTs; a parameter without levels asked for breaks nothing
+  it('notes levels one parameter was asked for and left out, and makes an error of z referenced to CRS84', () => {
     const notes = Object.fromEntries(profileOf(knmiPl, KNMI).notes.map(note => [note.message, note.severity]));
     expect(notes).toMatchObject({
-      'relative_humidity_pl isn\'t at z=500, 700, which were asked for': 'warning',
-      'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis': 'warning',
+      'relative_humidity_pl isn\'t at z=500, 700, which were asked for': 'info',
+      'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis': 'error',
       "z's direction isn't in the response, and nothing says what z is: assumed up": 'warning',
       'Every level asked for is in the response: 500, 700, 850, 925': 'pass',
     });
     expect(Object.keys(notes).some(message => /vrs/.test(message))).toBe(false);
-    expect(profileOf(knmiPl, KNMI).notes.find(note => /CRS84/.test(note.message))).toMatchObject({ path: '/coverages/0/domain/referencing', rule: COVJSON.spatialReferenced });
+    expect(profileOf(knmiPl, KNMI).notes.find(note => /CRS84/.test(note.message))).toMatchObject({ path: '/coverages/0/domain/referencing', rule: [COVJSON.spatialReferenced, COVJSON.referencedAxes] });
   });
 
   it('only notes a parameter on fewer levels when nothing was asked, since that can be how it is', () => {

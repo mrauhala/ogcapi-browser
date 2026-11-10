@@ -38,10 +38,11 @@ describe('getCollections', () => {
     // The conformance declaration is fetched once, as conformance, not tried as a collections list
     expect(get.mock.calls.map(([url]) => url)).toEqual([`${MG}/?f=json`, `${MG}/conformance?f=json`, `${MG}/collections?f=json`]);
 
+    // No rel="conformance" link breaks root-success B, as no link at all does: an error, said once
     const problems = titles(result.validation.errors);
-    expect(problems).toContain('warning: Conformance Linked as Data');
+    expect(problems).toContain('error: Conformance Linked as Data');
     expect(problems).not.toContain('error: Conformance Link Missing');
-    expect(problems).not.toContain('warning: Multiple Data Links');
+    expect(problems.some(problem => problem.endsWith('Multiple Data Links'))).toBe(false);
     expect(result.validation.errors?.find(error => error.title === 'Conformance Linked as Data')?.message)
       .toBe(`The landing page links its conformance declaration (${MG}/conformance) as rel="data" and has no rel="conformance" link. It was used as the conformance link.`);
     expect(result.validation.conformanceValidation?.isValid).toBe(true);
@@ -78,8 +79,9 @@ describe('getCollections', () => {
     const result = await getCollections(MG);
 
     expect(result.collections.map(collection => collection.id)).toEqual(['nl-daily']);
+    // The landing page links "at least" /collections as data, so more break nothing: a note of what the app did
     const multiple = result.validation.errors?.find(error => error.title === 'Multiple Data Links');
-    expect(multiple?.severity).toBe('warning');
+    expect(multiple?.severity).toBe('info');
     expect(multiple?.message).toContain(`The collections came from ${MG}/collections.`);
   });
 
@@ -118,19 +120,44 @@ describe('getCollections', () => {
     const result = await getCollections(MG);
     expect(get.mock.calls[0][0]).toBe(`${MG}/?f=json`);
     expect(result.landingPageUrl).toBe(`${MG}/?f=json`);
-    expect(titles(result.validation.errors)).not.toContain('warning: Landing Page Not at {root}/');
+    expect(titles(result.validation.errors).some(title => title.endsWith('Landing Page Not at {root}/'))).toBe(false);
   });
 
-  it('reads it from the root as given when {root}/ answers 404, and says so', async () => {
+  // EDR's and Features' /req/core/root-op A, "The server SHALL support the HTTP GET operation at the path /", and
+  // Common's, on "the URI {root}/": an error, citing all three
+  it('reads it from the root as given when {root}/ answers 404, and makes an error of it', async () => {
     const get = serve(meteogate as Responses);
     const result = await getCollections(MG);
     expect(result.collections.map(collection => collection.id)).toEqual(['nl-daily']);
     expect(get.mock.calls.map(([url]) => url).slice(0, 2)).toEqual([`${MG}/?f=json`, `${MG}?f=json`]);
     expect(result.landingPageUrl).toBe(`${MG}?f=json`);
-    const warning = result.validation.errors?.find(error => error.title === 'Landing Page Not at {root}/');
-    expect(warning?.severity).toBe('warning');
-    expect(warning?.message).toBe(`${MG}/?f=json answered 404, so the landing page was read from ${MG}?f=json. OGC API Common puts it at {root}/, with the slash.`);
-    expect(warning?.rule).toEqual(COMMON1.rootOpA);
+    const found = result.validation.errors?.find(error => error.title === 'Landing Page Not at {root}/');
+    expect(found?.severity).toBe('error');
+    expect(found?.message).toBe(`${MG}/?f=json answered 404, so the landing page was read from ${MG}?f=json. OGC API puts it at {root}/, with the slash.`);
+    expect(found?.rule).toEqual([EDR.rootOpA, FEATURES1.rootOpA, COMMON1.rootOpA]);
+  });
+
+  it('makes an issue of CORS and of a link after the landing page that gets no answer, and notes the rest', async () => {
+    const landing = { links: [{ rel: 'data', href: `${MG}/collections` }, { rel: 'conformance', href: `${MG}/conformance` }] };
+    const failing = (failure: Error) => vi.spyOn(axios, 'get').mockImplementation(async (url: string) => {
+      if (url === `${MG}/?f=json`) return { status: 200, data: landing, headers: {}, request: { responseURL: url } };
+      throw failure;
+    });
+    const network = Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK', config: { url: `${MG}/conformance?f=json` } });
+    failing(network);
+    const unreached = await getCollections(MG);
+    // A browser can't tell CORS from a server that's down: once the landing page answered, the server's to fix
+    expect(titles(unreached.validation.errors)).toEqual(expect.arrayContaining(['warning: Collections Unreachable', 'warning: Conformance Unreachable']));
+    vi.restoreAllMocks();
+    failing(Object.assign(new Error('Request failed with status code 401'), { config: { url: `${MG}/collections?f=json` } }));
+    expect(titles((await getCollections(MG)).validation.errors)).toContain('info: Collections Authentication Error');
+    vi.restoreAllMocks();
+    // The landing page itself: maybe the user's network or address
+    vi.spyOn(axios, 'get').mockRejectedValue(Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK', config: { url: `${MG}/?f=json` } }));
+    expect(titles((await getCollections(MG)).validation.errors)).toEqual(['info: Connection Failed']);
+    vi.restoreAllMocks();
+    vi.spyOn(axios, 'get').mockRejectedValue(Object.assign(new Error('CORS: no Access-Control-Allow-Origin'), { config: { url: `${MG}/?f=json` } }));
+    expect((await getCollections(MG)).validation.errors?.[0]).toMatchObject({ title: 'CORS Error', severity: 'warning', rule: EDR.crossOrigin });
   });
 
   it('asks once for a root that ends in a slash', async () => {

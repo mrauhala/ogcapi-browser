@@ -359,8 +359,10 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   // The levels: what was asked for, what the collection has, and what it says its extent is
   // Asked for is the request's, and declared is the collection's
   const zValues = `${zPath}/values`;
+  // EDR /req/edr/z-response only limits what's returned to what meets z: nothing asks for every level asked to be there,
+  // and the server may have no data at one. A note, as on a path
   if (missing.length && asked?.kind === 'list') {
-    issue(`z=${listed(missing)} ${one(missing.length, 'was', 'were')} asked for, and ${one(missing.length, "isn't", "aren't")} in the response`, zValues);
+    note(`z=${listed(missing)} ${one(missing.length, 'was', 'were')} asked for, and ${one(missing.length, "isn't", "aren't")} in the response`, zValues);
   } else if (missing.length) {
     // EDR /req/edr/z-response: "If the z parameter is not provided, the server SHOULD return data at all available
     // vertical levels". With a range asked for, that doesn't apply, and no rule is cited
@@ -379,10 +381,12 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   // CoverageJSON: an axis's values MUST be ordered monotonically
   if (outOfOrder) notes.push({ message: `Levels aren't in order: ${outOfOrder.values.join(', ')}`, path: outOfOrder.path, severity: 'error', rule: COVJSON.monotonic });
   if (mostLevels !== levels.length) note(`The levels change from time to time: ${levels.length} in all, at most ${mostLevels} at a time`, `${zPath}/values`);
+  // Two values for one place, time and level: no rule, but the server's to fix, since a client can't tell which is meant.
+  // An issue, as on a path and in a grid of points
   if (duplicates) issue(`${plural(duplicates, 'value')} sent again for a level already sent. The first is used`, `${prefix(0)}/ranges`);
 
   // The values. A parameter can lack levels the others have: a server may drop a level it has no value for, where a
-  // null would say so
+  // null would say so. No rule asks for either, so each is a note
   for (const parameter of parameters) {
     const lacking = parameter.misfit || parameter.notIncluded ? [] : levels.filter(level => {
       const row = rows.indexOf(level);
@@ -390,7 +394,7 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
     });
     const askedLacking = asked?.kind === 'list' ? lacking.filter(level => asked.values.includes(level)) : [];
     if (askedLacking.length) {
-      issue(`${parameter.id} isn't at z=${listed(askedLacking)}, which ${one(askedLacking.length, 'was', 'were')} asked for`, `${zValues}`);
+      note(`${parameter.id} isn't at z=${listed(askedLacking)}, which ${one(askedLacking.length, 'was', 'were')} asked for`, `${zValues}`);
     } else if (lacking.length) {
       note(`${parameter.id} has ${levels.length - lacking.length} of the ${levels.length} levels: not ${listed(lacking)}`, `${zValues}`);
     }

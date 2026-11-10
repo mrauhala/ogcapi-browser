@@ -7,7 +7,7 @@ import { capturedOfFailure, loadServiceDescription, unavailable, type ServiceDes
 import { buildOperationIndex, type OperationIndex } from '../validation/openapi/operationIndex';
 import { validateOpenApiStructure } from '../validation/openapi/validateStructure';
 import { lintOpenApiForEdr } from '../validation/openapi/lintEdr';
-import { allSectionsValid, isProblem } from '../validation/severity';
+import { allSectionsValid, appFault, isProblem } from '../validation/severity';
 import type { ValidationResult } from '../types/api';
 
 // The service's API definition (service-desc): loaded and indexed for checking requests, then
@@ -100,10 +100,10 @@ export function OpenApiProvider({ children }: { children: ReactNode }) {
         .catch(error => {
           console.error('API definition validation failed:', error);
           if (cancelled) return;
-          // A check that couldn't run says so, rather than looking as if it's still running
+          // A check that couldn't run says so, rather than looking as if it's still running. It's the app's own fault
           mergeSection(setValidationResult, {
             isValid: true,
-            errors: [{ message: `The API definition could not be checked (${error instanceof Error ? error.message : 'unknown error'})`, section: 'OpenAPI', schema: 'OpenAPI', severity: 'info', type: 'unknown' }],
+            errors: [appFault(`The API definition could not be checked (${error instanceof Error ? error.message : 'unknown error'})`, { section: 'OpenAPI', schema: 'OpenAPI', type: 'unknown' })],
             schemaResults: [],
           });
         });

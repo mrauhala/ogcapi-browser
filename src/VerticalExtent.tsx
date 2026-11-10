@@ -27,10 +27,10 @@ const VerticalExtent: React.FC<VerticalExtentProps> = ({ vertical, collectionId,
     return subsection ?? "VERTICAL EXTENT";
   };
 
-  // If no vertical extent, show appropriate message
+  // If no vertical extent, show appropriate message. It's optional, and the data may have no levels: a note
   if (!vertical) {
     return (
-      <Alert severity="warning">
+      <Alert severity="info">
         <AlertTitle>{getAlertTitle()}</AlertTitle>
         No vertical extent information available for this collection. 
         The collection may not have height/depth-dependent data or vertical metadata may be missing.

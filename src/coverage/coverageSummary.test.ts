@@ -545,7 +545,8 @@ describe('summarizeCoverage: the times', () => {
     const temporal = { interval: [['2026-11-05T01:00:00Z', null]] };
     const notes = summarizeCoverage(json, { url: 'https://x/collections/a/position?datetime=2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', temporal })!.notes;
     expect(notes).toContainEqual({ message: 'Every time is inside the datetime asked for, 2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', path: '/domain/axes/t/values/0', severity: 'pass', rule: EDR.datetimeResponse });
-    expect(notes).toContainEqual({ message: "t 2026-11-05T00:00:00Z is outside the collection's extent, from 2026-11-05T01:00:00Z", path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection', rule: EDR.extent });
+    // The extent SHALL include every temporal geometry in the collection
+    expect(notes).toContainEqual({ message: "t 2026-11-05T00:00:00Z is outside the collection's extent, from 2026-11-05T01:00:00Z", path: '/domain/axes/t/values/0', severity: 'error', source: 'collection', rule: EDR.extent });
   });
 });
 
