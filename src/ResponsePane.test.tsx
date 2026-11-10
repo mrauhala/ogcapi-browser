@@ -292,6 +292,13 @@ describe('ResponsePane', () => {
       expect(list({ ...checked, validationErrors: errors })).toContain('>1 error<');
     });
 
+    it('counts locations a client can’t name in Checks', () => {
+      const unnamed = JSON.stringify({ ...knmi, features: knmi.features.map(({ id: _id, ...feature }) => feature) });
+      // The id's issue, and the note that nothing else reaches them, which doesn't outrank it
+      expect(list({ data: unnamed, contentType: 'application/geo+json' })).toContain('>1 issue<');
+      expect(list({ data: unnamed })).toContain('>2 issues<');
+    });
+
     it('isn’t one from anywhere but /locations, nor anything but a FeatureCollection', () => {
       expect(tabNames(list({ url: 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/items' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
       expect(tabNames(list({ url: `${LOCATIONS}/EDDK` }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);

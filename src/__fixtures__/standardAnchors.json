@@ -67,6 +67,8 @@
     "_59cff66f-5182-e0b2-50c6-d3e40a6cc844",
     "_6308eaf5-9942-6dfb-adc0-c96204a43b7d",
     "_674fd343-1b0b-33e1-a4fd-a3213ccb3fdf",
+    "_76907fac-bf01-f4f3-6672-cbc8f25486c0",
+    "_784daa3f-2230-d6c2-626b-30bd13ba9256",
     "_8b64b7a8-e877-c31f-fe1f-4aec5f76525e",
     "_8f4c9f38-bc6a-4b98-8fd9-772e42d60ab2",
     "_9005f4b9-c9b2-b009-2d56-6120c5936338",
@@ -129,6 +131,7 @@
     "_8458c6b5-9cd2-a890-a6e0-a8646eeddb04",
     "_96ee0146-09f9-22d9-45ad-be29ad863d9e",
     "_977ce8d6-aafe-4498-fdf8-e781133a7c98",
+    "_98bca02a-03b6-6add-e630-3959a302eb99",
     "_99d70341-bb6c-459c-7028-d6d60e5e2bee",
     "_9c1c44d4-9aeb-d614-e574-4f911000443a",
     "_9fb9162e-43f7-830d-aeed-7e32eb659b34",
@@ -141,6 +144,7 @@
     "_ba63e6bd-2bd2-508c-b612-3dd281e71ba6",
     "_bd3d9d06-d599-42b4-e73f-9511fb50fa59",
     "_c3cce842-c10e-423e-877c-7fe1f29bf2aa",
+    "_c7ea2a8a-9696-0d9f-7141-fb986d941c20",
     "_d44658e8-3bd4-8f42-425a-93fd6ea37d31",
     "_da66ef45-81b8-b88a-18fa-d04a52eaf553",
     "_db0d9ee1-a7e2-4238-af58-631cd46f6404",
@@ -164,5 +168,8 @@
   ],
   "https://www.rfc-editor.org/rfc/rfc5646.html": [
     "section-2.1"
+  ],
+  "https://www.rfc-editor.org/rfc/rfc7946.html": [
+    "section-3.2"
   ]
 }

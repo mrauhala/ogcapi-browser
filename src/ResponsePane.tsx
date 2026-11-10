@@ -33,6 +33,7 @@ import { usePublishResponseCells, useResponseCells } from './contexts/responseCe
 import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
 import { locationsListOf } from './locations/locationsList';
+import { locationIdFindings } from './locations/locationIds';
 import { locationsMediaTypeFindings } from './locations/mediaType';
 import { isEdrGeojsonSchema } from './validation/locationsValidator';
 import { schemaRuleOf } from './QueryResultValidator';
@@ -163,7 +164,11 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
 
   // What the picture found joins what the summary did. It leaves out what the summary says already: nulls and ranges
   const { reading } = useResponseCells();
-  const coverageNotes = useMemo(() => [...(coverage?.notes ?? []), ...cellFindings(reading)], [coverage, reading]);
+  // And whether a locations list names its locations
+  const coverageNotes = useMemo(
+    () => [...(coverage?.notes ?? []), ...cellFindings(reading), ...(locations ? locationIdFindings(locations) : [])],
+    [coverage, reading, locations],
+  );
   // The media type of what's checked as CoverageJSON, or of a locations list. Checks is only there with the response's
   // details, and so its Content-Type
   const formatFindings = useMemo(
