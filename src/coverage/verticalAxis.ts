@@ -291,14 +291,16 @@ export const withUnit = (value: number | string, unit: string) => (!unit ? Strin
 // there. The same for a profile and a path
 export function zFindings(axis: VerticalAxis, zPath: string, referencingPath: string): ValidationError[] {
   const found: ValidationError[] = [];
-  const say = (severity: 'warning' | 'pass', message: string, path = zPath) => found.push({ message, path, severity });
+  const say = (severity: 'warning' | 'info' | 'pass', message: string, path = zPath) => found.push({ message, path, severity });
   if (axis.directionSource === 'response') say('pass', `z's direction is in the response: ${axis.direction}`);
   else if (axis.directionSource === 'usual') say('warning', `z's direction isn't in the response: assumed ${axis.direction}, as usual for ${axis.usualWords}`);
   else say('warning', "z's direction isn't in the response, and nothing says what z is: assumed up");
-  if (axis.againstUsual) say('warning', `z is ${axis.usualWords} and says it runs ${axis.direction}, against the usual`);
+  // The response's own word, against what's usual for its kind: it may be right, so a note
+  if (axis.againstUsual) say('info', `z is ${axis.usualWords} and says it runs ${axis.direction}, against the usual`);
   // CoverageJSON 9.10: ""z" to vertical spatial coordinates, and all of "x", "y", and "z" MUST be referenced by a
-  // spatial coordinate reference system"
-  if (axis.flatCrs) found.push({ message: `z is referenced to ${axis.flatCrs}, which has no vertical axis`, path: referencingPath, severity: 'warning', rule: COVJSON.spatialReferenced });
+  // spatial coordinate reference system", and 9.6.1.2: a referencing's coordinates in a 2D or 3D CRS "MUST match the
+  // order of axes in the coordinate reference system", which z can't in one with no vertical axis
+  if (axis.flatCrs) found.push({ message: `z is referenced to ${axis.flatCrs}, which has no vertical axis`, path: referencingPath, severity: 'error', rule: [COVJSON.spatialReferenced, COVJSON.referencedAxes] });
   // A level number needs no unit
   if (axis.unitSource === 'response' && axis.unit) say('pass', `z's unit is in the response: ${axis.unit}`);
   else if (axis.unitSource === 'description') say('warning', `z's unit, ${axis.unit}, is only in a description, and not in its reference system's axis`);

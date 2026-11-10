@@ -52,8 +52,19 @@ describe('CollectionsList', () => {
     expect(render()).toContain('-webkit-line-clamp:6');
   });
 
-  it('says when an API has none', () => {
-    expect(render()).toContain('No collections found from this endpoint.');
+  // An empty list breaks no rule
+  it('notes when an API has none', () => {
+    const html = render();
+    expect(html).toContain('No collections found from this endpoint.');
+    expect(html).toContain('MuiAlert-colorInfo');
+    expect(html).not.toContain('MuiAlert-colorWarning');
+  });
+
+  // CORS is a SHOULD, which getCollections rates an issue: shown as rated
+  it('shows a failed load as it’s rated', () => {
+    expect(render({ isValid: false, errors: [{ message: 'Blocked', type: 'cors', severity: 'warning' }] })).toContain('MuiAlert-colorWarning');
+    expect(render({ isValid: false, errors: [{ message: 'Asks for a key', severity: 'info' }] })).toContain('MuiAlert-colorInfo');
+    expect(render({ isValid: false, errors: [{ message: 'A 404' }] })).toContain('MuiAlert-colorError');
   });
 
   it('shows why a load failed instead', () => {

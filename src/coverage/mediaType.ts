@@ -53,13 +53,18 @@ export function mediaTypeFindings(contentType: string, json: unknown): Validatio
       message: `Content-Type is ${EDR_1_1_TYPE}. That's EDR 1.1's, and CoverageJSON's before OGC. CoverageJSON 1.0 and EDR 1.2 have ${COVJSON_TYPE}, so the standards differ`,
     });
   } else {
+    // CoverageJSON's SHALL names the format's media type, and EDR's /definition is what the server "SHALL support",
+    // which one response sent as another type doesn't show it lacks: the server's to fix, an issue rather than an error,
+    // as for a locations list's GeoJSON
     const sent = type ? `Content-Type is ${type}` : 'The response has no Content-Type';
     findings.push({ severity: 'warning', message: `${sent}. CoverageJSON's is ${COVJSON_TYPE}`, rule: [COVJSON.mediaType, EDR.covjsonDefinition] });
   }
   if (profiles.includes(STANDALONE)) {
+    // The profile "asserts" that every domain and range is embedded, with no SHALL or MUST of its own: a header that
+    // says what the body doesn't do is the server's to fix, an issue
     const atUrl = firstAtUrl(json);
     findings.push(atUrl
-      ? { severity: 'error', message: `The profile says every domain and range is in the response, but ${atUrl.what} is at a URL`, path: atUrl.path, rule: COVJSON.standalone }
+      ? { severity: 'warning', message: `The profile says every domain and range is in the response, but ${atUrl.what} is at a URL`, path: atUrl.path, rule: COVJSON.standalone }
       : { severity: 'pass', message: 'Every domain and range is in the response, as its profile says', rule: COVJSON.standalone });
   }
   return findings;

@@ -59,6 +59,11 @@ describe('checksCount', () => {
     expect(checksCount([{}])).toEqual({ label: '1 error', color: 'error' });
   });
 
+  it('counts nothing of a fault in the app itself', () => {
+    expect(checksCount([{ severity: 'info', source: 'app' }])).toBeNull();
+    expect(checksCount([{ source: 'app' }, { severity: 'warning' }])).toEqual({ label: '1 issue', color: 'warning' });
+  });
+
   it('counts only the worst kind, so a note is not called an error', () => {
     expect(checksCount([{ severity: 'info' }, { severity: 'error' }, { severity: 'warning' }])).toEqual({ label: '1 error', color: 'error' });
     expect(checksCount([{ severity: 'info' }, { severity: 'warning' }])).toEqual({ label: '1 issue', color: 'warning' });

@@ -537,7 +537,11 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
   };
   const timeAlong = alongIn.length > 0 ? partList.flatMap(part => part.times.map(parseTime)) : null;
 
-  // ---- Notes: what the response does along the path. EDR has no rule for it, so each is a note ----
+  // ---- Notes: what the response does along the path. EDR has no rule for it, so each is a note, but a value sent twice,
+  // which is the server's to fix. Whether each position is on the line asked for is EDR's /req/edr/linestring-coords-
+  // response A ("Only those resources that are representative of the requested geometry … SHALL be part of the result
+  // set"), which these don't check: they say whether the path reaches each vertex, which a server may rightly not where
+  // its data ends ----
 
   const notes: ValidationError[] = [];
   const note = (message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity: 'info', ...(rule ? { rule } : {}) });
@@ -668,10 +672,12 @@ function readSection(json: unknown, requestUrl: string | undefined): SectionResu
       : `z=${levelsListed(asked.values)} were asked for, and none of them is among ${theirs}${span}`, hasZ ? levelsAt : `${coverages[0].where}/domain/axes`,
     // EDR /req/edr/z-response: "only resources that have a vertical geometry that intersects the vertical information
     // in the z parameter SHALL be part of the result set", and in 1.2, "If the z parameter is provided and a vertical
-    // extent is not defined in a collection, the z value SHALL be ignored"
+    // extent is not defined in a collection, the z value SHALL be ignored". Still a note: the path's z needn't be the z
+    // asked for, as radars are asked angles and answer in metres, and nothing here knows the collection's vertical extent
     [EDR.zResponse, EDR.zIgnored]);
   }
-  if (duplicates > 0) note(`${plural(duplicates, 'value')} ${one(duplicates, 'is', 'are')} sent again for a position, level and time already sent. The first is used`, firstDuplicate);
+  // Two values for one position, level and time: the server's to fix, since a client can't tell which is meant
+  if (duplicates > 0) notes.push({ message: `${plural(duplicates, 'value')} ${one(duplicates, 'is', 'are')} sent again for a position, level and time already sent. The first is used`, path: firstDuplicate, severity: 'warning' });
 
   // A parameter null all along some levels, as FMI's windspeedms is at 50 and 200 hPa. Only a few levels: on most of
   // them it's the response's nulls, which the summary counts

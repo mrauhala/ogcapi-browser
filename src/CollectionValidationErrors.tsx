@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, AlertTitle, Box, Typography, Collapse } from '@mui/material';
 import { ValidationError } from './DataRetrievalAPI';
 import RuleLinks from './RuleLinks';
+import { alertSeverity } from './validation/severity';
 
 interface CollectionValidationErrorsProps {
   collectionId: string;
@@ -25,11 +26,9 @@ const CollectionValidationErrors: React.FC<CollectionValidationErrorsProps> = ({
     return null;
   }
 
-  const getSeverity = (error: ValidationError) => {
-    if (error.keyword === 'required') return 'error';
-    if (error.keyword === 'type') return 'warning';
-    return 'info';
-  };
+  // As the finding is rated: an error, since the collections "SHALL be based upon" the schema, except where its standard's
+  // text asks less or the API doesn't declare the schema. Not by the schema's keyword, which says nothing of the rule
+  const getSeverity = (error: ValidationError) => alertSeverity(error.severity);
 
   const formatErrorMessage = (error: ValidationError) => {
     let message = error.message;

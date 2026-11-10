@@ -88,3 +88,22 @@ describe('QueryResultValidator: CoverageJSON', () => {
     expect(schemaRuleOf(null)).toBeUndefined();
   });
 });
+
+describe('QueryResultValidator: a schema the app couldn’t load', () => {
+  // A fresh module, whose singleton has compiled nothing, and nothing to fetch its schema from
+  it('is the app’s own fault, which says nothing of the response', async () => {
+    vi.resetModules();
+    vi.stubGlobal('fetch', async () => new Response('', { status: 404 }));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const fresh = await import('./QueryResultValidator');
+      expect(await fresh.QueryResultValidator.getInstance().validate(POLYTOPE, 'application/json')).toEqual({
+        matched: true,
+        schemaName: 'CoverageJSON 1.0',
+        errors: [{ message: 'Failed to load schema: CoverageJSON 1.0', type: 'schema', severity: 'info', source: 'app' }],
+      });
+    } finally {
+      vi.stubGlobal('fetch', async (url: string) => new Response(readFileSync(join('public', url), 'utf8')));
+    }
+  });
+});

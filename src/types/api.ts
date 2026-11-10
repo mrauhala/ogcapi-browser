@@ -139,11 +139,14 @@ export interface ValidationError {
   params?: Record<string, any>;
   collectionId?: string;
   section?: string;
-  // undefined means error. A pass is something checked and found right, which counts for nothing against the response
+  // undefined means error. An error breaks a SHALL or MUST of a standard the server claims, an issue ('warning') a SHOULD
+  // or something the server should fix that rests on no rule, a note ('info') is an observation, and a pass is
+  // something checked and found right, which counts for nothing against the response
   severity?: 'error' | 'warning' | 'info' | 'pass';
   // What a finding about a response rests on: the response, which is undefined, or the collection's metadata it was
-  // checked against. One about the collection alone has no path, since there's nothing in the response to show
-  source?: 'collection';
+  // checked against. One about the collection alone has no path, since there's nothing in the response to show. 'app' is
+  // a fault in the app itself, such as a schema it couldn't load: the app's own notice, never counted against the server
+  source?: 'collection' | 'app';
   // The rule it rests on, or the rules, where two standards differ
   rule?: Citation | readonly Citation[];
 }

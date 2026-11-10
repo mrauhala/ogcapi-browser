@@ -2,6 +2,7 @@ import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import type { ValidationError } from '../../types/api';
 import { ajvErrorToValidationError, condenseAjvErrors } from '../ajvErrors';
+import { appFault } from '../severity';
 import { publicUrl } from '../../utils/publicUrl';
 import { resolvePointer, unescapePointerSegment } from './refs';
 import { COMMON1, EDR } from '../../standards';
@@ -80,6 +81,12 @@ function summarizeRepeated(errors: ErrorObject[], doc: unknown, schemaName: stri
   });
 }
 
+// What's said when the check of an API definition couldn't run, such as a schema the app couldn't load: the app's own
+// notice, which says nothing of the server
+export function uncheckedDefinition(error: unknown): ValidationError {
+  return appFault(`The API definition could not be checked (${error instanceof Error ? error.message : 'unknown error'})`, { section: 'OpenAPI', schema: 'OpenAPI', type: 'unknown' });
+}
+
 // Validate an API definition against the official OpenAPI schema of its version
 export async function validateOpenApiStructure(
   doc: Record<string, unknown>,
@@ -106,11 +113,12 @@ export async function validateOpenApiStructure(
   if (validate(doc)) return { schemaName, errors: [] };
   const summarized = summarizeRepeated(condenseAjvErrors(validate.errors ?? [], Infinity), doc, schemaName, RULES[version]);
   if (summarized.length <= MAX_ERRORS) return { schemaName, errors: summarized };
+  // Where the app cut the list short: its own notice, not one more error of the server's
   return {
     schemaName,
     errors: [
       ...summarized.slice(0, MAX_ERRORS),
-      { message: `+${summarized.length - MAX_ERRORS} more errors not shown`, section: 'OpenAPI', schema: schemaName, keyword: 'truncated', severity: 'error', type: 'schema' },
+      appFault(`+${summarized.length - MAX_ERRORS} more errors not shown`, { section: 'OpenAPI', schema: schemaName, keyword: 'truncated', type: 'schema' }),
     ],
   };
 }

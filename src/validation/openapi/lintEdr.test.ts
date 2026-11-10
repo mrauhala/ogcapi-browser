@@ -15,10 +15,11 @@ const summary = (findings: Awaited<ReturnType<typeof lint>>) =>
   findings.map(finding => `${finding.severity} ${finding.keyword}: ${finding.message.replace(/ \((\d+ )?collections?: .*\)$/, '')}`).sort();
 
 describe('lintOpenApiForEdr on the real servers', () => {
+  // Docs that tell clients they may leave out what EDR requires are the server's to fix: issues
   it('FMI: resolution schemas, cube requiring coords, optional corridor height, f on lists', async () => {
     expect(summary(await lint('fmi'))).toEqual([
-      'info edr-required-optional: corridor queries: the API docs mark corridor-height optional; EDR requires it',
-      'info edr-required-optional: corridor queries: the API docs mark height-units optional; EDR requires it',
+      'warning edr-required-optional: corridor queries: the API docs mark corridor-height optional; EDR requires it',
+      'warning edr-required-optional: corridor queries: the API docs mark height-units optional; EDR requires it',
       "warning required-beyond-edr: cube queries: the API docs require coords, which EDR doesn't",
       'warning schema-items-without-array: Parameter resolution-x: the schema has "items" but no "type": "array"',
       'warning schema-items-without-array: Parameter resolution-y: the schema has "items" but no "type": "array"',
@@ -92,8 +93,16 @@ describe('lintOpenApiForEdr rules', () => {
       param('f', { enum: ['coveragejson'] }, false),
       param('parameter-name', { type: 'array', items: { enum: ['temp'] } }, false),
     ])).toEqual([
-      'info enum-case', 'warning enum-vs-metadata', 'warning enum-vs-metadata', 'warning enum-vs-metadata', 'warning enum-vs-metadata',
+      // A value in another case is another value: Common's "Parameter names and values SHALL be case sensitive"
+      'warning enum-case', 'warning enum-vs-metadata', 'warning enum-vs-metadata', 'warning enum-vs-metadata', 'warning enum-vs-metadata',
     ]);
+  });
+
+  // Where EDR differs from itself, a note citing both; otherwise the docs are the server's to fix
+  it('makes an issue of a parameter EDR requires marked optional, and a note of within-units', () => {
+    const severities = (parameters: unknown[]) => run(parameters).filter(found => found.endsWith('edr-required-optional'));
+    expect(severities([...complete.slice(0, 1), param('coords', { type: 'string' }, false), ...complete.slice(2)])).toEqual(['warning edr-required-optional']);
+    expect(severities([...complete.slice(0, 3), param('within-units', { type: 'string', enum: ['km', 'mi'] }, false), ...complete.slice(4)])).toEqual(['info edr-required-optional']);
   });
 
   // EDR 1.2: the locations list takes no f (paths/queries/locations.yaml); a location's data, and so
@@ -140,7 +149,7 @@ describe('lintOpenApiForEdr rules', () => {
       'edr-required-optional radius queries: the API docs mark within-units optional; EDR requires it': [EDR.radiusWithinUnits, EDR.withinUnitsDefinition],
       'unit-not-string Parameter within-units is typed number, but units are strings (e.g. km)': EDR.withinUnitsDefinition,
       'enum-vs-metadata radius queries: within-units doesn\'t allow mi, which the collection lists in within_units': [EDR.withinUnitsDefinition, COMMON1.notEverything],
-      'enum-case radius queries: f allows CoverageJSON only in different letter case': COMMON1.caseSensitive,
+      'enum-case radius queries: f allows CoverageJSON only in different letter case, and values are case sensitive': COMMON1.caseSensitive,
       'enum-vs-metadata radius queries: f doesn\'t allow GeoJSON, which the collection offers': [EDR.fResponseB, COMMON1.notEverything],
     });
     expect(rules([param('coords', {}), param('within', {}), param('within-units', {})])['f-undeclared radius queries: the API docs don\'t declare f, though the collection offers several output formats'])

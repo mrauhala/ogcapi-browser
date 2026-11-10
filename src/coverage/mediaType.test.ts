@@ -49,10 +49,11 @@ describe('mediaTypeFindings', () => {
     expect(severities(`application/json; profile="${STANDALONE}"`)).toEqual(['warning', 'pass']);
   });
 
-  it('makes an error of a domain or a range at a URL under the standalone profile, at the first', () => {
+  // The profile "asserts" it with no SHALL or MUST: a header saying what the body doesn't do is the server's to fix
+  it('makes an issue of a domain or a range at a URL under the standalone profile, at the first', () => {
     const type = `application/vnd.cov+json; profile="${STANDALONE}"`;
     expect(mediaTypeFindings(type, { ...COVERAGE, domain: 'https://example.org/domain' })[1]).toEqual({
-      severity: 'error', message: 'The profile says every domain and range is in the response, but the domain is at a URL', path: '/domain', rule: COVJSON.standalone,
+      severity: 'warning', message: 'The profile says every domain and range is in the response, but the domain is at a URL', path: '/domain', rule: COVJSON.standalone,
     });
     expect(mediaTypeFindings(type, { ...COVERAGE, ranges: { a: { type: 'NdArray' }, 'b/c': 'https://example.org/b' } })[1]).toMatchObject({
       message: 'The profile says every domain and range is in the response, but b/c\'s range is at a URL', path: '/ranges/b~1c',

@@ -46,6 +46,11 @@ export const COVJSON = {
   referencing: para('9.6.1', '_44f7cd26-de06-3452-1096-1f64b88012f8'),
   // "… then the array values in "values", if existing, MUST be ordered monotonically, that is, increasing or decreasing."
   monotonic: para('9.6.1.1', '_1284a2fe-77c6-4f27-072d-271dc4ab8263'),
+  // "A reference system connection object MUST have a member "coordinates" which has as value an array of coordinate
+  // identifiers that are referenced in this object. Depending on the type of referencing, the ordering of the identifiers
+  // MAY be relevant, e.g. for 2D/3D coordinate reference systems. In this case, the order of the identifiers MUST match
+  // the order of axes in the coordinate reference system."
+  referencedAxes: para('9.6.1.2', '_cfa3cdd4-f025-594b-3ad5-e2fc9d5fd1e6'),
   // ""shape" … For >= 1D arrays it MUST be included."
   shape: para('9.6.2', '_89f0d9a2-28e0-144e-b116-977e133811c3'),
   // "Where "shape" is present and non-empty, the product of its values MUST equal the number of elements in the
@@ -99,6 +104,8 @@ const edr11 = (requirement: string, anchor: string, test?: string): Rule => ({ l
 const edr12 = (requirement: string, anchor: string, test?: string): Rule => ({ label: `EDR 1.2 ${requirement}${test ? `, test ${test}` : ''}`, url: `${EDR_1_2}#${anchor}`, ...statementOf(requirement) });
 
 export const EDR11 = {
+  // A: "The server SHALL support the HTTP GET operation at the path /."
+  rootOpA: edr11('/req/core/root-op A', '_2a5d88a1-9842-c517-77e5-500d4e61e35f', 'B.2'),
   // A: "A successful execution of the operation SHALL be reported as a response with an HTTP status code 200."
   rootSuccessA: edr11('/req/core/root-success A', '_8b64b7a8-e877-c31f-fe1f-4aec5f76525e', 'B.3'),
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema landingPage.yaml and include at least
@@ -214,6 +221,7 @@ export const EDR11 = {
 
 export const EDR12 = {
   // As in 1.1
+  rootOpA: edr12('/req/core/root-op A', '_06509f8d-1fa6-965d-46cf-faa57d300424', 'B.2'),
   rootSuccessA: edr12('/req/core/root-success A', '_b4b2eb29-a3cc-271a-bfb3-e082499388d8', 'B.3'),
   rootSuccessB: edr12('/req/core/root-success B', '_fdf8ce8b-2e96-d412-325e-360181ae5a2b', 'B.3'),
   rootConformanceLink: edr12('/req/core/root-success B', '_19df1cce-4c2f-1039-f659-7a0a4f52abb9', 'B.3'),
@@ -239,6 +247,14 @@ export const EDR12 = {
   collectionInfoH: edr12('/req/edr/rc-collection-info H', '_f6444822-6e22-6dc3-244d-ec37b48d8161', 'B.14'),
   collectionInfoK: edr12('/req/edr/rc-collection-info K', '_9fb9162e-43f7-830d-aeed-7e32eb659b34', 'B.14'),
   collectionInfoL: edr12('/req/edr/rc-collection-info L', '_da66ef45-81b8-b88a-18fa-d04a52eaf553', 'B.14'),
+  // What a data query's variables hold, where the text and OGC's schema for it differ: the schema requires each of
+  // these, and the text has B "A variables property MAY include a title property of type string", C "… MAY include an
+  // output_formats property which SHALL be a string array", D "… SHOULD include a default_output_format property of
+  // type string" and F "… MAY include a crs_details property which SHALL be an array of objects"
+  variablesTitle: edr12('/req/edr/rc-common-variables B', '_ca8871b6-1c72-0c03-39e8-97d5659a234c'),
+  variablesOutputFormats: edr12('/req/edr/rc-common-variables C', '_d8861939-aeae-1070-b7e2-20d7067a8d89'),
+  variablesDefaultOutputFormat: edr12('/req/edr/rc-common-variables D', '_705c1fc2-89fd-b0f3-014a-6e9d341e04d2'),
+  variablesCrsDetails: edr12('/req/edr/rc-common-variables F', '_c94a74dc-0181-29a9-66a2-509f67c4c65d'),
   // D: a parameter's label "SHALL be a string that is the name of the parameter"; G: "“type” SHALL HAVE the value
   // “https://www.opengis.net/def/uom/UCUM/” if UCUM is used"
   parameterLabel: edr12('/req/edr/rc-parameters D', '_59f2d7e2-242f-8571-ec80-543153e1f2fd', 'B.26'),
@@ -296,6 +312,7 @@ export const EDR12 = {
 const both = (v11: Rule | undefined, v12: Rule | undefined): EdrRule => ({ edr: { '1.1': v11, '1.2': v12 } });
 
 export const EDR = {
+  rootOpA: both(EDR11.rootOpA, EDR12.rootOpA),
   rootSuccessA: both(EDR11.rootSuccessA, EDR12.rootSuccessA),
   rootSuccessB: both(EDR11.rootSuccessB, EDR12.rootSuccessB),
   rootConformanceLink: both(EDR11.rootConformanceLink, EDR12.rootConformanceLink),
@@ -386,6 +403,8 @@ const FEATURES_1 = 'https://docs.ogc.org/is/17-069r4/17-069r4.html';
 const features1 = (requirement: string, anchor: string): Rule => ({ label: `Features 1 ${requirement}`, url: `${FEATURES_1}#${anchor}` });
 
 export const FEATURES1 = {
+  // A: "The server SHALL support the HTTP GET operation at the path /."
+  rootOpA: features1('/req/core/root-op A', 'req_core_root-op'),
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema landingPage.yaml and include at least
   // links to the following resources: the API definition (relation type service-desc or service-doc) · /conformance
   // (relation type conformance) · /collections (relation type data)"

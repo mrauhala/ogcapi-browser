@@ -3,6 +3,7 @@ import addFormats from 'ajv-formats';
 import { EDR, EDR11, EDR12, type DeclaredEdr } from '../standards';
 import type { Citation, ValidationError } from '../types/api';
 import { condenseAjvErrors, groupArrayItemErrors } from './ajvErrors';
+import { appFault } from './severity';
 import { publicUrl } from '../utils/publicUrl';
 
 // Which EDR a server declares is decided with the citations that rest on it, by detectEdrVersion in standards.ts
@@ -92,11 +93,12 @@ export async function validateLocationsResponse(
   const displayName = schema.name;
   const rule = ruleOf(schema);
 
+  // A schema the app couldn't load is the app's fault: the list wasn't checked, and nothing counts against the server
   const validator = await getValidator(schema);
   if (!validator) {
     return {
-      isValid: false,
-      errors: [{ message: `Failed to load schema: ${displayName}`, type: 'schema', section: 'Locations' }],
+      isValid: true,
+      errors: [appFault(`Failed to load schema: ${displayName}`, { type: 'schema', section: 'Locations' })],
     };
   }
 

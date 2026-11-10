@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CollectionValidationErrors from './CollectionValidationErrors';
 import { EDR12 } from './standards';
+import type { ValidationError } from './types/api';
 
 vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ conformsTo: ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core'] }) }));
 
@@ -16,5 +17,18 @@ describe('CollectionValidationErrors', () => {
     expect(html.split('>EDR 1.2 /req/collections/rc-md-success B, test B.10</a>').length - 1).toBe(1);
     expect(html.indexOf('>EDR 1.2 /req/collections/rc-md-success B')).toBeLessThan(html.indexOf('must have required property'));
     expect(html).toContain('href="https://docs.ogc.org/is/19-086r9/19-086r9.html#_4e79031f-31fa-fb3e-90d0-fc813f1b7631"');
+  });
+
+  // The collections SHALL be based upon the schema: each of its findings is an error, whatever its keyword, unless it's
+  // rated otherwise, as a MAY the schema requires is
+  it('shows each as it’s rated, not by its keyword', () => {
+    const colours = (errors: ValidationError[]) =>
+      [...renderToStaticMarkup(<CollectionValidationErrors collectionId="one" errors={errors} />).matchAll(/MuiAlert-color(Success|Warning|Error|Info)/g)].map(match => match[1]);
+    expect(colours([
+      { message: '/collections/0/links: must be array', path: '/collections/0/links', keyword: 'type' },
+      { message: '/collections/0/crs: must match pattern', path: '/collections/0/crs', keyword: 'pattern' },
+      { message: '/collections/0/x: no title', path: '/collections/0/x', keyword: 'required', severity: 'info' },
+      { message: '/collections/0/x: no default_output_format', path: '/collections/0/x', keyword: 'required', severity: 'warning' },
+    ])).toEqual(['Error', 'Error', 'Info', 'Warning']);
   });
 });

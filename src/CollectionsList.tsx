@@ -107,7 +107,7 @@ const CollectionsList = () => {
             validationResult.errors.filter(err => err.section !== 'conformance' && err.section !== 'data link').map((error, index) => (
               <Alert
                 key={index}
-                severity={error.type === 'cors' ? 'warning' : alertSeverity(error.severity)}
+                severity={alertSeverity(error.severity)}
               >
                 <AlertTitle>
                   {error.title ?? (error.type === 'cors' ? 'CORS Issue' : 'Error')}
@@ -127,7 +127,8 @@ const CollectionsList = () => {
               </Alert>
             ))
           ) : collections.length === 0 ? (
-            <Alert severity="warning">No collections found from this endpoint.</Alert>
+            // An empty list breaks no rule: a note
+            <Alert severity="info">No collections found from this endpoint.</Alert>
           ) : (
             <Alert severity="success">Found {collections.length} collections</Alert>
           )}

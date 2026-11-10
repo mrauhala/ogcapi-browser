@@ -61,18 +61,21 @@ describe('parseServiceDescription', () => {
 describe('unavailable', () => {
   const answered = (status: number) => Object.assign(new Error(`Request failed with status code ${status}`), { isAxiosError: true, response: { status } });
 
-  it('cites the 200 /req/core/api-definition-success asks for, where the server answers 404', () => {
-    expect(unavailable(answered(404))).toMatchObject({ severity: 'warning', message: 'The API definition could not be loaded (HTTP 404)', rule: EDR.apiDefinitionSuccessA });
+  // The server SHALL support GET on its service-desc link, with a 200: a 404 is an error
+  it('makes an error of a 404, citing the 200 /req/core/api-definition-success asks for', () => {
+    expect(unavailable(answered(404))).toMatchObject({ severity: 'error', message: 'The API definition could not be loaded (HTTP 404)', rule: EDR.apiDefinitionSuccessA });
     expect(unavailable(answered(500)).rule).toBeUndefined();
+    expect(unavailable(answered(401)).severity).toBe('info');
   });
 
-  it('cites its content being "an API Definition document", for a web page or text that is no document', () => {
-    expect(unavailable(new WebPageError('https://x.org/api is a web page, not an OpenAPI document'))).toMatchObject({ severity: 'warning', rule: EDR.apiDefinitionSuccessB });
-    // Its severity stays as it was: severities follow in a later change
-    expect(unavailable(new NotADocumentError('The API definition is neither JSON nor YAML'))).toMatchObject({ severity: 'info', rule: EDR.apiDefinitionSuccessB });
+  // EDR leaves the API definition's language to the server, so its B isn't shown broken: the server's to fix, an issue
+  it('makes an issue of a web page or text that is no document, citing its content being "an API Definition document"', () => {
+    expect(unavailable(new WebPageError('https://x.org/api is a web page, not an OpenAPI document'))).toMatchObject({ severity: 'warning', type: 'unknown', rule: EDR.apiDefinitionSuccessB });
+    expect(unavailable(new NotADocumentError('The API definition is neither JSON nor YAML'))).toMatchObject({ severity: 'warning', type: 'unknown', rule: EDR.apiDefinitionSuccessB });
   });
 
-  it('cites nothing for a request that got no answer', () => {
+  it('cites nothing for a request that got no answer, which may not be the server’s, and notes it', () => {
+    expect(unavailable(new Error('Network Error'))).toMatchObject({ severity: 'info', type: 'network' });
     expect(unavailable(new Error('Network Error')).rule).toBeUndefined();
   });
 });

@@ -138,9 +138,11 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
             findings.add(`undeclared:${type}:${name}`, 'warning', 'edr-required-undeclared', entry.pointer,
               `${type} queries: the API docs don't declare ${name}, which EDR requires`, collection.id, [...requiredBy(type, name), COMMON1.notEverything]);
           } else if (!param.required) {
-            // Where EDR differs from itself: a radius operation SHALL include within-units, and its definition's
+            // The docs tell clients they may leave out what EDR's operation SHALL include: the server's to fix in its
+            // docs, an issue. Not an error: the SHALL is on the operation, which the app hasn't tried. Where EDR differs
+            // from itself, a note citing both: a radius operation SHALL include within-units, and its definition's
             // fragment has "required: false"
-            findings.add(`optional:${type}:${name}`, 'info', 'edr-required-optional', param.pointer,
+            findings.add(`optional:${type}:${name}`, name === 'within-units' ? 'info' : 'warning', 'edr-required-optional', param.pointer,
               `${type} queries: the API docs mark ${name} optional; EDR requires it`, collection.id,
               [...requiredBy(type, name), ...(name === 'within-units' ? [EDR.withinUnitsDefinition] : [])]);
           }
@@ -167,11 +169,12 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
       if (f?.enumValues) {
         const { missing, caseOnly } = notInEnum(f, formats);
         // f's values are "based on an enumerated list of available options provided in the collections metadata", and
-        // Common Part 1: "Parameter names and values SHALL be case sensitive."
+        // Common Part 1: "Parameter names and values SHALL be case sensitive." So a value in another case is another
+        // value, which the docs don't allow, as for one missing: an issue
         missing.forEach(format => findings.add(`f-enum:${type}:${format}`, 'warning', 'enum-vs-metadata', f.pointer,
           `${type} queries: f doesn't allow ${format}, which the collection offers`, collection.id, [EDR.fResponseB, COMMON1.notEverything]));
-        caseOnly.forEach(format => findings.add(`f-case:${type}:${format}`, 'info', 'enum-case', f.pointer,
-          `${type} queries: f allows ${format} only in different letter case`, collection.id, COMMON1.caseSensitive));
+        caseOnly.forEach(format => findings.add(`f-case:${type}:${format}`, 'warning', 'enum-case', f.pointer,
+          `${type} queries: f allows ${format} only in different letter case, and values are case sensitive`, collection.id, COMMON1.caseSensitive));
       }
 
       const withinUnits = queryParam('within-units');

@@ -187,8 +187,9 @@ function extentChecks(collection: Collection, title: Titles, number: string | nu
               : <div style={{ marginLeft: '10px' }}>[{(spatial.bbox as number[]).join(', ')}]</div>
             }
           </Alert>
+          {/* The collections "SHALL be based upon the schema collections.yaml", which has an array of boxes: an error */}
           {!Array.isArray(spatial.bbox[0]) && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
+            <Alert severity="error" sx={{ mt: 1 }}>
               <Title rule={BBOX_RULE}>Legacy bbox format</Title>
               This collection uses a flat array format instead of the EDR standard array-of-bbox-arrays format.
             </Alert>

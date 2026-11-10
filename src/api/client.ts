@@ -18,6 +18,18 @@ export function landingUrlOf(apiUrl: string, atRoot: boolean): string {
   return url.toString();
 }
 
+// How much a request that got no good answer counts against the server. CORS is EDR's Recommendation 3, "cross-origin
+// requests SHOULD be supported": an issue. With no answer at all, a browser can't tell a missing CORS header from a
+// server that's down: once the landing page has answered, another of its links that doesn't is the server's to fix, an
+// issue, but the landing page itself may be the user's network or address, a note. Credentials asked for are the user's
+// to give, a note. A 404 and any other failure stay errors
+function unreachedSeverity(type: ValidationError['type'], title: string, afterLanding: boolean): Pick<ValidationError, 'severity'> {
+  if (type === 'cors') return { severity: 'warning' };
+  if (title.endsWith('Unreachable') || title === 'Connection Failed') return { severity: afterLanding ? 'warning' : 'info' };
+  if (title.endsWith('Authentication Error')) return { severity: 'info' };
+  return {};
+}
+
 export async function getCollections(apiUrl: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<GetCollectionsResult> {
   // Initialize the schema validator outside the try block so it's accessible in the catch block
   const validator = SchemaValidator.getInstance();
@@ -52,13 +64,15 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
       if (asGiven === atRoot || (error as { response?: { status?: number } }).response?.status !== 404) throw error;
       landingPageResponse = await capturedGet<LandingPage>(asGiven, auth, signal, record);
       answeredAt = asGiven;
+      // A SHALL in each standard an API of the app's is checked against: EDR's and Features' /req/core/root-op A, "The
+      // server SHALL support the HTTP GET operation at the path /", and Common's, "… on the URI {root}/"
       linkWarnings.push({
         title: 'Landing Page Not at {root}/',
-        message: `${atRoot} answered 404, so the landing page was read from ${asGiven}. OGC API Common puts it at {root}/, with the slash.`,
+        message: `${atRoot} answered 404, so the landing page was read from ${asGiven}. OGC API puts it at {root}/, with the slash.`,
         type: 'unknown',
         section: 'landing page',
-        severity: 'warning',
-        rule: COMMON1.rootOpA,
+        severity: 'error',
+        rule: [EDR.rootOpA, FEATURES1.rootOpA, COMMON1.rootOpA],
       });
     }
     landingPageData = landingPageResponse.data;
@@ -129,9 +143,9 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
           message: `The landing page links its conformance declaration (${conformanceAsData}) as rel="data" and has no rel="conformance" link. It was used as the conformance link.`,
           type: 'unknown',
           section: 'conformance',
-          severity: 'warning',
-          // A link to "/conformance (relation type conformance)", or in Common Part 1 the relation type
-          // ‘http://www.opengis.net/def/rel/ogc/1.0/conformance’
+          // The landing page SHALL include a link to "/conformance (relation type conformance)", or in Common Part 1 the
+          // relation type ‘http://www.opengis.net/def/rel/ogc/1.0/conformance’: it has neither, as with no link at all
+          severity: 'error',
           rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink],
         });
       }
@@ -262,7 +276,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
       // EDR Recommendation 3: "cross-origin requests SHOULD be supported"; /req/core/conformance-success A: "A
       // successful execution of the operation SHALL be reported as a response with an HTTP status code 200."
       const rule = errorType === 'cors' ? EDR.crossOrigin : errorTitle === 'Conformance Not Found' ? EDR.conformanceSuccessA : undefined;
-      conformanceError = { title: errorTitle, message: errorMessage, type: errorType, section: 'conformance', ...(rule ? { rule } : {}) };
+      conformanceError = { title: errorTitle, message: errorMessage, type: errorType, section: 'conformance', ...unreachedSeverity(errorType, errorTitle, true), ...(rule ? { rule } : {}) };
       console.warn('Error fetching conformance, will use default schema:', errorMessage);
     }
 
@@ -288,7 +302,8 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         message: `The landing page links ${collectionsUrlCandidates.length} different URLs as data (rel="data"): ${collectionsUrlCandidates.join(', ')}. The collections came from ${collectionsUrl}.`,
         type: 'unknown',
         section: 'data link',
-        severity: 'warning',
+        // The landing page includes "at least links to" /collections as data, so more are allowed: what the app did, a note
+        severity: 'info',
       });
     }
     if (!hasCollectionsList(response.data)) {
@@ -548,7 +563,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
       validation: {
         isValid: false,
         errors: [
-          { title: errorTitle, message: errorMessage, type: errorType, section: errorSection, ...(fatalRule ? { rule: fatalRule } : {}) },
+          { title: errorTitle, message: errorMessage, type: errorType, section: errorSection, ...unreachedSeverity(errorType, errorTitle, isCollections), ...(fatalRule ? { rule: fatalRule } : {}) },
           // Include any non-fatal errors already computed before the fatal error
           ...(conformanceError ? [conformanceError] : []),
           ...(dataLinkError ? [dataLinkError] : []),
