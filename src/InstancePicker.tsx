@@ -1,31 +1,32 @@
 import React from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
-import Box from '@mui/material/Box';
-import FormControl from '@mui/material/FormControl';
-import FormHelperText from '@mui/material/FormHelperText';
-import InputLabel from '@mui/material/InputLabel';
 import ListItemText from '@mui/material/ListItemText';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 import type { Instance } from './query/instances';
 import { queryTypeOf } from './query/queryTypes';
 import { mapInputRequired } from './query/edrRules';
 import { usePanes } from './contexts/PanesContext';
+import ParamField from './queryForm/ParamField';
+import QueryTypeRow from './queryForm/QueryTypeRow';
 
 const idOf = (instance: Instance) => String(instance.id);
 
-// An instances query: pick an instance (e.g. a model run, latest first; lists can hold hundreds)
-// and the query to run on it
+// An instances query: pick an instance (e.g. a model run, latest first; lists can hold hundreds) and the query to run
+// on it, both parts of the path
 const InstancePicker: React.FC<{ queryState: UseQueryUrlReturn }> = ({ queryState }) => {
   const { instances, selectedInstance, selectInstance, instanceQueryKey, selectInstanceQuery } = queryState;
-  const { showMap } = usePanes();
-  const count = instances.status === 'ready' ? ` (${instances.instances.length}, latest first)` : '';
+  const { showMap, isMobile } = usePanes();
+  const figure = instances.status === 'ready' ? `${instances.instances.length} listed, latest first`
+    : instances.status === 'loading' ? 'Loading instances…' : undefined;
+  const failed = instances.status === 'error'
+    ? [{ id: 'instances:error', severity: 'error' as const, source: 'edr' as const, field: 'instance', message: `Couldn't load the instances: ${instances.error}` }]
+    : [];
 
   return (
     <>
-      <Box sx={{ mb: 2 }} id="query-field-instance">
+      <ParamField id="instance" title="Instance" name="instance" path="path" figure={figure} requirement="optional"
+        leftOut="the request lists the instances" empty={!selectedInstance} issues={failed}>
         <Autocomplete
           size="small"
           options={instances.instances}
@@ -44,24 +45,23 @@ const InstancePicker: React.FC<{ queryState: UseQueryUrlReturn }> = ({ queryStat
               </li>
             );
           }}
-          renderInput={params => <TextField {...params} label={`Instance${count}`} />}
+          renderInput={params => (
+            <TextField {...params} placeholder="Pick an instance"
+              slotProps={{ ...params.slotProps, htmlInput: { ...params.slotProps?.htmlInput, 'aria-label': 'instance', sx: { fontFamily: 'monospace' } } }} />
+          )}
         />
-        {instances.status === 'error' && <FormHelperText error>Couldn't load the instances: {instances.error}</FormHelperText>}
-      </Box>
+      </ParamField>
       {selectedInstance && (
-        <FormControl fullWidth size="small" sx={{ mb: 2 }} id="query-field-instance-query">
-          <InputLabel id="instance-query-label">Query on this instance</InputLabel>
-          <Select labelId="instance-query-label" label="Query on this instance" value={instanceQueryKey}
-            onChange={event => {
-              selectInstanceQuery(event.target.value);
-              if (mapInputRequired(queryTypeOf(selectedInstance, event.target.value))) showMap();
-            }}>
-            <MenuItem value=""><em>Select a query</em></MenuItem>
-            {Object.keys(selectedInstance.data_queries ?? {}).map(queryKey => (
-              <MenuItem key={queryKey} value={queryKey}>{queryKey}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <QueryTypeRow
+          id="instance-query"
+          title="Query on the instance"
+          queries={Object.keys(selectedInstance.data_queries ?? {})}
+          value={instanceQueryKey}
+          onChange={queryKey => {
+            selectInstanceQuery(queryKey);
+            if (!isMobile && queryKey && mapInputRequired(queryTypeOf(selectedInstance, queryKey))) showMap();
+          }}
+        />
       )}
     </>
   );

@@ -88,8 +88,8 @@ describe('EDR geometry rules', () => {
     expect(problems(issuesFor(DWD, 'cube', { bbox: [10, 50, 11, 51] }))).toEqual([]);
   });
 
-  it('flags query types the builder cannot fill yet', () => {
-    expect(ids(issuesFor(FMI, 'instances'))).toContain('edr:query:list');
+  it('says nothing of an instances list: the instance field says what it lists', () => {
+    expect(ids(issuesFor(FMI, 'instances'))).toEqual([]);
   });
 
   it('corridor needs a centre line and a width with its unit', () => {
@@ -125,9 +125,9 @@ describe('EDR geometry rules', () => {
 
   it('items: an optional box, a positive whole limit, and the time but no data selection', () => {
     const items = (overrides: Partial<QueryModelInput>) => issuesFor(METEOCORE, 'items', { format: 'GeoJSON', ...overrides });
-    expect(problems(items({}))).toEqual([]);
-    expect(ids(items({}))).toEqual(expect.arrayContaining(['edr:limit:default', 'edr:datetime:no-filter']));
-    expect(ids(items({ queryParams: { limit: '50' } }))).not.toContain('edr:limit:default');
+    // Left out, the limit and the time are the server's: their fields say so, and no note does
+    expect(ids(items({}))).toEqual([]);
+    expect(ids(items({ queryParams: { limit: '50' } }))).toEqual([]);
     expect(problems(items({ queryParams: { limit: '0' } }))).toEqual(['error limit']);
     expect(problems(items({ queryParams: { limit: '2.5' } }))).toEqual(['error limit']);
     expect(problems(items({ bbox: [25, 60, 24, 61] }))).toEqual(['error bbox']);
@@ -136,15 +136,12 @@ describe('EDR geometry rules', () => {
     expect(problems(items({ datetime: '2026-10-06T06:00:00Z/' }))).toEqual(['missing datetime']);
   });
 
-  it('calls a time left off a locations list no filter, and off a location the server\'s choice', () => {
-    const noted = (overrides: Partial<QueryModelInput>) => issuesFor(FMI, 'locations', overrides).find(issue => issue.field === 'datetime');
-    expect(noted({})).toMatchObject({ id: 'edr:datetime:no-filter', severity: 'info', message: 'No time filter: all locations are listed' });
-    expect(noted({ locationFeature: { id: '658225' } })).toMatchObject({ id: 'metadata:datetime:unset', severity: 'info' });
-  });
-
-  it('says items, not locations, for a time left out of items', () => {
-    const issues = issuesFor(METEOCORE, 'items', { format: 'GeoJSON', datetime: '' });
-    expect(issues.find(issue => issue.field === 'datetime')?.message).toBe('No time filter: items from any time are listed');
+  it('says nothing of a time left out, of a list or of a location: the time field says what the server does', () => {
+    const about = (issues: ReturnType<typeof validateQuery>) => issues.filter(issue => issue.field === 'datetime');
+    expect(about(issuesFor(FMI, 'locations'))).toEqual([]);
+    expect(about(issuesFor(FMI, 'locations', { locationFeature: { id: '658225' } }))).toEqual([]);
+    expect(about(issuesFor(METEOCORE, 'items', { format: 'GeoJSON', datetime: '' }))).toEqual([]);
+    expect(about(issuesFor(FMI, 'position', { points: [HELSINKI] }))).toEqual([]);
   });
 
   it('takes an open-ended time interval', () => {
@@ -157,32 +154,26 @@ describe('EDR geometry rules', () => {
     expect(range('2026-11-05T00:00:00Z', '')).toContain('missing datetime');
   });
 
-  it('notes that a locations request without a location lists them all', () => {
-    expect(ids(issuesFor(FMI, 'locations'))).toContain('edr:location:list');
-    expect(ids(issuesFor(FMI, 'locations', { locationFeature: { id: '658225' } }))).not.toContain('edr:location:list');
+  it('says nothing of a locations list: the location field says it lists them all', () => {
+    expect(ids(issuesFor(FMI, 'locations'))).toEqual([]);
   });
 });
 
 describe('collection metadata checks', () => {
-  it('checks the output format and notes the server default when none is chosen', () => {
+  it('checks the output format, and says nothing when none is chosen: the field marks the default', () => {
     expect(problems(issuesFor(FMI, 'position', { points: [HELSINKI], format: 'NetCDF' }))).toEqual(['error f']);
-    const unset = issuesFor(FMI, 'position', { points: [HELSINKI], format: '' }).find(issue => issue.field === 'f');
-    expect(unset).toMatchObject({ severity: 'info', message: expect.stringContaining('CoverageJSON') });
-  });
-
-  it("says the default format is the one the query names, not the one the server uses", () => {
-    const note = (collection: Collection) => issuesFor(collection, 'position', { points: [HELSINKI], format: '' }).find(issue => issue.field === 'f')?.message;
-    expect(note(FMI)).toBe('No output format selected: the server uses its default. The query names CoverageJSON as default_output_format');
-    const unnamed = { ...FMI, data_queries: { position: { link: { ...FMI.data_queries.position.link, variables: { query_type: 'position' } } } } } as unknown as Collection;
-    expect(note(unnamed)).toBe('No output format selected: the server uses its default');
+    expect(issuesFor(FMI, 'position', { points: [HELSINKI], format: 'NetCDF' }).find(issue => issue.field === 'f')?.message)
+      .toBe('Output format "NetCDF" isn\'t offered for this query');
+    expect(issuesFor(FMI, 'position', { points: [HELSINKI], format: '' }).filter(issue => issue.field === 'f')).toEqual([]);
+    expect(issuesFor(FMI, 'position', { points: [HELSINKI], format: 'CoverageJSON' }).filter(issue => issue.field === 'f')).toEqual([]);
   });
 
   it('checks parameter names and notes when none are chosen', () => {
     const issues = issuesFor(FMI, 'position', { points: [HELSINKI], parameters: ['humidity', 'Bogus'] });
     expect(problems(issues)).toEqual(['error parameter-name']);
     expect(issues[0].message).toBe('Unknown parameter: Bogus');
-    expect(ids(issuesFor(FMI, 'position', { points: [HELSINKI] }))).toContain('metadata:parameter-name:all');
-    expect(ids(issuesFor(FMI, 'locations'))).not.toContain('metadata:parameter-name:all');
+    // None chosen, the server sends them all: the field says so, and no note does
+    expect(issuesFor(FMI, 'position', { points: [HELSINKI] }).filter(issue => issue.field === 'parameter-name')).toEqual([]);
   });
 
   it('checks the datetime: complete ranges, valid values, order and extent', () => {
@@ -312,11 +303,13 @@ describe('addApiDocsIssues', () => {
   });
 
   it("leaves a field to EDR and the metadata when they already flag it, but not when they only note it", () => {
-    const own = issuesFor(FMI, 'position', { format: 'NetCDF4' }); // missing coords, f not offered
-    const merged = addApiDocsIssues(model({ format: 'NetCDF4', points: [] }), own,
-      { operation: null, issues: [apiIssue('coords'), apiIssue('f'), apiIssue('parameter-name')] });
-    expect(merged.filter(issue => issue.source === 'openapi').map(issue => issue.field)).toEqual(['parameter-name']);
-    expect(own.some(issue => issue.field === 'parameter-name' && issue.severity === 'info')).toBe(true);
+    // A corridor on ecmwf, which has no levels: coords missing, f not offered, and the height only noted
+    const width = { 'corridor-width': '10', 'width-units': 'km' };
+    const own = issuesFor(FMI, 'corridor', { format: 'NetCDF4', queryParams: width });
+    const merged = addApiDocsIssues(model({ queryKey: 'corridor', format: 'NetCDF4', points: [], queryParams: width }), own,
+      { operation: null, issues: [apiIssue('coords'), apiIssue('f'), apiIssue('corridor-height')] });
+    expect(merged.filter(issue => issue.source === 'openapi').map(issue => issue.field)).toEqual(['corridor-height']);
+    expect(own.some(issue => issue.field === 'corridor-height' && issue.severity === 'info')).toBe(true);
   });
 
   it("notes a missing parameter the API docs mark optional", () => {

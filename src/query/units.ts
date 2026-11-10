@@ -48,3 +48,8 @@ export function convertLength(value: number, from: string, to: string): number {
 export function keptUnit(offered: string[], current: string): string {
   return offered.length === 0 || offered.includes(current) ? current : '';
 }
+
+// The unit a click on it leaves: the one clicked, or none where it was the one picked
+export function toggledUnit(current: string, clicked: string): string {
+  return clicked === current ? '' : clicked;
+}

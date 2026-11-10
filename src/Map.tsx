@@ -10,6 +10,7 @@ import MapsAnimationBar from './MapsAnimationBar';
 import ResponseCellsBar from './ResponseCellsBar';
 import { useGeoJsonLayers } from './contexts/GeoJsonLayerContext';
 import { useMapInteraction } from './contexts/MapInteractionContext';
+import { useQueryBuilder } from './contexts/QueryBuilderContext';
 import { useApi } from './contexts/ApiContext';
 import { useCollection } from './contexts/CollectionContext';
 import { usePanes } from './contexts/PanesContext';
@@ -23,6 +24,7 @@ import { useResponseLocation } from './hooks/useResponseLocation';
 import { useMapInteractions } from './hooks/useMapInteractions';
 import { useLayerManagerSync } from './hooks/useLayerManagerSync';
 import MapQueryOverlay from './MapQueryOverlay';
+import RadiusUnits from './RadiusUnits';
 import { zoomToOverview, zoomToQuery } from './mapView';
 import { queryExtent } from './query/queryExtent';
 import { geometryKindOf } from './query/queryTypes';
@@ -52,7 +54,9 @@ const overviewButtonSx = {
 const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   // Context values for JSX rendering
   const { geoJsonLayers, setGeoJsonLayers, selectedGeoJsonFeature, setSelectedGeoJsonFeature } = useGeoJsonLayers();
-  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, dataQuery, queryZoom } = useMapInteraction();
+  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, queryZoom } = useMapInteraction();
+  // The radius query, for the card's units (its within_units), as the form offers them
+  const { queryTarget } = useQueryBuilder();
   const geometryKind = geometryKindOf(dataQuery);
   const radiusRange = rangeFor(radiusUnits);
   // Nothing is chosen for a radius until it is, unit included
@@ -215,8 +219,9 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
           >
             {dataQuery === 'radius' && (
               <div style={{ margin: '2px 0 4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', fontSize: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: '12px', rowGap: '4px', fontSize: '12px' }}>
                   <span style={{ fontWeight: 'bold' }}>Radius: {radiusText}</span>
+                  <RadiusUnits target={queryTarget} value={radiusUnits} onChange={setRadiusUnits} />
                   <span style={{ fontSize: '10px', opacity: 0.7 }}>{radiusRange.min} - {radiusRange.max}{radiusUnits ? ` ${radiusUnits}` : ''}</span>
                 </div>
                 <input

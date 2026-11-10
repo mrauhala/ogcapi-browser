@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ValidationError } from '../DataRetrievalAPI';
 import { findLineForJsonPointer, findCollectionRange, getCollectionIndexFromPath } from '../utils/jsonPointerToLine';
+import { takesItsOwnKeys } from '../utils/ownKeys';
 
 export interface UseValidationErrorNavigationReturn {
   errorLines: Set<number>;
@@ -96,6 +97,8 @@ export function useValidationErrorNavigation(
     if (!open || !errorLineList.length) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
+      // In a field, Cmd/Ctrl+arrows move the caret
+      if (takesItsOwnKeys(e.target)) return;
       if (e.key === 'ArrowUp') { e.preventDefault(); handlePrevError(); }
       else if (e.key === 'ArrowDown') { e.preventDefault(); handleNextError(); }
     };

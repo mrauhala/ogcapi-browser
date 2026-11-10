@@ -4,11 +4,11 @@ import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import FormControl from '@mui/material/FormControl';
 import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import FormLabel from '@mui/material/FormLabel';
 import Select from '@mui/material/Select';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -16,19 +16,27 @@ import ListItemText from '@mui/material/ListItemText';
 import { Collection, expandVerticalValues, expandCustomDimensionValues, getEffectiveCustomDimensions } from './DataRetrievalAPI';
 import { UseQueryUrlReturn } from './hooks/useQueryUrl';
 import TimeControl from './TimeControl';
-import QueryIssuesPanel, { FieldIssueText } from './QueryIssuesPanel';
-import QueryTypeInputs from './QueryTypeInputs';
 import InstancePicker from './InstancePicker';
 import { queryTypeOf, queryVariables, unitsFor } from './query/queryTypes';
-import { EDR_QUERY_RULES, mapInputRequired } from './query/edrRules';
+import { mapInputRequired } from './query/edrRules';
 import { levelChoice, pickedLevels, startsRepeating, unlistedReason } from './query/levels';
 import { intervalEnds, withEnd, type DimMode } from './query/dimensionText';
-import type { QueryIssue } from './query/types';
+import { collectionOffers, fieldSpecs, type FieldSpec } from './query/fieldSpecs';
 import { timeIsOnlyAFilter } from './query/queryModel';
 import { useCollection } from './contexts/CollectionContext';
+import { useRequestUrl } from './contexts/RequestUrlContext';
+import { useMapInteraction } from './contexts/MapInteractionContext';
 import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryValidation } from './hooks/useQueryValidation';
+import ParamField from './queryForm/ParamField';
+import NameToggles from './queryForm/NameToggles';
+import QueryTypeRow from './queryForm/QueryTypeRow';
+import QueryStatus from './queryForm/QueryStatus';
+import { useOpenDocs } from './queryForm/fieldFocus';
+import { BoxFields, NumberField } from './queryForm/ValueInputs';
+import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
+import { parametersOf } from './queryForm/pickerSearch';
 
 interface CollectionQueryBuilderProps {
   collection: Collection;
@@ -93,17 +101,14 @@ const MONO = { primary: { style: { fontSize: '0.85rem', fontFamily: 'monospace' 
 // range's two ends. What a dropdown can't hold, a repeating interval, a range in the one-value mode or a list in the
 // range mode, is shown as it's sent, in a text field. Switching the mode keeps the text (switchMode).
 const DimensionField: React.FC<{
-  fieldId: string; // after query-field-, which the issues jump to: z, or dim:<id>
-  legend: string;
   listed: string[]; // the values the collection lists
   hasValues: boolean; // listed as values, rather than worked out from an interval
   text: string;
   setText: (text: string) => void;
   mode: DimMode;
   setMode: (mode: DimMode) => void;
-  issue?: QueryIssue;
   words: DimensionWords;
-}> = ({ fieldId, legend, listed, hasValues, text, setText, mode, setMode, issue, words }) => {
+}> = ({ listed, hasValues, text, setText, mode, setMode, words }) => {
   const tooMany = listed.length > 250;
   const listable = hasValues && !tooMany;
   const ends = intervalEnds(text);
@@ -184,16 +189,14 @@ const DimensionField: React.FC<{
   );
 
   return (
-    <Box sx={{ mb: 2 }} id={`query-field-${fieldId}`}>
-      <FormLabel component="legend" sx={{ fontSize: '0.875rem', mb: 1 }}>{legend}</FormLabel>
-
+    <Box>
       {tooMany && (
         <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
           <Typography variant="caption">{words.large(listed.length)}</Typography>
         </Alert>
       )}
 
-      <FormControl component="fieldset" sx={{ mb: 1 }}>
+      <FormControl component="fieldset" sx={{ mb: 0.5 }}>
         <RadioGroup row value={mode} onChange={(event) => setMode(event.target.value as DimMode)} sx={{ gap: 2 }}>
           <FormControlLabel value="individual" control={<Radio size="small" />} label={<Typography variant="body2">{words.individual}</Typography>} />
           <FormControlLabel value="range" control={<Radio size="small" />} label={<Typography variant="body2">{words.range}</Typography>} />
@@ -207,17 +210,46 @@ const DimensionField: React.FC<{
           {listable ? <>{endSelect('start')}{endSelect('end')}</> : <>{endField('start')}{endField('end')}</>}
         </Box>
       ) : asText('Not a range of two ends, so shown as it is sent'))}
-
-      <FieldIssueText issue={issue} />
     </Box>
   );
 };
 
-// The query's fields, for a collection's data query or an instance's: everything below the query pick
-const QueryFields: React.FC<{ collection: Collection; queryKey: string; queryState: UseQueryUrlReturn }> = ({ collection, queryKey, queryState }) => {
+// The WKT as sent, read-only until PR 5 makes it typed; the map writes it. On a phone the map is a pane away: Map
+// goes there, since picking a query no longer does
+function CoordsValue({ text, missing }: { text: string; missing: boolean }) {
+  const { isMobile, showMap } = usePanes();
+  return (
+    <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'stretch' }}>
+      <Box
+        sx={{
+          flex: 1, minWidth: 0, minHeight: { xs: 40, sm: 36 }, px: 1.25, py: 0.75, display: 'flex', alignItems: 'center',
+          border: 1, borderStyle: missing ? 'dashed' : 'solid', borderColor: missing ? 'warning.main' : 'divider', borderRadius: 1,
+          fontFamily: text ? 'monospace' : undefined, fontSize: 13, overflowWrap: 'anywhere', color: text ? 'text.primary' : 'text.disabled',
+        }}
+      >
+        {text || 'Draw on the map'}
+      </Box>
+      {isMobile && <Button variant="outlined" onClick={showMap} sx={{ flexShrink: 0, textTransform: 'none' }}>Map</Button>}
+    </Box>
+  );
+}
+
+// A unit, right after its number: toggles of those the query lists, or text where it lists none
+function UnitsValue({ name, offered, value, onChange, error }: { name: string; offered: string[]; value: string; onChange: (unit: string) => void; error: boolean }) {
+  if (offered.length) return <NameToggles label={name} options={offered} value={value} onChange={onChange} tall />;
+  return (
+    <TextField id={`query-input-${name}`} size="small" value={value} error={error} placeholder="Unit, as km" sx={{ width: 150 }}
+      onChange={event => onChange(event.target.value)} slotProps={{ htmlInput: { sx: { fontFamily: 'monospace' } } }} />
+  );
+}
+
+// The query's fields, for a collection's data query or an instance's: a field per query parameter, as fieldSpecs has
+// them, each with today's control inside
+const QueryFields: React.FC<{ collection: Collection; queryKey: string; queryState: UseQueryUrlReturn; specs: FieldSpec[] }> = ({ collection, queryKey, queryState, specs }) => {
   const {
     selectedFormat, setSelectedFormat,
     selectedParameters, setSelectedParameters,
+    datetime,
     vertical, setVertical, verticalMode, setVerticalMode,
     dimensions, setDimension, dimensionModes, setDimensionMode,
     getEffectiveOutputFormats,
@@ -225,204 +257,186 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,
   } = queryState;
-
-  const { issues } = useQueryValidation();
-  // The most important issue about a field, to show under it
-  const fieldIssue = (field: string) => issues.find(issue => issue.field === field && issue.severity !== 'info');
-  // A feature list (items) takes no parameters, levels or custom dimensions
-  const selectsData = !(queryKey && EDR_QUERY_RULES[queryTypeOf(collection, queryKey)]?.featureList);
+  const { radius, setRadius, radiusUnits, setRadiusUnits, selectedBbox } = useMapInteraction();
+  const { issues, apiOperation } = useQueryValidation();
   const { selectedFeature } = useCollection();
-  const queryType = queryKey ? queryTypeOf(collection, queryKey) : '';
+  const { requestUrl } = useRequestUrl();
+  const openDocs = useOpenDocs();
+  const queryType = queryTypeOf(collection, queryKey);
+  const variables = queryVariables(collection, queryKey);
   const timeIsFilter = timeIsOnlyAFilter(queryType, !!selectedFeature);
-  // Units of z a query declares (cube height_units); a corridor's height units belong to its height
-  const zUnits = queryKey && queryTypeOf(collection, queryKey) !== 'corridor'
-    ? unitsFor(queryVariables(collection, queryKey), 'height')
-    : [];
+  const issuesOf = (id: string) => issues.filter(issue => issue.field === id);
+  const hasError = (id: string) => issuesOf(id).some(issue => issue.severity === 'error');
+  // What's sent, for what only the map writes: the request line, so a link's coords show as it has them
+  const sent = (() => {
+    try {
+      return new URL(requestUrl).searchParams;
+    } catch {
+      return new URLSearchParams();
+    }
+  })();
+  const customs = getEffectiveCustomDimensions(collection.extent);
+  const number = (name: string) => {
+    const text = queryParams[name]?.trim() ?? '';
+    return text === '' || !isFinite(Number(text)) ? null : Number(text);
+  };
+
+  // A field's control, and whether it's empty, for the Left out line
+  const valueOf = (spec: FieldSpec): { control: React.ReactNode; empty: boolean } => {
+    const missing = issuesOf(spec.id).some(issue => issue.severity === 'missing');
+    switch (spec.name) {
+      case 'coords':
+        return { control: <CoordsValue text={sent.get('coords') ?? ''} missing={missing} />, empty: !sent.get('coords') };
+      case 'bbox':
+        return {
+          control: <BoxFields collection={collection} error={hasError('bbox')} requiredByApiDocs={!!apiOperation?.required.includes('coords')}
+            bboxAsCoords={queryType === 'cube' && bboxAsCoords} setBboxAsCoords={setBboxAsCoords} />,
+          empty: !selectedBbox,
+        };
+      case 'within':
+        return { control: <NumberField id="query-input-within" value={radius} onChange={setRadius} error={hasError('within')} placeholder="A number" />, empty: radius === null };
+      case 'within-units':
+        return { control: <UnitsValue name="within-units" offered={unitsFor(variables, 'within')} value={radiusUnits} onChange={setRadiusUnits} error={hasError('within-units')} />, empty: !radiusUnits };
+      case 'corridor-width':
+      case 'corridor-height':
+      case 'limit':
+        return {
+          control: <NumberField id={`query-input-${spec.name}`} value={number(spec.name)} error={hasError(spec.name)} placeholder="A number"
+            onChange={value => setQueryParam(spec.name, value === null ? '' : String(value))} />,
+          empty: !queryParams[spec.name]?.trim(),
+        };
+      case 'width-units':
+      case 'height-units':
+        return {
+          control: <UnitsValue name={spec.name} offered={unitsFor(variables, spec.name === 'width-units' ? 'width' : 'height')}
+            value={queryParams[spec.name] ?? ''} onChange={unit => setQueryParam(spec.name, unit)} error={hasError(spec.name)} />,
+          empty: !queryParams[spec.name]?.trim(),
+        };
+      case 'parameter-name':
+        return { control: <ParameterSelect collection={collection} chosen={selectedParameters} onChange={setSelectedParameters} error={hasError('parameter-name')} />, empty: selectedParameters.length === 0 };
+      case 'datetime':
+        return {
+          control: (
+            <>
+              {/* A list has everything in it unless filtered by time */}
+              {timeIsFilter && (
+                <FormControlLabel
+                  control={<Checkbox size="small" checked={filterByTime} onChange={event => setFilterByTime(event.target.checked)} />}
+                  label={<Typography variant="body2">Filter {queryType === 'locations' ? 'locations' : 'items'} by time</Typography>}
+                />
+              )}
+              {(!timeIsFilter || filterByTime) && collection.extent?.temporal && <TimeControl temporal={collection.extent.temporal} queryState={queryState} />}
+            </>
+          ),
+          empty: !datetime || (timeIsFilter && !filterByTime),
+        };
+      case 'z': {
+        const verticalExtent = collection.extent!.vertical!;
+        return {
+          control: <DimensionField listed={expandVerticalValues(verticalExtent, 500)} hasValues={!!verticalExtent.values?.length}
+            text={vertical} setText={setVertical} mode={verticalMode} setMode={setVerticalMode} words={LEVEL_WORDS} />,
+          empty: !vertical,
+        };
+      }
+      case 'f':
+        return {
+          control: <NameToggles label="f" options={getEffectiveOutputFormats(collection, queryKey)} value={selectedFormat} onChange={setSelectedFormat} marked={spec.marked} />,
+          empty: !selectedFormat,
+        };
+      default: {
+        const dimension = customs.find(each => each.id === spec.name);
+        if (!dimension) return { control: null, empty: true };
+        return {
+          control: <DimensionField listed={expandCustomDimensionValues(dimension, 500)} hasValues={!!dimension.values?.length}
+            text={dimensions[dimension.id] ?? ''} setText={text => setDimension(dimension.id, text)}
+            mode={dimensionModes[dimension.id] ?? 'individual'} setMode={mode => setDimensionMode(dimension.id, mode)}
+            words={dimensionWords(dimension.id, dimension.reference)} />,
+          empty: !dimensions[dimension.id],
+        };
+      }
+    }
+  };
 
   return (
     <>
-      <QueryTypeInputs collection={collection} queryKey={queryKey} queryParams={queryParams} setQueryParam={setQueryParam}
-        bboxAsCoords={bboxAsCoords} setBboxAsCoords={setBboxAsCoords} />
-
-      {/* Format Selector */}
-      {(() => {
-        const effectiveFormats = getEffectiveOutputFormats(collection, queryKey);
-        return effectiveFormats.length > 0 && (
-          <FormControl fullWidth sx={{ mb: 2 }} id="query-field-f" error={fieldIssue('f')?.severity === 'error'}>
-            <InputLabel id="format-select-label">Output Format</InputLabel>
-            <Select
-              labelId="format-select-label"
-              value={selectedFormat}
-              label="Output Format"
-              onChange={(e) => {
-                setSelectedFormat(e.target.value);
-              }}
-              size="small"
-            >
-              <MenuItem value="">
-                <em>Select a format</em>
-              </MenuItem>
-              {effectiveFormats.map((format) => (
-                <MenuItem key={format} value={format}>
-                  {format}
-                </MenuItem>
-              ))}
-              {/* From a typed URL: flagged below, and shown so that the field doesn't look empty */}
-              {selectedFormat && !effectiveFormats.includes(selectedFormat) && (
-                <MenuItem value={selectedFormat}>{selectedFormat}</MenuItem>
-              )}
-            </Select>
-            <FieldIssueText issue={fieldIssue('f')} />
-          </FormControl>
+      {specs.map(spec => {
+        const { control, empty } = valueOf(spec);
+        const unit = spec.unit ? valueOf(spec.unit) : null;
+        // A size's issues, then its unit's
+        const own = [...issuesOf(spec.id), ...(spec.unit ? issuesOf(spec.unit.id) : [])];
+        return (
+          <ParamField key={spec.id} id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} · ${spec.unit.name}` : spec.name} figure={spec.figure}
+            requirement={spec.requirement} missing={own.some(issue => issue.severity === 'missing')} hints={spec.hints} link={spec.link}
+            leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
+            {spec.unit && unit ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                <Box sx={{ width: 128, flexShrink: 0 }}>{control}</Box>
+                {/* Its own id, for the status line's within-units to jump to */}
+                <Box id={`query-field-${spec.unit.id}`}>{unit.control}</Box>
+              </Box>
+            ) : control}
+          </ParamField>
         );
-      })()}
-
-      {/* Parameter Selector - Multiselect */}
-      { selectsData && typeof collection.parameter_names !== "undefined" && (
-        <FormControl fullWidth sx={{ mb: 2 }} id="query-field-parameter-name" error={fieldIssue('parameter-name')?.severity === 'error'}>
-          <InputLabel id="parameter-select-label">Parameters</InputLabel>
-          <Select
-            labelId="parameter-select-label"
-            multiple
-            value={selectedParameters}
-            label="Parameters"
-            onChange={(e) => {
-              const parameters = typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value;
-              setSelectedParameters(parameters);
-            }}
-            size="small"
-            renderValue={(selected) => selected.join(', ')}
-          >
-            {Array.isArray(collection.parameter_names)
-              ? collection.parameter_names.map((param) => (
-                  <MenuItem key={param.id} value={param.id}>
-                    <Checkbox checked={selectedParameters.indexOf(param.id) > -1} />
-                    <ListItemText primary={param.label || param.id} />
-                  </MenuItem>
-                ))
-              : Object.keys(collection.parameter_names || {}).map((paramKey) => {
-                  const params = collection.parameter_names as { [key: string]: any };
-                  return (
-                    <MenuItem key={paramKey} value={paramKey}>
-                      <Checkbox checked={selectedParameters.indexOf(paramKey) > -1} />
-                      <ListItemText primary={params[paramKey]?.description || paramKey} />
-                    </MenuItem>
-                  );
-                })
-            }
-          </Select>
-          <FieldIssueText issue={fieldIssue('parameter-name')} />
-        </FormControl>
-      )}
-
-      {/* A list has everything in it unless filtered by time */}
-      {timeIsFilter && collection.extent?.temporal && (
-        <FormControlLabel
-          sx={{ mb: 1 }}
-          control={<Checkbox size="small" checked={filterByTime} onChange={event => setFilterByTime(event.target.checked)} />}
-          label={<Typography variant="body2">Filter {queryType === 'locations' ? 'locations' : 'items'} by time</Typography>}
-        />
-      )}
-
-      {/* Datetime Selector — TimeControl with slider + transport buttons */}
-      {collection.extent?.temporal && (!timeIsFilter || filterByTime) && (
-        <Box id="query-field-datetime">
-          <TimeControl temporal={collection.extent.temporal} queryState={queryState} />
-          <FieldIssueText issue={fieldIssue('datetime')} />
-        </Box>
-      )}
-
-      {/* z and the custom dimensions, OGC API Maps UAD dimensions among them (top-level extent keys) */}
-      {selectsData && collection.extent?.vertical && (() => {
-        const verticalExtent = collection.extent.vertical;
-        const hasValues = !!verticalExtent.values && verticalExtent.values.length > 0;
-        const hasInterval = !!verticalExtent.interval && verticalExtent.interval.length > 0;
-        return (hasValues || hasInterval) ? (
-          <DimensionField
-            fieldId="z"
-            legend={`Vertical Level Selection${zUnits.length > 0 ? ` (${zUnits.join(', ')})` : ''}`}
-            listed={expandVerticalValues(verticalExtent, 500)}
-            hasValues={hasValues}
-            text={vertical}
-            setText={setVertical}
-            mode={verticalMode}
-            setMode={setVerticalMode}
-            issue={fieldIssue('z')}
-            words={LEVEL_WORDS}
-          />
-        ) : null;
-      })()}
-
-      {selectsData && getEffectiveCustomDimensions(collection.extent).map((dimension) => {
-        const dimensionId = dimension.id;
-        const hasValues = !!dimension.values && dimension.values.length > 0;
-        const hasInterval = !!dimension.interval && dimension.interval.length > 0;
-        return (hasValues || hasInterval) ? (
-          <DimensionField
-            key={dimensionId}
-            fieldId={`dim:${dimensionId}`}
-            legend={`${dimension.id} Selection ${dimension.reference ? `(${dimension.reference})` : ''}`}
-            listed={expandCustomDimensionValues(dimension, 500)}
-            hasValues={hasValues}
-            text={dimensions[dimensionId] ?? ''}
-            setText={text => setDimension(dimensionId, text)}
-            mode={dimensionModes[dimensionId] ?? 'individual'}
-            setMode={mode => setDimensionMode(dimensionId, mode)}
-            issue={fieldIssue(`dim:${dimensionId}`)}
-            words={dimensionWords(dimensionId, dimension.reference)}
-          />
-        ) : null;
       })}
     </>
   );
 };
 
+// parameter-name, until the rows of PR 6: the collection's parameters, searched by typing
+function ParameterSelect({ collection, chosen, onChange, error }: { collection: Collection; chosen: string[]; onChange: (parameters: string[]) => void; error: boolean }) {
+  return <ParameterPicker parameters={parametersOf(collection)} chosen={chosen} onChange={onChange} error={error} />;
+}
+
+// location, a part of the path for a locations query: one of the collection's, from the menu or the map. None lists them
+function LocationField() {
+  const { locationFeatures, selectedFeature, setSelectedFeature } = useCollection();
+  const features = locationFeatures ?? [];
+  return (
+    <ParamField id="location" title="Location" name="location" path="path" figure={`${features.length} listed`} requirement="optional"
+      hints={['From `/locations`, or pick one on the map']} leftOut={`the request lists all ${features.length} locations`} empty={!selectedFeature}>
+      <LocationPicker features={features} selected={selectedFeature} onChange={setSelectedFeature} />
+    </ParamField>
+  );
+}
+
 const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collection, queryState }) => {
-  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey } = queryState;
-  const { showMap } = usePanes();
+  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters } = queryState;
+  const { showMap, isMobile } = usePanes();
   const { leaveQuery } = useOpenCollection();
+  const { apiOperation } = useQueryValidation();
+  const { selectedFeature } = useCollection();
   const instanceMode = !!selectedDataQuery && queryTypeOf(collection, selectedDataQuery) === 'instances';
   // What the fields describe: the collection's query, or the picked instance's
   const target = instanceMode
     ? (selectedInstance && instanceQueryKey ? { collection: selectedInstance, queryKey: instanceQueryKey } : null)
     : (selectedDataQuery ? { collection, queryKey: selectedDataQuery } : null);
+  const specs = target
+    ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, { apiRequired: apiOperation?.required, hasLocation: !!selectedFeature })
+    : [];
+  const forLocations = !!target && queryTypeOf(target.collection, target.queryKey) === 'locations';
+  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
+
+  // A query's next step, drawing its geometry, is on the map: beside the form on a desktop. On a phone the coords
+  // field's Map button goes there, rather than the pick itself
+  const pick = (queryKey: string) => {
+    if (!queryKey) {
+      leaveQuery();
+      return;
+    }
+    selectDataQuery(collection, queryKey);
+    if (!isMobile && mapInputRequired(queryTypeOf(collection, queryKey))) showMap();
+  };
 
   return (
     <>
-      {/* Data Query Selector */}
-      { typeof collection.data_queries !== "undefined" && (
-        <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel id="data-query-select-label">Data Query</InputLabel>
-          <Select
-            labelId="data-query-select-label"
-            value={selectedDataQuery}
-            label="Data Query"
-            onChange={(e) => {
-              if (!e.target.value) {
-                leaveQuery();
-                return;
-              }
-              selectDataQuery(collection, e.target.value);
-              // Its next step, drawing the query's geometry, happens on the map
-              if (mapInputRequired(queryTypeOf(collection, e.target.value))) showMap();
-            }}
-            size="small"
-          >
-            <MenuItem value="">
-              <em>Select a data query</em>
-            </MenuItem>
-            {Object.keys(collection.data_queries).map((queryKey) => (
-              <MenuItem key={queryKey} value={queryKey}>
-                {queryKey}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+      {collection.data_queries && (
+        <QueryTypeRow queries={Object.keys(collection.data_queries)} value={selectedDataQuery} onChange={pick} offers={collectionOffers(collection)}
+          showPath={!(instanceMode && selectedInstance)} />
       )}
-
+      {selectedDataQuery && <QueryStatus shown={shown} />}
       {instanceMode && <InstancePicker queryState={queryState} />}
-      {selectedDataQuery && <QueryIssuesPanel />}
-      {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} />}
+      {forLocations && <LocationField />}
+      {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} specs={specs} />}
     </>
   );
 };
