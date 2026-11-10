@@ -1,11 +1,13 @@
 import type { QueryModel } from './queryModel';
 import { wholeValue } from './dimensionText';
 
-// Parameters a query type takes from the builder's fields (queryParams)
+// Parameters a query type takes from the builder's fields (queryParams), and those a query that selects data takes
+// whatever its type
 export const TYPE_PARAMS: Readonly<Record<string, string[]>> = {
   corridor: ['corridor-width', 'width-units', 'corridor-height', 'height-units'],
   items: ['limit'],
 };
+export const DATA_PARAMS: readonly string[] = ['crs'];
 
 const lonLat = ([lon, lat]: [number, number]) => `${lon.toFixed(3)} ${lat.toFixed(3)}`;
 const ring = (polygon: [number, number][]) => polygon.map(([lon, lat]) => `${lon.toFixed(2)} ${lat.toFixed(2)}`).join(',');
@@ -94,7 +96,7 @@ export function buildQueryUrl(model: QueryModel): string | null {
       params.delete('within-units');
       params.delete('bbox');
     }
-    for (const name of TYPE_PARAMS[queryType] ?? []) {
+    for (const name of [...TYPE_PARAMS[queryType] ?? [], ...(selectsData ? DATA_PARAMS : [])]) {
       const value = model.queryParams[name]?.trim();
       if (value) params.set(name, value);
       else params.delete(name);

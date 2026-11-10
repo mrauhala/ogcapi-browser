@@ -20,6 +20,7 @@ export interface FieldSpec {
   hints: string[]; // what the collection allows, then how to fill it in
   link?: { label: string; href: string }; // a custom dimension's reference
   leftOut?: string; // what the server does while the field is empty
+  grammar?: string; // the forms a typed value takes, said while the field is empty or wrong
   unit?: FieldSpec; // a size's unit, in the same block and on the same row: within-units with within
   marked?: string; // the value the metadata names as the default, as default_output_format: marked, not sent
 }
@@ -27,6 +28,7 @@ export interface FieldSpec {
 export interface FieldContext {
   apiRequired?: string[]; // the parameters the API docs' operation requires
   hasLocation?: boolean; // a location is picked: a locations query is for its data, not a list
+  inRequest?: string[]; // the parameters the request line has: a field shows for one the metadata has nothing for
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -111,6 +113,18 @@ const GEOMETRY_HINTS: Record<string, string> = {
   area: 'Click the corners on the map, and double-click to finish each polygon',
 };
 
+// What each typed value can be, as EDR has it
+const COORDS_GRAMMAR: Record<string, string> = {
+  position: 'Typed: `POINT(lon lat)`, or `MULTIPOINT((lon lat),(lon lat))`',
+  radius: 'Typed: `POINT(lon lat)`, or `MULTIPOINT((lon lat),(lon lat))`',
+  trajectory: 'Typed: `LINESTRING(lon lat, lon lat, …)`',
+  corridor: 'Typed: `LINESTRING(lon lat, lon lat, …)`',
+  area: 'Typed: `POLYGON((lon lat, …, the first again))`, or `MULTIPOLYGON`',
+};
+const DATETIME_GRAMMAR = 'One time, an interval `start/end`, or one open at an end, `start/..` or `../end`';
+const LEVEL_GRAMMAR = 'One level, a list `1000,850`, an interval `1000/500`, or `R5/100/50` for 5 levels 50 apart from 100';
+const VALUE_GRAMMAR = 'One value, a list `1,2,3`, or an interval `1/5`';
+
 const unitsHint = (offered: string[], variable: string) => (offered.length
   ? `Units from the query's \`${variable}\``
   : `The query lists no \`${variable}\`: type a unit`);
@@ -131,13 +145,16 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
   const extent = collection.extent;
   const hasLevels = !!extent?.vertical && !!(extent.vertical.values?.length || extent.vertical.interval?.length);
 
-  if (GEOMETRY_HINTS[queryType]) fields.push(field('coords', { title: COORDS_TITLES[queryType], hints: [GEOMETRY_HINTS[queryType]] }));
-  if (queryType === 'cube') fields.push(field('bbox', { hints: ['Drag a box on the map, or type its edges'] }));
-  if (queryType === 'items') fields.push(field('bbox', { hints: ['Drag a box on the map, or type its edges'], leftOut: 'items anywhere' }));
+  if (GEOMETRY_HINTS[queryType]) {
+    fields.push(field('coords', { title: COORDS_TITLES[queryType], hints: [GEOMETRY_HINTS[queryType]], grammar: COORDS_GRAMMAR[queryType] }));
+  }
+  const box = { hints: ['Drag a box on the map, or type its edges'], grammar: 'Typed: `west,south,east,north`, in degrees' };
+  if (queryType === 'cube') fields.push(field('bbox', box));
+  if (queryType === 'items') fields.push(field('bbox', { ...box, leftOut: 'items anywhere' }));
 
   // A size and its unit: one block, the number then the unit, as they're read. EDR requires the two together
   const sized = (name: string, unitName: string, kind: 'within' | 'width' | 'height', hints: string[]): FieldSpec =>
-    field(name, { hints: [...hints, unitsHint(unitsFor(variables, kind), `${kind}_units`)], unit: field(unitName) });
+    field(name, { hints: [...hints, unitsHint(unitsFor(variables, kind), `${kind}_units`)], unit: field(unitName), grammar: 'A number' });
   if (queryType === 'radius') fields.push(sized('within', 'within-units', 'within', ['The map draws the circle once both are set']));
   if (queryType === 'corridor') {
     fields.push(sized('corridor-width', 'width-units', 'width', []));
@@ -145,7 +162,7 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
     if (hasLevels) fields.push(sized('corridor-height', 'height-units', 'height', ['Measured from the level in `z`']));
   }
   if (queryType === 'items') {
-    fields.push(field('limit', { leftOut: 'the server decides how many items (often 10)' }));
+    fields.push(field('limit', { leftOut: 'the server decides how many items (often 10)', grammar: 'A whole number of at least 1' }));
   }
 
   const selectsData = !rule?.featureList && !(queryType === 'locations' && !context.hasLocation);
@@ -158,12 +175,15 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
     }));
   }
 
-  if (extent?.temporal && queryType !== 'instances') {
-    const said = timesSaid(extent.temporal);
+  // A field for what the metadata has, or for what the request has though the metadata hasn't
+  const inRequest = new Set(context.inRequest ?? []);
+  if ((extent?.temporal || inRequest.has('datetime')) && queryType !== 'instances') {
+    const said = extent?.temporal ? timesSaid(extent.temporal) : "The collection's extent has no time";
     const list = timeIsOnlyAFilter(queryType, !!context.hasLocation);
     fields.push(field('datetime', {
       hints: said ? [said] : [],
       leftOut: list ? `no time filter: all ${queryType === 'locations' ? 'locations' : 'items'} are listed` : 'the server decides which times',
+      grammar: DATETIME_GRAMMAR,
     }));
   }
 
@@ -181,7 +201,10 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
         ...(twin ? [`Also declared as a custom dimension \`z\` in \`extent.custom\`, with ${twinCount} value${twinCount === 1 ? '' : 's'}. One field, since both are sent as \`z\``] : []),
       ],
       leftOut: 'the server decides which levels',
+      grammar: LEVEL_GRAMMAR,
     }));
+  } else if (selectsData && inRequest.has('z')) {
+    fields.push(field('z', { hints: ["The collection's extent has no levels"], leftOut: 'the server decides which levels', grammar: LEVEL_GRAMMAR }));
   }
   for (const dimension of customs) {
     if (dimension.id === 'z' && hasLevels) continue;
@@ -197,6 +220,7 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
       hints: reference && !isLink ? [`In ${reference}`] : [],
       link: isLink ? { label: 'reference', href: reference } : undefined,
       leftOut: 'the server decides',
+      grammar: VALUE_GRAMMAR,
     });
   }
 
@@ -234,4 +258,30 @@ export function collectionOffers(collection: Collection): string[] {
   const formats = [...new Set([...(collection.output_formats ?? []), ...Object.keys(collection.data_queries ?? {}).flatMap(key => effectiveOutputFormats(collection, key))])];
   if (formats.length) said.push(`Formats: ${formats.map(format => `\`${format}\``).join(', ')}`);
   return said;
+}
+
+// The CRSs a query lists in its crs_details, by the names sent as crs
+export function crsOffered(collection: Collection, queryKey: string): string[] {
+  const details = queryVariables(collection, queryKey)?.crs_details;
+  return Array.isArray(details) ? details.map(detail => detail?.crs).filter((crs): crs is string => typeof crs === 'string' && !!crs.trim()) : [];
+}
+
+// The names the form's fields hold for a query. A parameter the request has under any other name is an other
+// parameter, under More, sent as typed
+export function heldNames(specs: FieldSpec[], queryType: string, crs: string[]): Set<string> {
+  return new Set([
+    ...specs.flatMap(spec => [spec.name, ...(spec.unit ? [spec.unit.name] : [])]),
+    // A cube's box may also go as coords, for servers whose API docs ask for them
+    ...(queryType === 'cube' ? ['coords'] : []),
+    ...(crs.length > 0 ? ['crs'] : []),
+  ]);
+}
+
+// Where a query selects data from a collection with neither time nor levels, and the request has neither: one line
+// where those fields would be, rather than nothing
+export function lacksTimeAndLevels(collection: Collection, specs: FieldSpec[]): boolean {
+  const extent = collection.extent;
+  const levels = !!extent?.vertical && !!(extent.vertical.values?.length || extent.vertical.interval?.length);
+  return !extent?.temporal && !levels && specs.some(spec => spec.name === 'parameter-name')
+    && !specs.some(spec => spec.name === 'datetime' || spec.name === 'z');
 }

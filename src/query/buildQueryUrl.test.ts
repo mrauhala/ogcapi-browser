@@ -170,6 +170,15 @@ describe('buildQueryUrl', () => {
   })!)!;
   const position = (overrides: Partial<QueryModelInput>) => request('position', overrides);
 
+  it('sends a crs chosen for a query that selects data, and none for a list', () => {
+    const sent = (queryKey: string, overrides: Partial<QueryModelInput>) => new URL(request(queryKey, overrides)).searchParams.get('crs');
+    expect(sent('position', { queryParams: { crs: 'OGC:CRS84' } })).toBe('OGC:CRS84');
+    expect(sent('position', { queryParams: { crs: ' ' } })).toBeNull();
+    expect(sent('position', {})).toBeNull();
+    expect(sent('locations', { queryParams: { crs: 'OGC:CRS84' } })).toBeNull();
+    expect(sent('locations', { queryParams: { crs: 'OGC:CRS84' }, locationFeature: { id: '100683' } })).toBe('OGC:CRS84');
+  });
+
   it('sends custom dimensions as they are, a range or a list', () => {
     expect(new URL(position({ customDims: { member: '1/5' } })).searchParams.get('member')).toBe('1/5');
     expect(new URL(position({ customDims: { member: '1,2,3' } })).searchParams.get('member')).toBe('1,2,3');

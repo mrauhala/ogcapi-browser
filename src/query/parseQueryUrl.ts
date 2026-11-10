@@ -1,6 +1,6 @@
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
-import { TYPE_PARAMS } from './buildQueryUrl';
+import { DATA_PARAMS, TYPE_PARAMS } from './buildQueryUrl';
 import { geometryKindOf, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
 import type { BBox } from './types';
 
@@ -163,6 +163,6 @@ export function readQuerySelections(url: string, collection: Collection, queryKe
     bboxAsCoords: kind === 'bbox' && params.has('coords'),
     radius,
     radiusUnits: units && (offered.length === 0 || offered.includes(units)) ? units : null,
-    queryParams: Object.fromEntries((TYPE_PARAMS[queryType] ?? []).map(name => [name, params.get(name) ?? ''])),
+    queryParams: Object.fromEntries([...TYPE_PARAMS[queryType] ?? [], ...DATA_PARAMS].map(name => [name, params.get(name) ?? ''])),
   };
 }

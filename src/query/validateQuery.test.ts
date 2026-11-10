@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
 import { buildQueryModel, type QueryModelInput } from './queryModel';
-import { addApiDocsIssues, summarizeIssues, validateQuery } from './validateQuery';
+import { addApiDocsIssues, summarizeIssues, typedIssues, validateQuery } from './validateQuery';
 import type { QueryIssue } from './types';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
@@ -336,5 +336,58 @@ describe('addApiDocsIssues', () => {
     expect(merged.map(issue => `${issue.severity} ${issue.source}`)).toEqual([
       'missing metadata', 'warning openapi', ...own.filter(issue => issue.severity === 'info').map(issue => `info ${issue.source}`), 'info openapi',
     ]);
+  });
+});
+
+describe('crs', () => {
+  const withCrs = (crs: string, details?: unknown) => {
+    const collection = details === undefined ? FMI : {
+      ...FMI, data_queries: { ...FMI.data_queries, position: { link: { ...FMI.data_queries.position.link, variables: { query_type: 'position', crs_details: details } } } },
+    } as unknown as Collection;
+    return issuesFor(collection, 'position', { points: [HELSINKI], queryParams: { crs } }).filter(issue => issue.field === 'crs');
+  };
+
+  it('is an error where the query doesn’t list it in its crs_details, as f is', () => {
+    expect(withCrs('EPSG:3067', [{ crs: 'OGC:CRS84' }, { crs: 'EPSG:4326' }])).toEqual([expect.objectContaining({
+      severity: 'error', source: 'metadata', input: 'form', message: "EPSG:3067 isn't in the query's crs_details (OGC:CRS84, EPSG:4326)",
+    })]);
+    expect(withCrs('EPSG:4326', [{ crs: 'OGC:CRS84' }, { crs: 'EPSG:4326' }])).toEqual([]);
+  });
+
+  it('is anything where the query lists none, and nothing left out', () => {
+    expect(withCrs('EPSG:3067', [])).toEqual([]);
+    expect(withCrs('EPSG:3067', 'not a list')).toEqual([]);
+    expect(withCrs('', [{ crs: 'OGC:CRS84' }])).toEqual([]);
+  });
+
+  it('isn’t checked on a list, which doesn’t send it', () => {
+    const list = issuesFor(FMI, 'locations', { queryParams: { crs: 'EPSG:3067' } }).filter(issue => issue.field === 'crs');
+    expect(list).toEqual([]);
+  });
+});
+
+describe('typedIssues', () => {
+  const LINE = 'https://a.example/collections/ifs/radius';
+  const missing = (field: string): QueryIssue => ({ id: `edr:${field}:required`, severity: 'missing', source: 'edr', field, message: `Set ${field}` });
+  const error = (field: string): QueryIssue => ({ id: `edr:${field}:bad`, severity: 'error', source: 'edr', field, message: `Bad ${field}` });
+
+  it('drops what the line has from what’s missing: it was typed, though the form may not read it', () => {
+    const issues = [missing('coords'), missing('within'), missing('within-units')];
+    expect(typedIssues(issues, `${LINE}?coords=POINT(abc)&within=25`).map(issue => issue.field)).toEqual(['within-units']);
+    expect(typedIssues(issues, `${LINE}?member=1`)).toBe(issues);
+  });
+
+  it('keeps errors and warnings on what the line has, and a value that\'s only blank is missing still', () => {
+    expect(typedIssues([error('within')], `${LINE}?within=abc`)).toEqual([error('within')]);
+    expect(typedIssues([missing('within')], `${LINE}?within=%20`)).toEqual([missing('within')]);
+  });
+
+  it('keeps what’s missing of a value the line has, a range’s other end', () => {
+    const halfRange: QueryIssue = { id: 'metadata:z:range', severity: 'missing', source: 'metadata', field: 'z', message: 'Pick the upper end of the level range' };
+    expect(typedIssues([halfRange], `${LINE}?z=850/`)).toEqual([halfRange]);
+  });
+
+  it('finds a custom dimension’s value under its own name', () => {
+    expect(typedIssues([missing('dim:member')], `${LINE}?member=1`)).toEqual([]);
   });
 });

@@ -233,9 +233,14 @@ describe('readQuerySelections', () => {
 
   it("reads a query type's own parameters, blank when left out", () => {
     expect(withParams('corridor-width=5&width-units=km', FMI, 'corridor').queryParams).toEqual({
-      'corridor-width': '5', 'width-units': 'km', 'corridor-height': '', 'height-units': '',
+      'corridor-width': '5', 'width-units': 'km', 'corridor-height': '', 'height-units': '', crs: '',
     });
-    expect(withParams('limit=7', METEOCORE, 'items').queryParams).toEqual({ limit: '7' });
-    expect(withParams('limit=7').queryParams).toEqual({});
+    expect(withParams('limit=7', METEOCORE, 'items').queryParams).toEqual({ limit: '7', crs: '' });
+    expect(withParams('limit=7').queryParams).toEqual({ crs: '' });
+  });
+
+  it('reads a crs, as written, for any query', () => {
+    expect(withParams('crs=OGC:CRS84').queryParams).toEqual({ crs: 'OGC:CRS84' });
+    expect(withParams('crs=EPSG%3A4326', FMI, 'corridor').queryParams.crs).toBe('EPSG:4326');
   });
 });
