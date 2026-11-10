@@ -30,9 +30,11 @@ function setup(listShowing: boolean) {
     return null;
   }
   renderToStaticMarkup(<Nav />);
-  return (key: string, tagName = 'BODY') => {
+  // inside: a selector the target sits in, as an open menu's option does
+  return (key: string, tagName = 'BODY', inside = '') => {
     const preventDefault = vi.fn();
-    handlers.at(-1)!({ key, target: { tagName }, preventDefault });
+    const closest = (selectors: string) => (inside && selectors.split(', ').includes(inside) ? {} : null);
+    handlers.at(-1)!({ key, target: { tagName, closest }, preventDefault });
     return preventDefault;
   };
 }
@@ -103,5 +105,18 @@ describe('useCollectionKeyboardNav', () => {
     }
     expect(state.open).not.toHaveBeenCalled();
     expect(list.scrollBy).not.toHaveBeenCalled();
+  });
+
+  it('leaves PageUp and PageDown to a select, or a list or menu open to pick from', () => {
+    for (const listShowing of [true, false]) {
+      const press = setup(listShowing);
+      for (const inside of ['[role="combobox"]', '[role="listbox"]', '[role="option"]', '[role="menu"]', '.MuiPopover-root']) {
+        expect(press('PageDown', 'LI', inside)).not.toHaveBeenCalled();
+      }
+    }
+    expect(state.open).not.toHaveBeenCalled();
+    expect(list.scrollBy).not.toHaveBeenCalled();
+    // Elsewhere they go through the collections still
+    expect(setup(false)('PageDown', 'DIV', '[role="group"]')).toHaveBeenCalled();
   });
 });

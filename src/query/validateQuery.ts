@@ -4,7 +4,7 @@ import { normalizeVertical, expandVerticalValues } from '../utils/extents/vertic
 import { normalizeBbox } from '../utils/extents/bbox';
 import { REPEATING_LEVELS } from './levels';
 import { effectiveOutputFormats, parameterIdsOf, unitsFor } from './queryTypes';
-import { timeIsOnlyAFilter, type QueryModel } from './queryModel';
+import type { QueryModel } from './queryModel';
 import type { BBox, IssueSeverity, IssueSource, QueryIssue } from './types';
 import { intervalEnds, wholeValue } from './dimensionText';
 import { SEVERITY_ORDER } from './types';
@@ -130,14 +130,6 @@ function checkGeometry(model: QueryModel, add: Add) {
       if (model.bbox) checkBox(model.bbox, bbox, add);
       checkLimit(model, add);
       break;
-    case 'instances':
-      add('info', 'edr', 'query', 'list', "Lists the collection's instances (e.g. model runs). Pick one to query it.");
-      break;
-    case 'locations':
-      if (!model.locationFeature) {
-        add('info', 'edr', 'location', 'list', 'No location selected: the request lists all locations. Pick one on the map or in the Location Features list.');
-      }
-      break;
   }
 
   if (queryType === 'radius') {
@@ -168,12 +160,10 @@ function checkBox(box: BBox | null, extent: BBox | null, add: Add) {
   }
 }
 
-// Items come a page at a time: limit sets the page size, else the server picks it
+// Items come a page at a time: limit sets the page size, else the server picks it (the field says so)
 function checkLimit(model: QueryModel, add: Add) {
   const limit = model.queryParams.limit?.trim() ?? '';
-  if (!limit) {
-    add('info', 'edr', 'limit', 'default', 'No limit: the server decides how many items to return (often 10)');
-  } else if (!/^\d+$/.test(limit) || Number(limit) < 1) {
+  if (limit && (!/^\d+$/.test(limit) || Number(limit) < 1)) {
     add('error', 'edr', 'limit', 'positive', 'The limit must be a whole number of at least 1', 'form');
   }
 }
@@ -209,14 +199,9 @@ function checkLength(model: QueryModel, field: string, unitField: string, unitKi
 
 function checkFormat(model: QueryModel, add: Add) {
   const formats = effectiveOutputFormats(model.collection, model.queryKey);
-  if (model.format) {
-    if (formats.length > 0 && !formats.includes(model.format)) {
-      add('error', 'metadata', 'f', 'offered', `Output format "${model.format}" isn't offered for this query`, 'form');
-    }
-  } else {
-    // What the metadata names, which the server may or may not use: Polytope's API docs don't list the one it names
-    const named = model.variables?.default_output_format;
-    add('info', 'metadata', 'f', 'default', `No output format selected: the server uses its default${named ? `. The query names ${named} as default_output_format` : ''}`);
+  // Left out, the server's default: the field says so (fieldSpecs)
+  if (model.format && formats.length > 0 && !formats.includes(model.format)) {
+    add('error', 'metadata', 'f', 'offered', `Output format "${model.format}" isn't offered for this query`, 'form');
   }
 }
 
@@ -227,26 +212,15 @@ function checkParameters(model: QueryModel, add: Add) {
   if (unknown.length > 0) {
     add('error', 'metadata', 'parameter-name', 'offered', `Unknown parameter${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}`, 'form');
   }
-  const listsOnly = model.queryType === 'items' || model.queryType === 'instances'
-    || (model.queryType === 'locations' && !model.locationFeature);
-  if (model.parameters.length === 0 && !listsOnly) {
-    add('info', 'metadata', 'parameter-name', 'all', 'No parameters selected: the server returns all parameters (or its default set)');
-  }
 }
 
 const formatTime = (time: number) => (isFinite(time) ? new Date(time).toISOString().replace(':00.000Z', 'Z') : '…');
 
 function checkDatetime(model: QueryModel, add: Add) {
   if (!model.collection.extent?.temporal) return;
+  // Left out, the server decides, or a list isn't filtered: the field says so (fieldSpecs)
   const text = model.datetime.trim();
-  if (!text) {
-    if (timeIsOnlyAFilter(model.queryType, !!model.locationFeature)) {
-      add('info', 'edr', 'datetime', 'no-filter', `No time filter: all ${model.queryType === 'locations' ? 'locations' : 'items'} are listed`);
-    } else {
-      add('info', 'metadata', 'datetime', 'unset', 'No time selected: the server decides which times to return');
-    }
-    return;
-  }
+  if (!text) return;
   const ends = intervalEnds(text);
   if (ends && (!ends.start || !ends.end)) {
     add('missing', 'metadata', 'datetime', 'range', `Pick ${ends.start ? 'an end' : 'a start'} time for the range`, 'form');
@@ -330,7 +304,6 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   checkFormat(model, add);
   if (model.rule?.featureList) {
     if (model.datetime.trim()) checkDatetime(model, add);
-    else if (model.collection.extent?.temporal) add('info', 'edr', 'datetime', 'no-filter', 'No time filter: items from any time are listed');
   } else if (model.queryType !== 'instances') {
     checkParameters(model, add);
     checkDatetime(model, add);
