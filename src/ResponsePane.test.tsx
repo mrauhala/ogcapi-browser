@@ -7,13 +7,21 @@ import { RequestUrlContext } from './contexts/RequestUrlContext';
 import type { Collection } from './types/api';
 import { INITIAL_CHOICES, ResponseCellsContext, createHoverStore, pictureOf } from './contexts/responseCells';
 import { readCells } from './coverage/coverageCells';
-import { grid } from './coverage/cellsTestData';
+import { grid, words } from './coverage/cellsTestData';
+import knmi from './locations/__fixtures__/knmi-tg1-oper-locations.json';
 
 // The open collection, which each test can set
 const open = vi.hoisted(() => ({ collection: null as Partial<Collection> | null }));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedCollection: open.collection }) }));
 // The picture, where a test gives the pane one, asks which panes are open, and can open a request
-vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ isMobile: false, isOpen: { map: true }, showPane: () => {} }) }));
+vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ isMobile: false, isOpen: { map: true }, showPane: () => {}, showMap: () => {} }) }));
+// A locations list's table shows a location on the map
+vi.mock('./contexts/MapInteractionContext', () => ({ useMapInteraction: () => ({ responseLocation: null, showResponseLocation: () => {} }) }));
+// The grid draws only in a browser: here it says how many rows it was given
+vi.mock('@mui/x-data-grid', async importOriginal => ({
+  ...await importOriginal<typeof import('@mui/x-data-grid')>(),
+  DataGrid: ({ rows }: { rows: unknown[] }) => <div data-rows={rows.length} />,
+}));
 vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
 // A summary that fails on a response marked for it, as a reader with a bug would
 vi.mock('./coverage/coverageSummary', async importOriginal => {
@@ -248,6 +256,47 @@ describe('ResponsePane', () => {
     const html = render({ data: JSON.stringify(grid), contentType: 'application/prs.coverage+json', response: OK });
     expect(selectedTab(html)).toBe('Data');
     expect(html).toContain('2 × 2 cells');
+  });
+
+  describe('a locations list', () => {
+    const LOCATIONS = 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/locations';
+    const KNMI = JSON.stringify(knmi);
+    // KNMI's, as it sends it
+    const list = (props: Partial<ComponentProps<typeof ResponsePane>> = {}) => render({ url: LOCATIONS, data: KNMI, contentType: 'application/prs.coverage+json', response: OK, ...props }, LOCATIONS);
+
+    it('opens on its Data tab, a table of the locations with their count', () => {
+      const html = list();
+      expect(tabNames(html)).toEqual(['Data', 'Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(selectedTab(html)).toBe('Data');
+      expect(words(html)).toContain('10 locations Pick one to see it on the map');
+      expect(html).toContain('data-rows="10"');
+      // Not the text, nor a coverage's view, nor IWXXM's
+      expect(html).not.toContain('role="list"');
+      expect(html).not.toContain('Transforming');
+      expect(html).not.toContain('The app failed to read');
+    });
+
+    it('is one whatever its Content-Type says, JSON or not', () => {
+      for (const contentType of ['application/geo+json', 'application/json', 'text/plain', null]) {
+        expect(words(list({ contentType }))).toContain('10 locations');
+      }
+    });
+
+    it('counts its media type in Checks: an issue for CoverageJSON’s, nothing for GeoJSON’s', () => {
+      const checked = { validationSchemaName: 'EDR 1.0 Locations' };
+      expect(list(checked)).toContain('>1 issue<');
+      expect(list({ ...checked, contentType: 'application/geo+json' })).not.toContain('issue<');
+      // With what the schema found, the errors come first
+      const errors = [{ path: '/features/0/properties', message: "/features/*/properties: must have required property 'label' (10 of 10 features)", severity: 'error' as const }];
+      expect(list({ ...checked, validationErrors: errors })).toContain('>1 error<');
+    });
+
+    it('isn’t one from anywhere but /locations, nor anything but a FeatureCollection', () => {
+      expect(tabNames(list({ url: 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/items' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(tabNames(list({ url: `${LOCATIONS}/EDDK` }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(tabNames(list({ data: '{"type":"Feature"}' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(list({ url: `${LOCATIONS}/EDDK`, validationSchemaName: null })).not.toContain('issue<');
+    });
   });
 
   it('opens on the image, with no Raw for it', () => {
