@@ -1,0 +1,232 @@
+{
+ "id": "uwcw-ha-det-dini-5p5km.hagl",
+ "data_queries": {
+  "position": {
+   "link": {
+    "href": "https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/position",
+    "hreflang": "en",
+    "rel": "data",
+    "title": "Position query",
+    "variables": {
+     "query_type": "position",
+     "output_formats": [
+      "CoverageJSON"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "EPSG:4326",
+       "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.01745329251994328,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+      }
+     ]
+    }
+   }
+  },
+  "cube": {
+   "link": {
+    "href": "https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/cube",
+    "hreflang": "en",
+    "rel": "data",
+    "title": "Cube query",
+    "variables": {
+     "query_type": "cube",
+     "output_formats": [
+      "CoverageJSON"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "EPSG:4326",
+       "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.01745329251994328,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+      }
+     ]
+    }
+   }
+  },
+  "trajectory": {
+   "link": {
+    "href": "https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/trajectory",
+    "hreflang": "en",
+    "rel": "data",
+    "title": "Trajectory query (2D LINESTRING on regular grids)",
+    "variables": {
+     "query_type": "trajectory",
+     "output_formats": [
+      "CoverageJSON"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "EPSG:4326",
+       "wkt": "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.01745329251994328,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
+      }
+     ]
+    }
+   }
+  },
+  "locations": {
+   "link": {
+    "href": "https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/locations",
+    "hreflang": "en",
+    "rel": "data",
+    "title": "Locations query",
+    "variables": {
+     "query_type": "locations",
+     "output_formats": [
+      "GeoJSON"
+     ],
+     "default_output_format": "GeoJSON"
+    }
+   }
+  },
+  "instances": {
+   "link": {
+    "href": "https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/instances",
+    "hreflang": "en",
+    "rel": "collection",
+    "title": "Instances query",
+    "variables": {
+     "query_type": "instances",
+     "output_formats": [
+      "CoverageJSON",
+      "GeoJSON"
+     ],
+     "default_output_format": "CoverageJSON"
+    }
+   }
+  }
+ },
+ "parameter_names": {
+  "air_temperature_hagl": {
+   "type": "Parameter",
+   "id": "air_temperature_hagl",
+   "label": "Air temperature at 2 m",
+   "description": "Air temperature at 2 m",
+   "unit": {
+    "symbol": {
+     "value": "C",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/air_temperature",
+    "label": "Air temperature at height above ground level"
+   }
+  },
+  "dew_point_temperature_hagl": {
+   "type": "Parameter",
+   "id": "dew_point_temperature_hagl",
+   "label": "Dew point temperature at 2 m",
+   "description": "Dew point temperature at 2 m",
+   "unit": {
+    "symbol": {
+     "value": "C",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/dew_point_temperature",
+    "label": "Dew point temperature at height above ground level"
+   }
+  },
+  "relative_humidity_hagl": {
+   "type": "Parameter",
+   "id": "relative_humidity_hagl",
+   "label": "Relative humidity at 2 m",
+   "description": "Relative humidity at 2 m",
+   "unit": {
+    "symbol": {
+     "value": "1",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/relative_humidity",
+    "label": "Relative humidity at height above ground level"
+   }
+  },
+  "wind_chill_temperature_hagl": {
+   "type": "Parameter",
+   "id": "wind_chill_temperature_hagl",
+   "label": "Wind chill temperature at 2 m",
+   "description": "Wind chill temperature at 2 m",
+   "unit": {
+    "symbol": {
+     "value": "C",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_chill",
+    "label": "Wind chill temperature at height above ground level"
+   }
+  },
+  "wind_from_direction_hagl": {
+   "type": "Parameter",
+   "id": "wind_from_direction_hagl",
+   "label": "Wind direction at 10 m",
+   "description": "Wind direction at 10 m",
+   "unit": {
+    "symbol": {
+     "value": "degree",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_from_direction",
+    "label": "Wind direction at height above ground level"
+   }
+  },
+  "wind_speed_components_hagl": {
+   "type": "Parameter",
+   "id": "wind_speed_components_hagl",
+   "label": "Wind as vector at 10 m",
+   "description": "Wind as vector at 10 m",
+   "unit": {
+    "symbol": {
+     "value": "kts",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_speed",
+    "label": "Wind speed"
+   }
+  },
+  "wind_speed_hagl": {
+   "type": "Parameter",
+   "id": "wind_speed_hagl",
+   "label": "Wind speed at 10 m",
+   "description": "Wind speed at 10 m",
+   "unit": {
+    "symbol": {
+     "value": "kts",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_speed",
+    "label": "Wind speed at height above ground level"
+   }
+  },
+  "wind_speed_of_gust_components_01h_hagl": {
+   "type": "Parameter",
+   "id": "wind_speed_of_gust_components_01h_hagl",
+   "label": "Wind gust as vector (maximum past 01 hr) at 10 m",
+   "description": "Wind gust as vector (maximum past 01 hr) at 10 m",
+   "unit": {
+    "symbol": {
+     "value": "kts",
+     "type": "http://www.opengis.net/def/uom/UCUM"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_speed",
+    "label": "Wind speed"
+   }
+  }
+ },
+ "output_formats": [
+  "CoverageJSON"
+ ]
+}

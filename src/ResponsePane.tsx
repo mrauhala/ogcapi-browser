@@ -32,9 +32,13 @@ import { useCollection } from './contexts/CollectionContext';
 import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
 import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
-import { locationsListOf } from './locations/locationsList';
+import { useApi } from './contexts/ApiContext';
+import { locationsListOf, locationsSchemaOf } from './locations/locationsList';
 import { locationIdFindings } from './locations/locationIds';
-import { locationsMediaTypeFindings } from './locations/mediaType';
+import { geojsonMediaTypeFindings } from './locations/mediaType';
+import { dataQueryOf } from './requestFit/dataQuery';
+import { askedFormatFindings } from './requestFit/formatFit';
+import { askedParameterFindings } from './requestFit/parameterFit';
 import { isEdrGeojsonSchema } from './validation/locationsValidator';
 import { schemaRuleOf } from './QueryResultValidator';
 import { shortUrl } from './query/requestUrl';
@@ -65,6 +69,14 @@ interface ResponsePaneProps {
   validationErrors?: ValidationError[];
   validationSchemaName?: string | null;
   scrollToPath?: string;
+}
+
+function jsonOrNull(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 const TAB_NAMES: Record<Exclude<ResponseTab, 'checks'>, string> = {
@@ -125,6 +137,24 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   // A collection's locations, whatever the Content-Type says they are
   const locations = useMemo(() => locationsListOf(url, data, parsedJson)?.features ?? null, [url, data, parsedJson]);
 
+  // A data query's answer, against what it asked for: a success with a body. An error's body isn't data, and a stored
+  // response has no status to say it's one. Its body is read as JSON whatever its Content-Type says, as the format is
+  // judged by the body too
+  const { apiUrl, conformsTo } = useApi();
+  const answered = response !== null && response.status >= 200 && response.status < 300 && (Boolean(data) || imageUrl !== null);
+  const bodyJson = useMemo(() => parsedJson ?? (answered && data && /^\s*\{/.test(data) ? jsonOrNull(data) : null), [parsedJson, answered, data]);
+  const asked = useMemo((): { format: ValidationError[]; data: ValidationError[] } => {
+    if (!answered) return { format: [], data: [] };
+    const context = { url, collection: checkedAgainst };
+    // A data query's features, of the GeoJSON class the API declares, as a locations list is checked
+    const features = dataQueryOf(url) !== null && (bodyJson as { type?: unknown } | null)?.type === 'FeatureCollection';
+    const edrGeojson = features && locationsSchemaOf(url, apiUrl, conformsTo).kind === 'edr-geojson';
+    return {
+      format: [...(features ? geojsonMediaTypeFindings(contentType ?? '', edrGeojson, false) : []), ...askedFormatFindings(bodyJson, contentType ?? '', context)],
+      data: askedParameterFindings(bodyJson, context),
+    };
+  }, [answered, url, checkedAgainst, bodyJson, contentType, apiUrl, conformsTo]);
+
   const tabs = responseTabs({
     hasResponse: response !== null && !isLoading,
     // A response the app failed to read opens there too, on the line that says so
@@ -164,17 +194,20 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
 
   // What the picture found joins what the summary did. It leaves out what the summary says already: nulls and ranges
   const { reading } = useResponseCells();
-  // And whether a locations list names its locations
+  // And whether a locations list names its locations, and the data the parameters asked for
   const coverageNotes = useMemo(
-    () => [...(coverage?.notes ?? []), ...cellFindings(reading), ...(locations ? locationIdFindings(locations) : [])],
-    [coverage, reading, locations],
+    () => [...(coverage?.notes ?? []), ...cellFindings(reading), ...(locations ? locationIdFindings(locations) : []), ...asked.data],
+    [coverage, reading, locations, asked],
   );
-  // The media type of what's checked as CoverageJSON, or of a locations list. Checks is only there with the response's
-  // details, and so its Content-Type
+  // The media type of what's checked as CoverageJSON, or of a locations list, and the format asked for. Checks is only
+  // there with the response's details, and so its Content-Type
   const formatFindings = useMemo(
-    () => (locations ? locationsMediaTypeFindings(contentType ?? '', isEdrGeojsonSchema(validationSchemaName))
-      : validationSchemaName?.startsWith('CoverageJSON') ? mediaTypeFindings(contentType ?? '', parsedJson) : []),
-    [locations, validationSchemaName, contentType, parsedJson],
+    () => [
+      ...(locations ? geojsonMediaTypeFindings(contentType ?? '', isEdrGeojsonSchema(validationSchemaName))
+        : validationSchemaName?.startsWith('CoverageJSON') ? mediaTypeFindings(contentType ?? '', parsedJson) : []),
+      ...asked.format,
+    ],
+    [locations, validationSchemaName, contentType, parsedJson, asked],
   );
   const allFindings = useMemo(() => [...validationErrors, ...formatFindings, ...coverageNotes], [validationErrors, formatFindings, coverageNotes]);
   // Only when they're asked for: each is a walk through the whole of the text

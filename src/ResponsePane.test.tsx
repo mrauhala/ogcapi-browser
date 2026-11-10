@@ -23,6 +23,13 @@ vi.mock('@mui/x-data-grid', async importOriginal => ({
   DataGrid: ({ rows }: { rows: unknown[] }) => <div data-rows={rows.length} />,
 }));
 vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
+// The loaded API, which declares EDR 1.2 and its EDR GeoJSON class
+vi.mock('./contexts/ApiContext', () => ({
+  useApi: () => ({
+    apiUrl: 'https://api.example.com',
+    conformsTo: ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core', 'https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/edr-geojson'],
+  }),
+}));
 // A summary that fails on a response marked for it, as a reader with a bug would
 vi.mock('./coverage/coverageSummary', async importOriginal => {
   const actual = await importOriginal<typeof import('./coverage/coverageSummary')>();
@@ -258,6 +265,53 @@ describe('ResponsePane', () => {
     expect(html).toContain('2 × 2 cells');
   });
 
+  describe('a data query’s answer, against what it asked for', () => {
+    // COVERAGE has a, and its times the server chose. The open collection lists a and b, and its position query's
+    // default_output_format is CoverageJSON
+    const collection: Partial<Collection> = {
+      id: 'a',
+      parameter_names: { a: { id: 'a' }, b: { id: 'b' } },
+      data_queries: { position: { link: { href: 'https://api.example.com/collections/a/position', variables: { default_output_format: 'CoverageJSON' } } } },
+    };
+    const sent = (url: string, props: Partial<ComponentProps<typeof ResponsePane>> = {}) => {
+      open.collection = collection;
+      try {
+        return render({ url, data: COVERAGE, contentType: 'application/vnd.cov+json', response: OK, validationSchemaName: 'CoverageJSON 1.0', ...props }, url);
+      } finally {
+        open.collection = null;
+      }
+    };
+
+    it('counts a parameter left out of every one the collection lists, and one not asked for', () => {
+      // b, with no parameter-name: against the collection
+      expect(sent(URL_)).toContain('>1 error<');
+      // a, which wasn't asked for, and b, which was and isn't there
+      expect(sent(`${URL_}&parameter-name=b`)).toContain('>1 error<');
+      // The times and the unit's notes, and the passes, which count for nothing
+      expect(sent(`${URL_}&parameter-name=a`)).toContain('>2 notes<');
+    });
+
+    it('counts a response in another format than f names, or than the query’s default', () => {
+      expect(sent(`${URL_}&parameter-name=a&f=GeoJSON`)).toContain('>1 issue<');
+      expect(sent(`${URL_}&parameter-name=a&f=CoverageJSON`)).toContain('>2 notes<');
+      // GeoJSON features, sent where CoverageJSON is the default, and as plain JSON
+      const features = JSON.stringify({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: null, properties: { a: [1] } }] });
+      expect(sent(`${URL_}&parameter-name=a`, { data: features, contentType: 'application/json', validationSchemaName: null })).toContain('>2 issues<');
+      expect(sent(`${URL_}&parameter-name=a&f=GeoJSON`, { data: features, contentType: 'application/geo+json', validationSchemaName: null })).not.toMatch(/(error|issue|note)s?</);
+    });
+
+    it('reads the body whatever its Content-Type, as the format asked for is judged by it', () => {
+      // CoverageJSON as text: f's pass, and the parameter's, where the media type is its own check's
+      expect(sent(`${URL_}&parameter-name=b`, { contentType: 'text/plain' })).toContain('>1 error<');
+    });
+
+    it('checks nothing of a failure’s body, nor of an answer with no body', () => {
+      // Coverage data with a 400 is read as data still, but isn't taken for the answer: no error for a, not asked for
+      expect(sent(`${URL_}&parameter-name=b`, { response: BAD_REQUEST, validationSchemaName: null })).toContain('>2 notes<');
+      expect(sent(`${URL_}&parameter-name=b`, { data: '', response: { ...OK, status: 204, statusText: 'No Content' }, validationSchemaName: null })).not.toMatch(/(error|issue|note)s?</);
+    });
+  });
+
   describe('a locations list', () => {
     const LOCATIONS = 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/locations';
     const KNMI = JSON.stringify(knmi);
@@ -303,7 +357,9 @@ describe('ResponsePane', () => {
       expect(tabNames(list({ url: 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/items' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
       expect(tabNames(list({ url: `${LOCATIONS}/EDDK` }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
       expect(tabNames(list({ data: '{"type":"Feature"}' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
-      expect(list({ url: `${LOCATIONS}/EDDK`, validationSchemaName: null })).not.toContain('issue<');
+      // A location's data, which may be features too: its media type is checked as theirs, not as a list's ids are
+      expect(list({ url: `${LOCATIONS}/EDDK`, validationSchemaName: null, contentType: 'application/geo+json' })).not.toContain('issue<');
+      expect(list({ url: `${LOCATIONS}/EDDK`, validationSchemaName: null })).toContain('>1 issue<');
     });
   });
 

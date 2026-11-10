@@ -1,0 +1,542 @@
+{
+ "id": "ecmwf-aifs-single",
+ "data_queries": {
+  "position": {
+   "link": {
+    "href": "https://meteocore.app.meteo.fi/edr/collections/ecmwf-aifs-single/position",
+    "rel": "data",
+    "variables": {
+     "title": "Position query",
+     "description": "Data at the WKT POINT or MULTIPOINT given in coords, as CRS84 longitude and latitude.",
+     "query_type": "position",
+     "output_formats": [
+      "CoverageJSON",
+      "PNG",
+      "HTML"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "CRS84",
+       "wkt": "GEOGCRS[\"WGS 84 (CRS84)\",DATUM[\"World Geodetic System 1984\",ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic longitude (Lon)\",east,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic latitude (Lat)\",north,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"OGC\",\"CRS84\"]]"
+      }
+     ]
+    },
+    "type": "application/vnd.cov+json"
+   }
+  },
+  "area": {
+   "link": {
+    "href": "https://meteocore.app.meteo.fi/edr/collections/ecmwf-aifs-single/area",
+    "rel": "data",
+    "variables": {
+     "title": "Area query",
+     "description": "Data inside the WKT POLYGON given in coords, as CRS84 longitude and latitude.",
+     "query_type": "area",
+     "output_formats": [
+      "CoverageJSON",
+      "HTML"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "CRS84",
+       "wkt": "GEOGCRS[\"WGS 84 (CRS84)\",DATUM[\"World Geodetic System 1984\",ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic longitude (Lon)\",east,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic latitude (Lat)\",north,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"OGC\",\"CRS84\"]]"
+      }
+     ]
+    },
+    "type": "application/vnd.cov+json"
+   }
+  },
+  "radius": {
+   "link": {
+    "href": "https://meteocore.app.meteo.fi/edr/collections/ecmwf-aifs-single/radius",
+    "rel": "data",
+    "variables": {
+     "title": "Radius query",
+     "description": "Data within a distance of the WKT POINT given in coords, as CRS84 longitude and latitude; within and within-units give the distance.",
+     "query_type": "radius",
+     "output_formats": [
+      "CoverageJSON",
+      "HTML"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "CRS84",
+       "wkt": "GEOGCRS[\"WGS 84 (CRS84)\",DATUM[\"World Geodetic System 1984\",ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic longitude (Lon)\",east,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic latitude (Lat)\",north,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"OGC\",\"CRS84\"]]"
+      }
+     ],
+     "within_units": [
+      "km",
+      "m",
+      "mi"
+     ]
+    },
+    "type": "application/vnd.cov+json"
+   }
+  },
+  "trajectory": {
+   "link": {
+    "href": "https://meteocore.app.meteo.fi/edr/collections/ecmwf-aifs-single/trajectory",
+    "rel": "data",
+    "variables": {
+     "title": "Trajectory query",
+     "description": "Data sampled along the WKT LINESTRING, LINESTRING Z, LINESTRING M or LINESTRING ZM given in coords, as CRS84 longitude and latitude; Z is each vertex's level, M its time in seconds since the Unix epoch.",
+     "query_type": "trajectory",
+     "output_formats": [
+      "CoverageJSON",
+      "HTML"
+     ],
+     "default_output_format": "CoverageJSON",
+     "crs_details": [
+      {
+       "crs": "CRS84",
+       "wkt": "GEOGCRS[\"WGS 84 (CRS84)\",DATUM[\"World Geodetic System 1984\",ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic longitude (Lon)\",east,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic latitude (Lat)\",north,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"OGC\",\"CRS84\"]]"
+      }
+     ]
+    },
+    "type": "application/vnd.cov+json"
+   }
+  },
+  "instances": {
+   "link": {
+    "href": "https://meteocore.app.meteo.fi/edr/collections/ecmwf-aifs-single/instances",
+    "rel": "data",
+    "variables": {
+     "query_type": "instances"
+    },
+    "type": "application/json"
+   }
+  }
+ },
+ "parameter_names": {
+  "10si": {
+   "type": "Parameter",
+   "label": "Wind speed (10 m above ground)",
+   "description": "Wind speed (10 m above ground), in m/s",
+   "unit": {
+    "label": {
+     "en": "m s-1"
+    },
+    "symbol": {
+     "value": "m/s",
+     "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_speed",
+    "label": {
+     "en": "Wind speed (10 m above ground)"
+    }
+   }
+  },
+  "10u": {
+   "type": "Parameter",
+   "label": "u-component of wind (10 m above ground)",
+   "description": "u-component of wind (10 m above ground), in m/s",
+   "unit": {
+    "label": {
+     "en": "m s-1"
+    },
+    "symbol": {
+     "value": "m/s",
+     "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+    }
+   },
+   "observedProperty": {
+    "id": "10u",
+    "label": {
+     "en": "u-component of wind (10 m above ground)"
+    },
+    "description": "u-component of wind (10 m above ground), in m/s"
+   }
+  },
+  "10v": {
+   "type": "Parameter",
+   "label": "v-component of wind (10 m above ground)",
+   "description": "v-component of wind (10 m above ground), in m/s",
+   "unit": {
+    "label": {
+     "en": "m s-1"
+    },
+    "symbol": {
+     "value": "m/s",
+     "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+    }
+   },
+   "observedProperty": {
+    "id": "10v",
+    "label": {
+     "en": "v-component of wind (10 m above ground)"
+    },
+    "description": "v-component of wind (10 m above ground), in m/s"
+   }
+  },
+  "10wdir": {
+   "type": "Parameter",
+   "label": "Wind direction (10 m above ground)",
+   "description": "Wind direction (10 m above ground), in °",
+   "unit": {
+    "label": {
+     "en": "°"
+    },
+    "symbol": {
+     "value": "°",
+     "type": "https://qudt.org/vocab/unit/DEG"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/wind_from_direction",
+    "label": {
+     "en": "Wind direction (10 m above ground)"
+    }
+   }
+  },
+  "2d": {
+   "type": "Parameter",
+   "label": "Dewpoint temperature (2 m above ground)",
+   "description": "Dewpoint temperature (2 m above ground), in °C",
+   "unit": {
+    "label": {
+     "en": "°C"
+    },
+    "symbol": {
+     "value": "°C",
+     "type": "https://qudt.org/vocab/unit/DEG_C"
+    }
+   },
+   "observedProperty": {
+    "id": "2d",
+    "label": {
+     "en": "Dewpoint temperature (2 m above ground)"
+    },
+    "description": "Dewpoint temperature (2 m above ground), in °C"
+   }
+  },
+  "2r": {
+   "type": "Parameter",
+   "label": "Relative humidity over water (2 m above ground)",
+   "description": "Relative humidity over water (2 m above ground), in %",
+   "unit": {
+    "label": {
+     "en": "%"
+    },
+    "symbol": {
+     "value": "%",
+     "type": "https://qudt.org/vocab/unit/PERCENT"
+    }
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/relative_humidity",
+    "label": {
+     "en": "Relative humidity over water (2 m above ground)"
+    }
+   }
+  },
+  "2t": {
+   "type": "Parameter",
+   "label": "Temperature (2 m above ground)",
+   "description": "Temperature (2 m above ground), in °C",
+   "unit": {
+    "label": {
+     "en": "°C"
+    },
+    "symbol": {
+     "value": "°C",
+     "type": "https://qudt.org/vocab/unit/DEG_C"
+    }
+   },
+   "observedProperty": {
+    "id": "2t",
+    "label": {
+     "en": "Temperature (2 m above ground)"
+    },
+    "description": "Temperature (2 m above ground), in °C"
+   }
+  },
+  "cp": {
+   "type": "Parameter",
+   "label": "Convective precipitation (surface)",
+   "description": "Convective precipitation (surface), in mm",
+   "unit": {
+    "label": {
+     "en": "mm"
+    },
+    "symbol": {
+     "value": "mm",
+     "type": "https://qudt.org/vocab/unit/MilliM"
+    }
+   },
+   "observedProperty": {
+    "id": "cp",
+    "label": {
+     "en": "Convective precipitation (surface)"
+    },
+    "description": "Convective precipitation (surface), in mm"
+   }
+  },
+  "gh": {
+   "type": "Parameter",
+   "label": "Geopotential height (surface)",
+   "description": "Geopotential height (surface), in gpm",
+   "unit": {
+    "label": {
+     "en": "gpm"
+    },
+    "symbol": "gpm"
+   },
+   "observedProperty": {
+    "id": "https://vocab.nerc.ac.uk/standard_name/geopotential_height",
+    "label": {
+     "en": "Geopotential height (surface)"
+    }
+   },
+   "extent": {
+    "temporal": {
+     "interval": [
+      [
+       "2026-11-10T06:00:00+00:00",
+       "2026-11-10T12:00:00+00:00"
+      ]
+     ],
+     "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+     "values": [
+      "2026-11-10T06:00:00+00:00",
+      "2026-11-10T12:00:00+00:00"
+     ]
+    }
+   }
+  },
+  "hcc": {
+   "type": "Parameter",
+   "label": "High cloud cover (450 hPa)",
+   "description": "High cloud cover (450 hPa), in %",
+   "unit": {
+    "label": {
+     "en": "%"
+    },
+    "symbol": {
+     "value": "%",
+     "type": "https://qudt.org/vocab/unit/PERCENT"
+    }
+   },
+   "observedProperty": {
+    "id": "hcc",
+    "label": {
+     "en": "High cloud cover (450 hPa)"
+    },
+    "description": "High cloud cover (450 hPa), in %"
+   }
+  },
+  "lcc": {
+   "type": "Parameter",
+   "label": "Low cloud cover (surface)",
+   "description": "Low cloud cover (surface), in %",
+   "unit": {
+    "label": {
+     "en": "%"
+    },
+    "symbol": {
+     "value": "%",
+     "type": "https://qudt.org/vocab/unit/PERCENT"
+    }
+   },
+   "observedProperty": {
+    "id": "lcc",
+    "label": {
+     "en": "Low cloud cover (surface)"
+    },
+    "description": "Low cloud cover (surface), in %"
+   }
+  },
+  "mcc": {
+   "type": "Parameter",
+   "label": "Medium cloud cover (800 hPa)",
+   "description": "Medium cloud cover (800 hPa), in %",
+   "unit": {
+    "label": {
+     "en": "%"
+    },
+    "symbol": {
+     "value": "%",
+     "type": "https://qudt.org/vocab/unit/PERCENT"
+    }
+   },
+   "observedProperty": {
+    "id": "mcc",
+    "label": {
+     "en": "Medium cloud cover (800 hPa)"
+    },
+    "description": "Medium cloud cover (800 hPa), in %"
+   }
+  },
+  "msl": {
+   "type": "Parameter",
+   "label": "Pressure (mean sea level)",
+   "description": "Pressure (mean sea level), in hPa",
+   "unit": {
+    "label": {
+     "en": "hPa"
+    },
+    "symbol": {
+     "value": "hPa",
+     "type": "https://qudt.org/vocab/unit/HectoPA"
+    }
+   },
+   "observedProperty": {
+    "id": "msl",
+    "label": {
+     "en": "Pressure (mean sea level)"
+    },
+    "description": "Pressure (mean sea level), in hPa"
+   }
+  },
+  "sf": {
+   "type": "Parameter",
+   "label": "Snowfall water equivalent (surface)",
+   "description": "Snowfall water equivalent (surface), in mm",
+   "unit": {
+    "label": {
+     "en": "mm"
+    },
+    "symbol": {
+     "value": "mm",
+     "type": "https://qudt.org/vocab/unit/MilliM"
+    }
+   },
+   "observedProperty": {
+    "id": "sf",
+    "label": {
+     "en": "Snowfall water equivalent (surface)"
+    },
+    "description": "Snowfall water equivalent (surface), in mm"
+   }
+  },
+  "sp": {
+   "type": "Parameter",
+   "label": "Pressure (surface)",
+   "description": "Pressure (surface), in hPa",
+   "unit": {
+    "label": {
+     "en": "hPa"
+    },
+    "symbol": {
+     "value": "hPa",
+     "type": "https://qudt.org/vocab/unit/HectoPA"
+    }
+   },
+   "observedProperty": {
+    "id": "sp",
+    "label": {
+     "en": "Pressure (surface)"
+    },
+    "description": "Pressure (surface), in hPa"
+   }
+  },
+  "tcc": {
+   "type": "Parameter",
+   "label": "Total cloud cover (surface)",
+   "description": "Total cloud cover (surface), in %",
+   "unit": {
+    "label": {
+     "en": "%"
+    },
+    "symbol": {
+     "value": "%",
+     "type": "https://qudt.org/vocab/unit/PERCENT"
+    }
+   },
+   "observedProperty": {
+    "id": "tcc",
+    "label": {
+     "en": "Total cloud cover (surface)"
+    },
+    "description": "Total cloud cover (surface), in %"
+   }
+  },
+  "tcw": {
+   "type": "Parameter",
+   "label": "Total column water (surface)",
+   "description": "Total column water (surface), in mm",
+   "unit": {
+    "label": {
+     "en": "mm"
+    },
+    "symbol": {
+     "value": "mm",
+     "type": "https://qudt.org/vocab/unit/MilliM"
+    }
+   },
+   "observedProperty": {
+    "id": "tcw",
+    "label": {
+     "en": "Total column water (surface)"
+    },
+    "description": "Total column water (surface), in mm"
+   }
+  },
+  "tp": {
+   "type": "Parameter",
+   "label": "Total precipitation (surface)",
+   "description": "Total precipitation (surface), in mm",
+   "unit": {
+    "label": {
+     "en": "mm"
+    },
+    "symbol": {
+     "value": "mm",
+     "type": "https://qudt.org/vocab/unit/MilliM"
+    }
+   },
+   "observedProperty": {
+    "id": "tp",
+    "label": {
+     "en": "Total precipitation (surface)"
+    },
+    "description": "Total precipitation (surface), in mm"
+   }
+  },
+  "z": {
+   "type": "Parameter",
+   "label": "Geopotential (surface)",
+   "description": "Geopotential (surface), in m²/s²",
+   "unit": {
+    "label": {
+     "en": "m2 s-2"
+    },
+    "symbol": {
+     "value": "m²/s²",
+     "type": "https://qudt.org/vocab/unit/M2-PER-SEC2"
+    }
+   },
+   "observedProperty": {
+    "id": "z",
+    "label": {
+     "en": "Geopotential (surface)"
+    },
+    "description": "Geopotential (surface), in m²/s²"
+   },
+   "extent": {
+    "temporal": {
+     "interval": [
+      [
+       "2026-11-10T06:00:00+00:00",
+       "2026-11-10T12:00:00+00:00"
+      ]
+     ],
+     "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+     "values": [
+      "2026-11-10T06:00:00+00:00",
+      "2026-11-10T12:00:00+00:00"
+     ]
+    }
+   }
+  }
+ },
+ "output_formats": [
+  "CoverageJSON",
+  "PNG",
+  "HTML"
+ ]
+}

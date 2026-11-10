@@ -58,7 +58,7 @@ export function timeSpan(text: unknown): Span | null {
   return Number.isFinite(at) ? [at, at] : null;
 }
 
-const meets = (a: Span, b: Span) => a[0] <= b[1] && a[1] >= b[0];
+export const meets = (a: Span, b: Span) => a[0] <= b[1] && a[1] >= b[0];
 
 // The datetime asked for: a date-time, or an interval with ".." for an open end
 export function askedDatetime(url: string | undefined): { text: string; span: Span } | 'unreadable' | null {
@@ -82,7 +82,7 @@ export function askedDatetime(url: string | undefined): { text: string; span: Sp
 }
 
 // The extent's first interval, which is the whole of it, if both ends can be read or are open
-function extentInterval(temporal: Temporal | undefined): { text: string; span: Span } | null {
+export function extentInterval(temporal: Temporal | undefined): { text: string; span: Span } | null {
   const first = temporal?.interval?.[0];
   if (!Array.isArray(first) || first.length < 2 || (OPEN(first[0]) && OPEN(first[1]))) return null;
   const from = OPEN(first[0]) ? [-Infinity, -Infinity] : timeSpan(first[0]);

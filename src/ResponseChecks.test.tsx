@@ -3,10 +3,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
 import { findingMessage, findingPath } from './findingText';
-import type { ValidationError } from './types/api';
+import type { Collection, ValidationError } from './types/api';
 import { COVJSON, EDR, EDR12 } from './standards';
 import { appFault } from './validation/severity';
 import { words } from './coverage/cellsTestData';
+import { askedFormatFindings } from './requestFit/formatFit';
+import { askedParameterFindings } from './requestFit/parameterFit';
+import knmi from './requestFit/__fixtures__/knmi-hagl-collection.json';
+import knmiNone from './requestFit/__fixtures__/knmi-hagl-none.json';
+import knmiComponents from './requestFit/__fixtures__/knmi-hagl-components.json';
 
 // The loaded API's conformance, which says which EDR version is cited
 const api = vi.hoisted(() => ({ conformsTo: null as string[] | null, apiUrl: 'https://a.example/edr/' }));
@@ -215,6 +220,40 @@ describe('ResponseChecks', () => {
       expect(at("z's unit, hPa, is only in a description")).toBeLessThan(collection);
       expect(at("The collection's vrs gives z's unit: hPa")).toBeGreaterThan(collection);
       expect(html.match(/>line \d+</g)).toEqual(['>line 44<', '>line 45<']);
+    });
+
+    it('puts what was asked for in its place: f with the format, the parameters asked for with the data, every one with the collection', () => {
+      // KNMI's, which declares EDR 1.0: cited against 1.1
+      api.conformsTo = ['http://www.opengis.net/spec/ogcapi-edr-1/1.0/conf/core'];
+      const url = 'https://geoservices.knmi.nl/edr/collections/uwcw-ha-det-dini-5p5km.hagl/position?coords=POINT(5.18 52.1)&datetime=2026-11-12T00:00:00Z';
+      const collection = knmi as unknown as Collection;
+      api.apiUrl = 'https://geoservices.knmi.nl/edr/';
+      try {
+        const html = render({
+          url, collectionId: collection.id,
+          formatNotes: askedFormatFindings(knmiNone, 'application/prs.coverage+json', { url: `${url}&f=GeoJSON`, collection }),
+          dataNotes: [
+            ...askedParameterFindings(knmiComponents, { url: `${url}&parameter-name=wind_speed_components_hagl`, collection }),
+            ...askedParameterFindings(knmiNone, { url, collection }),
+          ],
+        });
+        const format = html.indexOf('>The format<');
+        const data = html.indexOf('>The data<');
+        const against = html.indexOf('>Against the collection: uwcw-ha-det-dini-5p5km.hagl<');
+        const at = (text: string) => html.indexOf(text.replace(/'/g, '&#x27;'));
+        expect(format).toBeGreaterThan(-1);
+        expect(at("f=GeoJSON, and the response isn't GeoJSON: it's CoverageJSON")).toBeGreaterThan(format);
+        expect(at("f=GeoJSON, and the response isn't GeoJSON: it's CoverageJSON")).toBeLessThan(data);
+        expect(at('Asked for wind_speed_components_hagl, and the response has 6 parameters named after it instead')).toBeGreaterThan(data);
+        expect(at('Asked for wind_speed_components_hagl, and the response has 6 parameters named after it instead')).toBeLessThan(against);
+        expect(at('No parameter-name was asked for, so every parameter the collection lists must come back')).toBeGreaterThan(against);
+        expect(html).toContain('>EDR 1.1 /req/edr/REQ_rc-f-response A</a>');
+        expect(html.split('>EDR 1.1 /req/edr/parameter-name-response A</a>').length - 1).toBe(2);
+        expect(html).toContain('The API declares EDR 1.0; cited against EDR 1.1');
+        expect([...html.matchAll(/aria-label="(Error|Issue|Note|Passed)"/g)].map(match => match[1])).toEqual(['Issue', 'Error', 'Error']);
+      } finally {
+        api.apiUrl = 'https://a.example/edr/';
+      }
     });
 
     it('has no heading for the collection with nothing against it, and no name without one', () => {
