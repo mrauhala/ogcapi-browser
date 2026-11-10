@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
@@ -8,6 +8,8 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { checksCount } from './responseTabs';
+import RuleLinks, { EdrVersionNote } from './RuleLinks';
+import { useCitedEdr } from './hooks/useCitedEdr';
 import type { ValidationError } from './types/api';
 
 // A long list says little more, and every finding is flagged in Raw anyway
@@ -69,15 +71,29 @@ export function ChecksTabLabel({ findings }: { findings: Pick<ValidationError, '
   );
 }
 
+// A finding's path as shown. One found in every item of an array, as a locations list's grouped findings are, has its
+// message start with the path they share, an item's index as * (/features/*/properties), and the first item's as its
+// path, for its line in Raw: the shared one is what's true of it
+export function findingPath({ path, message }: ValidationError): string | undefined {
+  if (!path) return path;
+  const shared = message.slice(0, Math.max(message.indexOf(':'), 0)).split('/');
+  const own = path.split('/');
+  const matches = shared.includes('*') && shared.length === own.length
+    && shared.every((segment, index) => segment === own[index] || (segment === '*' && own[index] !== '' && [...own[index]].every(digit => digit >= '0' && digit <= '9')));
+  return matches ? shared.join('/') : path;
+}
+
 // A finding's message starts with its path, which is shown apart. One at the root has only the colon
-export function findingMessage({ path, message }: ValidationError): string {
-  const rest = path && message.startsWith(path) ? message.slice(path.length) : message;
+export function findingMessage(finding: ValidationError): string {
+  const path = findingPath(finding);
+  const rest = path && finding.message.startsWith(path) ? finding.message.slice(path.length) : finding.message;
   return rest.replace(/^:\s*/, '');
 }
 
 interface ResponseChecksProps {
-  // The schema the response was checked against, if one applies
+  // The schema the response was checked against, if one applies, and the rule its findings rest on
   schemaName: string | null;
+  schemaRule?: ValidationError['rule'];
   // The domainType its coverages were checked as, if they inherit the collection's
   checkedAs?: string | null;
   findings: ValidationError[];
@@ -91,10 +107,13 @@ interface ResponseChecksProps {
   onGoToNote?: (line: number) => void;
   // The collection the response was checked against, if it was
   collectionId?: string | null;
+  // Where the response came from: the loaded API's EDR version is cited only for a response of that API
+  url?: string | null;
 }
 
 // What was checked about this response, and what that found
-export default function ResponseChecks({ schemaName, checkedAs, findings, lines, onGoToLine, formatNotes = [], dataNotes = [], onGoToNote, collectionId }: ResponseChecksProps) {
+export default function ResponseChecks({ schemaName, schemaRule, checkedAs, findings, lines, onGoToLine, formatNotes = [], dataNotes = [], onGoToNote, collectionId, url }: ResponseChecksProps) {
+  const edr = useCitedEdr(url);
   if (!schemaName && findings.length === 0 && formatNotes.length === 0 && dataNotes.length === 0) {
     return (
       <Typography variant="body2" sx={{ color: 'text.secondary', p: 2 }}>
@@ -108,24 +127,18 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
   const noteItem = (note: DataNote) => (
     <Item key={note.message} icon={SEVERITY_ICON[note.severity ?? 'info']} line={note.line} onClick={() => note.line !== undefined && onGoToNote?.(note.line)}>
       {note.message}
-      {/* The rules it rests on, where a standard has one to cite: two where standards differ */}
-      {(note.rule ? [note.rule].flat() : []).map(rule => (
-        <Fragment key={rule.url}>
-          {' '}
-          <Link href={rule.url} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ ml: 0.75, fontSize: '0.75rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
-            {rule.label}
-          </Link>
-        </Fragment>
-      ))}
+      <RuleLinks rule={note.rule} edr={edr} />
     </Item>
   );
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 2 }}>
+      <EdrVersionNote edr={edr} rules={[schemaRule, ...findings.map(finding => finding.rule), ...formatNotes.map(note => note.rule), ...dataNotes.map(note => note.rule)]} />
       {hasFormat && <Heading>The format</Heading>}
       <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
         {schemaName && (
           <Item icon={count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
             {schemaName} schema: {count ? count.label : '0 errors'}
+            <RuleLinks rule={schemaRule} edr={edr} />
             {checkedAs && (
               <Box component="span" sx={{ display: 'block', color: 'text.secondary', fontSize: '0.75rem' }}>
                 Each coverage checked as a {checkedAs}, the collection's domainType, which it inherits
@@ -143,8 +156,10 @@ export default function ResponseChecks({ schemaName, checkedAs, findings, lines,
               line={lineIndex >= 0 ? lines[lineIndex].line : undefined}
               onClick={() => onGoToLine(lineIndex)}
             >
-              {finding.path && <Box component="span" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary', mr: 1 }}>{finding.path}</Box>}
+              {finding.path && <Box component="span" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary', mr: 1 }}>{findingPath(finding)}</Box>}
               {findingMessage(finding)}
+              {/* Its schema's rule is on the schema's line */}
+              {finding.rule !== schemaRule && <RuleLinks rule={finding.rule} edr={edr} />}
             </Item>
           );
         })}

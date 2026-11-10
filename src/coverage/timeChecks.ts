@@ -1,7 +1,7 @@
 import type { Temporal, ValidationError } from '../types/api';
 import { parseDuration } from '../utils/extents/temporal';
 import { parseTime } from '../utils/utcTime';
-import { COVJSON } from '../standards';
+import { COVJSON, EDR } from '../standards';
 
 // What a response says of time: by CoverageJSON 1.0 ("The axis and coordinate identifier "t" MUST refer to temporal
 // coordinates and be referenced by a temporal reference system", and with the Gregorian calendar a lexical form that
@@ -184,6 +184,8 @@ interface TimeReference {
   path: string;
   // What t is referenced by, if not a temporal reference system
   other: string | null;
+  // Whether there's a referencing member at all, in the coverage or its collection
+  listed: boolean;
 }
 
 // A coverage's own referencing first, then the collection's
@@ -198,11 +200,11 @@ function referenceOf(json: Json, coverage: Json, c: number, prefix: (coverage: n
     if (index < 0) continue;
     const system = (list[index] as Json).system;
     const type = isObject(system) && typeof system.type === 'string' ? system.type : null;
-    if (type === 'TemporalRS' || type === 'TemporalCRS') return { system: system as Json, path: `${base}/${index}/system`, other: null };
-    return { system: null, path: `${base}/${index}`, other: type ?? 'a system with no type' };
+    if (type === 'TemporalRS' || type === 'TemporalCRS') return { system: system as Json, path: `${base}/${index}/system`, other: null, listed: true };
+    return { system: null, path: `${base}/${index}`, other: type ?? 'a system with no type', listed: true };
   }
   const listed = lists.find(([list]) => Array.isArray(list));
-  return { system: null, path: listed ? listed[1] : fallback, other: null };
+  return { system: null, path: listed ? listed[1] : fallback, other: null, listed: Boolean(listed) };
 }
 
 export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: number) => string, context: TimeContext = {}): ValidationError[] {
@@ -213,7 +215,7 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   }
   const notes: ValidationError[] = [];
   const note = (severity: ValidationError['severity'], message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, ...(rule ? { rule } : {}) });
-  const against = (severity: 'warning' | 'pass', message: string, path: string) => notes.push({ message, path, severity, source: 'collection' });
+  const against = (severity: 'warning' | 'pass', message: string, path: string, rule?: ValidationError['rule']) => notes.push({ message, path, severity, source: 'collection', ...(rule ? { rule } : {}) });
 
   // ---- How t is referenced, per coverage that has times ----
   const timed = [...new Set(times.map(time => time.coverage))];
@@ -222,16 +224,19 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   if (lacking.length) {
     const first = references.get(lacking[0])!;
     const more = lacking.length > 1 ? `, and likewise in ${plural(lacking.length - 1, 'more coverage')}` : '';
-    note('error', first.other ? `t is referenced by ${first.other}, not a temporal reference system${more}` : `t isn't referenced by a temporal reference system${more}`, first.path);
+    // CoverageJSON 9.10: "t MUST … be referenced by a temporal reference system", and where there's no referencing
+    // member at all, 9.6.1: a domain "MUST have a "referencing" member" unless its collection has one
+    note('error', first.other ? `t is referenced by ${first.other}, not a temporal reference system${more}` : `t isn't referenced by a temporal reference system${more}`, first.path,
+      first.listed ? COVJSON.timeReferenced : [COVJSON.timeReferenced, COVJSON.referencing]);
   }
   const systems = [...references.values()].flatMap(reference => (reference.system ? [reference] : []));
   const temporalCrs = systems.find(reference => reference.system!.type === 'TemporalCRS');
   if (!lacking.length && !temporalCrs) {
     const { system, path } = systems[0];
-    note('pass', `t has a temporal reference system: ${system!.type}, calendar ${shown(system!.calendar)}`, path);
+    note('pass', `t has a temporal reference system: ${system!.type}, calendar ${shown(system!.calendar)}`, path, COVJSON.timeReferenced);
   }
   const utc = systems.find(reference => typeof reference.system!.timeScale === 'string' && /(^|\/)UTC$/i.test(reference.system!.timeScale as string));
-  if (utc) note('error', `timeScale is UTC, which is to be left out: UTC is what it is without one`, `${utc.path}/timeScale`);
+  if (utc) note('error', `timeScale is UTC, which is to be left out: UTC is what it is without one`, `${utc.path}/timeScale`, COVJSON.timeScale);
 
   // ---- Which times can be read, and how ----
   // A calendar other than Gregorian, or numbers by an unknown unit, can't be placed in time
@@ -249,11 +254,13 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     const id = typeof temporalCrs.system!.id === 'string' ? temporalCrs.system!.id : 'no id';
     note('info', `t is referenced by a TemporalCRS (${id}), with numbers for times: in the CoverageJSON 1.0.1 draft, not in 1.0. ${unix
       ? 'They are read as seconds since 1970-01-01T00:00:00Z'
-      : `This can't place them in time${comparing ? ', so they aren\'t checked against the datetime asked for or the collection\'s extent' : ''}`}`, temporalCrs.path);
+      : `This can't place them in time${comparing ? ', so they aren\'t checked against the datetime asked for or the collection\'s extent' : ''}`}`, temporalCrs.path,
+    // CoverageJSON 9.5.2: "The only currently defined value of it is "TemporalRS"", and 9.7.2 on custom values
+    [COVJSON.temporalRsType, COVJSON.customValue]);
   }
   const otherCalendar = systems.find(reference => reference.system!.type === 'TemporalRS' && reference.system!.calendar !== 'Gregorian');
   if (otherCalendar) {
-    note('info', `t's calendar is ${shown(otherCalendar.system!.calendar)}, not Gregorian: its times aren't checked for their form${comparing ? ', or against the datetime asked for or the collection\'s extent' : ''}`, `${otherCalendar.path}/calendar`);
+    note('info', `t's calendar is ${shown(otherCalendar.system!.calendar)}, not Gregorian: its times aren't checked for their form${comparing ? ', or against the datetime asked for or the collection\'s extent' : ''}`, `${otherCalendar.path}/calendar`, COVJSON.calendar);
   }
 
   // ---- Their form, by the Gregorian calendar's rule: a MUST under it, a SHOULD without a reference system ----
@@ -264,9 +271,11 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     const why = typeof first.raw !== 'string' ? `: it isn't a string` : NO_ZONE.test(first.raw) ? ': it has no Z or offset' : '';
     const what = misformed.length === 1 ? `t ${shown(first.raw)} isn't` : `${plural(misformed.length, 'time')} aren't`;
     const firstOf = misformed.length === 1 ? '' : `, the first ${shown(first.raw)}`;
-    note(references.get(first.coverage)!.system ? 'error' : 'warning', `${what} in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z${firstOf}${why}`, first.path);
+    const must = Boolean(references.get(first.coverage)!.system);
+    note(must ? 'error' : 'warning', `${what} in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z${firstOf}${why}`, first.path, must ? COVJSON.timeFormsMust : COVJSON.timeFormsShould);
   } else if (formed.length) {
-    note('pass', `Every time is in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z, like ${shown(formed[0].raw)}`, formed[0].path);
+    note('pass', `Every time is in the Gregorian form YYYY-MM-DDTHH:MM:SS[.F]Z, like ${shown(formed[0].raw)}`, formed[0].path,
+      formed.some(time => references.get(time.coverage)!.system) ? COVJSON.timeFormsMust : COVJSON.timeFormsShould);
   }
 
   // The times read, each with its span
@@ -316,8 +325,8 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
   }
   if (backwards) {
     const [before, now, kind] = backwards;
-    if (kind === 'axis') note('error', `Times aren't in order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, COVJSON.domain);
-    else if (kind === 'Trajectory' || kind === 'Section') note('error', `A ${kind}'s points must follow the order of t, and ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, kind === 'Trajectory' ? COVJSON.trajectory : COVJSON.section);
+    if (kind === 'axis') note('error', `Times aren't in order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, COVJSON.monotonic);
+    else if (kind === 'Trajectory' || kind === 'Section') note('error', `A ${kind}'s points must follow the order of t, and ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path, kind === 'Trajectory' ? COVJSON.trajectoryOrder : COVJSON.sectionOrder);
     else note('info', `The composite axis's points aren't in time order: ${shown(now.raw)} comes after ${shown(before.raw)}`, now.path);
   }
   if (twice) note('warning', `t has ${shown(twice.raw)} twice`, twice.path);
@@ -340,9 +349,9 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     if (outside.length) {
       const [first] = outside;
       const what = outside.length === 1 ? `t ${shown(first.raw)} ${instant ? "isn't" : 'is outside'}` : `${plural(outside.length, 'time')} ${instant ? "aren't" : 'are outside'}`;
-      note('error', `${what} the datetime asked for, ${asked.text}${outside.length === 1 ? '' : `: the first is ${shown(first.raw)}`}`, first.path);
+      note('error', `${what} the datetime asked for, ${asked.text}${outside.length === 1 ? '' : `: the first is ${shown(first.raw)}`}`, first.path, EDR.datetimeResponse);
     } else if (all) {
-      note('pass', instant ? `Every time is the datetime asked for, ${asked.text}` : `Every time is inside the datetime asked for, ${asked.text}`, read[0].path);
+      note('pass', instant ? `Every time is the datetime asked for, ${asked.text}` : `Every time is inside the datetime asked for, ${asked.text}`, read[0].path, EDR.datetimeResponse);
     }
   }
 
@@ -352,16 +361,19 @@ export function timeFindings(json: Json, coverages: Json[], prefix: (coverage: n
     const outside = distinct(read.filter(time => !meets(spans.get(time)!, interval.span)));
     if (outside.length) {
       const what = outside.length === 1 ? `t ${shown(outside[0].raw)} is` : `${plural(outside.length, 'time')} are`;
-      against('warning', `${what} outside the collection's extent, ${interval.text}${outside.length === 1 ? '' : `: the first is ${shown(outside[0].raw)}`}`, outside[0].path);
+      against('warning', `${what} outside the collection's extent, ${interval.text}${outside.length === 1 ? '' : `: the first is ${shown(outside[0].raw)}`}`, outside[0].path, EDR.extent);
     } else if (all) {
-      against('pass', `Every time is inside the collection's extent, ${interval.text}`, read[0].path);
+      against('pass', `Every time is inside the collection's extent, ${interval.text}`, read[0].path, EDR.extent);
     }
   }
   const listed = listedValues(context.temporal);
   if (listed && 'unreadable' in listed) {
-    notes.push({ message: `The collection lists a time that can't be read, ${listed.unreadable}, so the times aren't checked against its list`, severity: 'info', source: 'collection' });
+    notes.push({ message: `The collection lists a time that can't be read, ${listed.unreadable}, so the times aren't checked against its list`, severity: 'info', source: 'collection', rule: EDR.temporalValues });
   } else if (listed?.notIso.length) {
-    notes.push({ message: `The collection lists its times as ${listed.notIso[0]}${listed.notIso.length > 1 ? ` and ${listed.notIso.length - 1} more like it` : ''}. EDR asks for ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that`, severity: 'warning', source: 'collection' });
+    // Only EDR's informative Annex C describes values: "An array of ISO 8601 datestrings which details the time
+    // intervals available in the collection, each member of the array can either be a single time, an ISO 8601 time
+    // interval or an ISO 8601 time duration". No requirement says what form they take
+    notes.push({ message: `The collection lists its times as ${listed.notIso[0]}${listed.notIso.length > 1 ? ` and ${listed.notIso.length - 1} more like it` : ''}. EDR's informative Annex C describes them as ISO 8601 times, intervals or durations, and start/end/step is none of them: read as that`, severity: 'warning', source: 'collection', rule: EDR.temporalValues });
   }
   if (listed && 'test' in listed) {
     const among = listed.test;

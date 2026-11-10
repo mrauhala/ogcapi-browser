@@ -114,7 +114,18 @@ export interface Collection {
 export interface Rule {
   label: string;
   url: string;
+  // A requirement's id and the letter of its statement, where the rule is one: /req/edr/rc-collection-info and G
+  requirement?: string;
+  statement?: string;
 }
+
+// An EDR rule as each version has it, so that Checks can cite the version the API declares. A version without one
+// cites nothing
+export interface EdrRule {
+  edr: { '1.1'?: Rule; '1.2'?: Rule };
+}
+
+export type Citation = Rule | EdrRule;
 
 export interface ValidationError {
   message: string;
@@ -134,7 +145,7 @@ export interface ValidationError {
   // checked against. One about the collection alone has no path, since there's nothing in the response to show
   source?: 'collection';
   // The rule it rests on, or the rules, where two standards differ
-  rule?: Rule | readonly Rule[];
+  rule?: Citation | readonly Citation[];
 }
 
 export interface ValidationResult {

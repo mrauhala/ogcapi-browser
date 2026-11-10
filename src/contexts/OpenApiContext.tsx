@@ -1,15 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type SetStateAction } from 'react';
-import axios from 'axios';
 import type { CapturedResponse } from '../api/capture';
 import { useService } from './ServiceContext';
 import { useCollection } from './CollectionContext';
 import { useValidation } from './ValidationContext';
-import { capturedOfFailure, loadServiceDescription, WebPageError, type ServiceDescription } from '../validation/openapi/loadServiceDescription';
+import { capturedOfFailure, loadServiceDescription, unavailable, type ServiceDescription } from '../validation/openapi/loadServiceDescription';
 import { buildOperationIndex, type OperationIndex } from '../validation/openapi/operationIndex';
 import { validateOpenApiStructure } from '../validation/openapi/validateStructure';
 import { lintOpenApiForEdr } from '../validation/openapi/lintEdr';
 import { allSectionsValid, isProblem } from '../validation/severity';
-import type { ValidationError, ValidationResult } from '../types/api';
+import type { ValidationResult } from '../types/api';
 
 // The service's API definition (service-desc): loaded and indexed for checking requests, then
 // validated (OpenAPI schema + EDR consistency) into the "API definition" validation section
@@ -35,22 +34,6 @@ function mergeSection(setValidationResult: (update: SetStateAction<ValidationRes
     const next = { ...prev, openApiValidation: section, errors: errors.length > 0 ? errors : null };
     return { ...next, isValid: allSectionsValid(next) };
   });
-}
-
-// A description that can't be loaded is reported, but isn't a flaw in the document
-function unavailable(error: unknown): ValidationError {
-  const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-  return {
-    message: status
-      ? `The API definition could not be loaded (HTTP ${status})`
-      : `The API definition could not be loaded (${error instanceof Error ? error.message : 'network or CORS error'})`,
-    section: 'OpenAPI',
-    schema: 'OpenAPI',
-    keyword: 'unavailable',
-    // A missing document or a web page in its place is the server's problem; a network error may not be
-    severity: status === 404 || error instanceof WebPageError ? 'warning' : 'info',
-    type: status ? 'unknown' : 'network',
-  };
 }
 
 const whenIdle = (callback: () => void): (() => void) => {

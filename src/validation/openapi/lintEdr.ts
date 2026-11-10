@@ -1,25 +1,51 @@
-import type { Collection, ValidationError } from '../../types/api';
+import type { Citation, Collection, ValidationError } from '../../types/api';
 import { normalizeHref } from '../../utils/href';
 import { EDR_QUERY_RULES } from '../../query/edrRules';
 import { effectiveOutputFormats, parameterIdsOf, queryTypeOf, queryVariables, unitsFor } from '../../query/queryTypes';
 import { findBrokenLocalRefs } from './refs';
 import { matchOperation, type OperationEntry, type OperationIndex, type ResolvedParam } from './operationIndex';
+import { COMMON1, EDR, OAS } from '../../standards';
 
 const SCHEMA = 'EDR consistency';
 const UNIT_PARAMS = new Set(['within-units', 'width-units', 'height-units']);
 const MAX_LISTED = 3;
 
 type Severity = NonNullable<ValidationError['severity']>;
+type Cited = ValidationError['rule'];
+
+// Where EDR says each query type's operation "SHALL include" (1.1: some "MUST include") a parameter
+const REQUIRED_BY: Readonly<Record<string, Readonly<Record<string, Citation>>>> = {
+  position: { coords: EDR.positionCoords },
+  radius: { coords: EDR.radiusCoords, within: EDR.radiusWithin, 'within-units': EDR.radiusWithinUnits },
+  area: { coords: EDR.areaCoords },
+  cube: { bbox: EDR.cubeBbox },
+  trajectory: { coords: EDR.trajectoryCoords },
+  corridor: {
+    coords: EDR.corridorCoords, 'corridor-width': EDR.corridorWidth, 'width-units': EDR.corridorWidthUnits,
+    'corridor-height': EDR.corridorHeight, 'height-units': EDR.corridorHeightUnits,
+  },
+};
+const requiredBy = (type: string, name: string): Citation[] => {
+  const rule = REQUIRED_BY[type]?.[name];
+  return rule ? [rule] : [];
+};
+
+// Each unit parameter's definition: "type: string"
+const UNIT_DEFINITION: Readonly<Record<string, Citation>> = {
+  'within-units': EDR.withinUnitsDefinition,
+  'width-units': EDR.widthUnitsDefinition,
+  'height-units': EDR.heightUnitsDefinition,
+};
 
 // Findings keyed by rule and subject, so a problem shared by many collections (generic paths,
 // or the same flaw repeated on hundreds of per-collection paths) is reported once
 class Findings {
   private findings = new Map<string, { error: ValidationError; collections: Set<string> }>();
 
-  add(key: string, severity: Severity, keyword: string, path: string, message: string, collectionId?: string) {
+  add(key: string, severity: Severity, keyword: string, path: string, message: string, collectionId?: string, rule?: Cited) {
     let finding = this.findings.get(key);
     if (!finding) {
-      finding = { error: { message, path, keyword, severity, section: 'OpenAPI', schema: SCHEMA, type: 'schema' }, collections: new Set() };
+      finding = { error: { message, path, keyword, severity, section: 'OpenAPI', schema: SCHEMA, type: 'schema', ...(rule ? { rule } : {}) }, collections: new Set() };
       this.findings.set(key, finding);
     }
     if (collectionId) finding.collections.add(collectionId);
@@ -63,7 +89,7 @@ function lintParameterSchemas(index: OperationIndex, findings: Findings) {
       const types = Array.isArray(type) ? type : type === undefined ? [] : [type];
       if (UNIT_PARAMS.has(param.name) && types.length > 0 && !types.includes('string')) {
         findings.add(`unit-type:${param.name}`, 'warning', 'unit-not-string', param.pointer,
-          `Parameter ${param.name} is typed ${types.join(' | ')}, but units are strings (e.g. km)`);
+          `Parameter ${param.name} is typed ${types.join(' | ')}, but units are strings (e.g. km)`, undefined, UNIT_DEFINITION[param.name]);
       }
     }
   }
@@ -95,8 +121,9 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
         continue;
       }
       if (match.via === 'suffix') {
+        // OpenAPI 3.0.3 §4.7.8: "The path is appended to the URL from the Server Object in order to construct the full URL."
         findings.add('servers-prefix', 'info', 'servers-mismatch', '/servers',
-          "Operations match only when the servers URL is ignored: check the document's servers", collection.id);
+          "Operations match only when the servers URL is ignored: check the document's servers", collection.id, OAS.paths);
       }
 
       // Keyed by query type, not path: per-collection documents repeat the same flaw on every path
@@ -107,11 +134,15 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
         for (const name of rule.required) {
           const param = queryParam(name);
           if (!param) {
+            // EDR's operation SHALL include it, and Common Part 1 needn't have the docs list every parameter
             findings.add(`undeclared:${type}:${name}`, 'warning', 'edr-required-undeclared', entry.pointer,
-              `${type} queries: the API docs don't declare ${name}, which EDR requires`, collection.id);
+              `${type} queries: the API docs don't declare ${name}, which EDR requires`, collection.id, [...requiredBy(type, name), COMMON1.notEverything]);
           } else if (!param.required) {
+            // Where EDR differs from itself: a radius operation SHALL include within-units, and its definition's
+            // fragment has "required: false"
             findings.add(`optional:${type}:${name}`, 'info', 'edr-required-optional', param.pointer,
-              `${type} queries: the API docs mark ${name} optional; EDR requires it`, collection.id);
+              `${type} queries: the API docs mark ${name} optional; EDR requires it`, collection.id,
+              [...requiredBy(type, name), ...(name === 'within-units' ? [EDR.withinUnitsDefinition] : [])]);
           }
         }
         for (const param of entry.params) {
@@ -129,22 +160,25 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
       if (dataEntry && !f && formats.length > 1) {
         // A data query without f can't pick its format; for list requests it's only a gap in the docs
         const listsOnly = !rule || rule.geometry === 'none';
+        // 1.1: each operation "SHALL support a parameter f"; 1.2: a data query "SHOULD include an f query parameter"
         findings.add(`no-f:${type}`, listsOnly ? 'info' : 'warning', 'f-undeclared', dataEntry.pointer,
-          `${type} queries: the API docs don't declare f, though the collection offers several output formats`, collection.id);
+          `${type} queries: the API docs don't declare f, though the collection offers several output formats`, collection.id, [EDR.queryF, COMMON1.notEverything]);
       }
       if (f?.enumValues) {
         const { missing, caseOnly } = notInEnum(f, formats);
+        // f's values are "based on an enumerated list of available options provided in the collections metadata", and
+        // Common Part 1: "Parameter names and values SHALL be case sensitive."
         missing.forEach(format => findings.add(`f-enum:${type}:${format}`, 'warning', 'enum-vs-metadata', f.pointer,
-          `${type} queries: f doesn't allow ${format}, which the collection offers`, collection.id));
+          `${type} queries: f doesn't allow ${format}, which the collection offers`, collection.id, [EDR.fResponseB, COMMON1.notEverything]));
         caseOnly.forEach(format => findings.add(`f-case:${type}:${format}`, 'info', 'enum-case', f.pointer,
-          `${type} queries: f allows ${format} only in different letter case`, collection.id));
+          `${type} queries: f allows ${format} only in different letter case`, collection.id, COMMON1.caseSensitive));
       }
 
       const withinUnits = queryParam('within-units');
       if (type === 'radius' && withinUnits?.enumValues) {
         notInEnum(withinUnits, unitsFor(queryVariables(collection, queryKey), 'within')).missing.forEach(unit =>
           findings.add(`within-units-enum:${unit}`, 'warning', 'enum-vs-metadata', withinUnits.pointer,
-            `radius queries: within-units doesn't allow ${unit}, which the collection lists in within_units`, collection.id));
+            `radius queries: within-units doesn't allow ${unit}, which the collection lists in within_units`, collection.id, [EDR.withinUnitsDefinition, COMMON1.notEverything]));
       }
 
       const parameterName = dataParam('parameter-name');
@@ -153,7 +187,7 @@ function lintDataQueries(index: OperationIndex, collections: Collection[], findi
         if (missing.length > 0) {
           findings.add(`parameter-name-enum:${type}`, 'warning', 'enum-vs-metadata', parameterName.pointer,
             `${type} queries: parameter-name doesn't allow all of the collection's parameter_names (e.g. ${missing.slice(0, MAX_LISTED).join(', ')})`,
-            collection.id);
+            collection.id, [EDR.parameterNameResponseB, COMMON1.notEverything]);
         }
       }
 

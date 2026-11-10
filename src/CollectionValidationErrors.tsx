@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, AlertTitle, Box, Typography, Collapse } from '@mui/material';
 import { ValidationError } from './DataRetrievalAPI';
+import RuleLinks from './RuleLinks';
 
 interface CollectionValidationErrorsProps {
   collectionId: string;
@@ -64,6 +65,7 @@ const CollectionValidationErrors: React.FC<CollectionValidationErrorsProps> = ({
         >
           <AlertTitle sx={{ fontSize: '0.875rem' }}>
             Schema Validation {section ? `(${section})` : ''}
+            <RuleLinks rule={error.rule} />
           </AlertTitle>
           <Typography variant="caption" sx={{ display: 'block' }}>
             {formatErrorMessage(error)}

@@ -4,6 +4,9 @@
 // "values" array". Checks says by it what's wrong in any response, and the map's grids, polygons and points what they
 // can't read. The profile reads by its own rule, which lets an unknown name of one value by. No DOM.
 
+import { COVJSON } from '../standards';
+import type { Rule } from '../types/api';
+
 type Json = Record<string, unknown>;
 
 export interface RangeMisfit {
@@ -11,6 +14,9 @@ export interface RangeMisfit {
   message: string;
   // The member of the range it's about, to point at
   member: 'axisNames' | 'shape' | 'values';
+  // The rule it breaks: axisNames "of the same length as "shape"", "the product of its values MUST equal the number
+  // of elements in the "values" array", shape "For >= 1D arrays it MUST be included", or the ranges' rule above
+  rule: Rule | readonly Rule[];
 }
 
 const count = (n: number) => n.toLocaleString('en-US');
@@ -24,35 +30,35 @@ export function rangeMisfit(id: string, range: Json, lengths: Record<string, num
   const names = Array.isArray(range.axisNames) ? range.axisNames.map(String) : null;
   const shape = Array.isArray(range.shape) ? range.shape.map(Number) : null;
   if (names && shape && names.length !== shape.length) {
-    return { member: 'shape', message: `${id}: axisNames has ${names.length} names, shape has ${shape.length}` };
+    return { member: 'shape', message: `${id}: axisNames has ${names.length} names, shape has ${shape.length}`, rule: COVJSON.axisNames };
   }
   if (shape && values) {
     const product = shape.reduce((a, b) => a * b, 1);
     if (product !== values.length) {
-      return { member: 'values', message: `${id}: shape ${shape.join(' × ')} makes ${count(product)} values, and values has ${count(values.length)}` };
+      return { member: 'values', message: `${id}: shape ${shape.join(' × ')} makes ${count(product)} values, and values has ${count(values.length)}`, rule: COVJSON.shapeProduct };
     }
   }
   if (!names) {
     const expected = Object.values(lengths).reduce((a, b) => a * b, 1);
     if (values && !shape && values.length !== expected) {
-      return { member: 'values', message: `${id}: the domain's axes make ${count(expected)} values, and values has ${count(values.length)}` };
+      return { member: 'values', message: `${id}: the domain's axes make ${count(expected)} values, and values has ${count(values.length)}`, rule: [COVJSON.shape, COVJSON.rangesFitDomain] };
     }
     return null;
   }
   const stranger = names.find(name => !isAxis(lengths, name));
-  if (stranger !== undefined) return { member: 'axisNames', message: `${id}: axisNames has "${stranger}", which isn't an axis of the domain` };
+  if (stranger !== undefined) return { member: 'axisNames', message: `${id}: axisNames has "${stranger}", which isn't an axis of the domain`, rule: COVJSON.rangesFitDomain };
   if (shape) {
     const at = names.findIndex((name, i) => shape[i] !== lengths[name]);
     if (at >= 0) {
-      return { member: 'shape', message: `${id}: shape says ${names[at]} has ${count(shape[at])} values, and the axis has ${count(lengths[names[at]])}` };
+      return { member: 'shape', message: `${id}: shape says ${names[at]} has ${count(shape[at])} values, and the axis has ${count(lengths[names[at]])}`, rule: COVJSON.rangesFitDomain };
     }
   } else if (values) {
     const expected = names.reduce((a, name) => a * lengths[name], 1);
     if (values.length !== expected) {
-      return { member: 'values', message: `${id}: axisNames ${names.join(', ')} make ${count(expected)} values, and values has ${count(values.length)}` };
+      return { member: 'values', message: `${id}: axisNames ${names.join(', ')} make ${count(expected)} values, and values has ${count(values.length)}`, rule: [COVJSON.shape, COVJSON.rangesFitDomain] };
     }
   }
   const left = Object.keys(lengths).find(name => lengths[name] > 1 && !names.includes(name));
-  if (left !== undefined) return { member: 'axisNames', message: `${id}: axisNames has no ${left}, and ${left} has ${count(lengths[left])} values` };
+  if (left !== undefined) return { member: 'axisNames', message: `${id}: axisNames has no ${left}, and ${left} has ${count(lengths[left])} values`, rule: COVJSON.rangesFitDomain };
   return null;
 }

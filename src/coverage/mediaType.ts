@@ -1,9 +1,11 @@
 import type { ValidationError } from '../types/api';
-import { COVJSON, EDR11 } from '../standards';
+import { COVJSON, EDR, EDR12 } from '../standards';
 
 // What the Content-Type says of a CoverageJSON response, against CoverageJSON 10: "The CoverageJSON media type SHALL be
 // application/vnd.cov+json with an optional parameter profile". Its one profile, standalone, says every domain and
-// range is in the document, not at a URL
+// range is in the document, not at a URL. EDR's media type is its /req/covjson/definition A: "200-responses of the
+// server SHALL support the following media types: application/prs.coverage+json [1.2: application/vnd.cov+json] for
+// resources that include data content". EDR 1.2's /req/covjson/content A still names application/prs.coverage+json
 
 const COVJSON_TYPE = 'application/vnd.cov+json';
 // CoverageJSON's before OGC, and what EDR 1.1 asks for
@@ -42,21 +44,23 @@ export function mediaTypeFindings(contentType: string, json: unknown): Validatio
   const { type, profiles } = readContentType(contentType);
   const findings: ValidationError[] = [];
   if (type === COVJSON_TYPE) {
-    findings.push({ severity: 'pass', message: `Content-Type is ${COVJSON_TYPE}`, rule: COVJSON.mediaType });
+    // EDR 1.1's /definition names the other type, so the pass cites only 1.2's
+    findings.push({ severity: 'pass', message: `Content-Type is ${COVJSON_TYPE}`, rule: [COVJSON.mediaType, { edr: { '1.2': EDR12.covjsonDefinition } }] });
   } else if (type === EDR_1_1_TYPE) {
     findings.push({
-      severity: 'info', rule: [COVJSON.mediaType, EDR11.covjsonContent],
+      // Where the standards differ: CoverageJSON, EDR's /definition, and 1.2's /content A, which still names this type
+      severity: 'info', rule: [COVJSON.mediaType, EDR.covjsonDefinition, { edr: { '1.2': EDR12.covjsonContentA } }],
       message: `Content-Type is ${EDR_1_1_TYPE}. That's EDR 1.1's, and CoverageJSON's before OGC. CoverageJSON 1.0 and EDR 1.2 have ${COVJSON_TYPE}, so the standards differ`,
     });
   } else {
     const sent = type ? `Content-Type is ${type}` : 'The response has no Content-Type';
-    findings.push({ severity: 'warning', message: `${sent}. CoverageJSON's is ${COVJSON_TYPE}`, rule: COVJSON.mediaType });
+    findings.push({ severity: 'warning', message: `${sent}. CoverageJSON's is ${COVJSON_TYPE}`, rule: [COVJSON.mediaType, EDR.covjsonDefinition] });
   }
   if (profiles.includes(STANDALONE)) {
     const atUrl = firstAtUrl(json);
     findings.push(atUrl
-      ? { severity: 'error', message: `The profile says every domain and range is in the response, but ${atUrl.what} is at a URL`, path: atUrl.path, rule: COVJSON.mediaType }
-      : { severity: 'pass', message: 'Every domain and range is in the response, as its profile says', rule: COVJSON.mediaType });
+      ? { severity: 'error', message: `The profile says every domain and range is in the response, but ${atUrl.what} is at a URL`, path: atUrl.path, rule: COVJSON.standalone }
+      : { severity: 'pass', message: 'Every domain and range is in the response, as its profile says', rule: COVJSON.standalone });
   }
   return findings;
 }

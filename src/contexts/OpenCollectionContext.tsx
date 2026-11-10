@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { executeLocationQuery, getLocationQueryUrl, hasLocationQuery } from '../DataRetrievalAPI';
 import { collectionUrlOf, extentsOf, geoJsonLinksOf, withLocationsValidation, withoutLocationsValidation } from '../collections/openingCollection';
 import type { Collection } from '../types/api';
-import { detectEdrVersion, validateLocationsResponse } from '../validation/locationsValidator';
+import { detectEdrVersion } from '../standards';
+import { validateLocationsResponse } from '../validation/locationsValidator';
 import { useApi } from './ApiContext';
 import { useCollection } from './CollectionContext';
 import { useGeoJsonLayers } from './GeoJsonLayerContext';

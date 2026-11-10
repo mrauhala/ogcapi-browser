@@ -22,7 +22,7 @@ import LocationsData from './LocationsData';
 import { summarizeCoverage } from './coverage/coverageSummary';
 import { inheritedDomainType } from './coverage/inheritedDomainType';
 import FetchErrorAlert from './FetchErrorAlert';
-import ResponseChecks, { ChecksTabLabel, findingMessage } from './ResponseChecks';
+import ResponseChecks, { ChecksTabLabel, findingMessage, findingPath } from './ResponseChecks';
 import ResponseHeaders from './ResponseHeaders';
 import ResponseSizes from './ResponseSizes';
 import ResponseStatusLine from './ResponseStatusLine';
@@ -33,6 +33,7 @@ import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
 import { locationsListOf } from './locations/locationsList';
 import { locationsMediaTypeFindings } from './locations/mediaType';
+import { schemaRuleOf } from './QueryResultValidator';
 import { shortUrl } from './query/requestUrl';
 import { collectionIdOf } from './query/requestLink';
 import { checksCount, responseTabs, shownTab, type ResponseTab } from './responseTabs';
@@ -293,6 +294,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
         {!isLoading && response && tab === 'checks' && (
           <ResponseChecks
             schemaName={validationSchemaName}
+            schemaRule={schemaRuleOf(validationSchemaName)}
             checkedAs={validationSchemaName ? inheritedDomainType(parsedJson) : null}
             findings={validationErrors}
             lines={errorLineList}
@@ -304,6 +306,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
             formatNotes={formatNotes}
             dataNotes={dataNotes}
             collectionId={checkedAgainst ? String(checkedAgainst.id) : null}
+            url={url}
             onGoToNote={line => {
               setNoteLine(line);
               setPreferredTab('raw');
@@ -472,7 +475,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
                   <Box key={i} sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                     {err.path && (
                       <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'text.secondary' }}>
-                        {err.path}
+                        {findingPath(err)}
                       </Typography>
                     )}
                     {err.keyword && (

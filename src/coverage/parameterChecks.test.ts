@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parameterFindings } from './parameterChecks';
-import { COVJSON, EDR12 } from '../standards';
+import { COVJSON, EDR12, METOCEAN_COMMON_DRAFT, RFC } from '../standards';
 import knmi from './__fixtures__/profiles/knmi-pl-position.json';
 import ifs from './__fixtures__/profiles/mc-ifs-1t-all.json';
 import fmi from './__fixtures__/profiles/fmi-ecmwf-1t-all.json';
@@ -44,20 +44,22 @@ describe('parameterFindings: the KNMI response', () => {
   });
 
   it('cites the rules', () => {
-    expect(found[0].rule).toEqual([COVJSON.parameter, COVJSON.i18n]);
-    expect(found[1].rule).toEqual(COVJSON.parameter);
+    expect(found[0].rule).toEqual([COVJSON.i18n, COVJSON.conformance, RFC.languageTag]);
+    expect(found[1].rule).toEqual(COVJSON.unit);
+    expect(found[2].rule).toEqual(COVJSON.unit);
+    expect(found[3].rule).toEqual(COVJSON.unit);
   });
 });
 
 describe('parameterFindings: unit types', () => {
-  it('notes a QUDT unit in the type once for MeteoCore, citing the custom types it is allowed as', () => {
+  it('notes a QUDT unit in the type once for MeteoCore, citing the custom value it is allowed as, and the MetOcean Common draft that asks for it', () => {
     const [found, ...rest] = findings(ifs);
     expect(rest).toEqual([]);
     expect(found).toEqual({
       severity: 'info',
       message: 'r\'s unit type is https://qudt.org/vocab/unit/PERCENT, and likewise for 2 more parameters. That names a unit, where CoverageJSON\'s type names the scheme the symbol is written in, such as UCUM. A custom one is allowed, but a unit\'s URI fits unit.id',
       path: '/parameters/r/unit/symbol/type',
-      rule: [COVJSON.parameter, COVJSON.customTypes],
+      rule: [COVJSON.unit, COVJSON.customValue, METOCEAN_COMMON_DRAFT.qudtUnits],
     });
   });
 
@@ -68,7 +70,7 @@ describe('parameterFindings: unit types', () => {
       severity: 'info',
       message: 't\'s unit type is https://www.opengis.net/def/uom/UCUM/. That\'s EDR 1.2\'s, for a collection\'s parameters. CoverageJSON\'s is http://www.opengis.net/def/uom/UCUM/, so the two standards differ',
       path: '/parameters/t/unit/symbol/type',
-      rule: [COVJSON.parameter, EDR12.parameters],
+      rule: [COVJSON.unit, EDR12.parameterUnit],
     });
   });
 
@@ -132,12 +134,12 @@ describe('parameterFindings: UCUM codes that mean something else', () => {
 describe('parameterFindings: labels', () => {
   it('calls a label that isn’t an i18n object an error', () => {
     expect(findings(coverage({ t: parameter({ label: 'Temperature' }) }))).toEqual([{
-      severity: 'error', message: 't\'s label is text. CoverageJSON has an i18n object: {"en": "Temperature"}', path: '/parameters/t/label', rule: [COVJSON.parameter, COVJSON.i18n],
+      severity: 'error', message: 't\'s label is text. CoverageJSON has an i18n object: {"en": "Temperature"}', path: '/parameters/t/label', rule: [COVJSON.label, { edr: { '1.2': EDR12.parameterLabel } }],
     }]);
     expect(messages(coverage({ t: parameter({ label: ['Temperature'] }) }))).toEqual(['t\'s label isn\'t an i18n object']);
     expect(messages(coverage({ t: parameter({ label: null }) }))).toEqual(['t\'s label isn\'t an i18n object']);
     expect(findings(coverage({ t: parameter({ label: { en: 'Temperature', fi: 5 } }) }))).toEqual([{
-      severity: 'error', message: 't\'s label in "fi" isn\'t text', path: '/parameters/t/label/fi', rule: [COVJSON.parameter, COVJSON.i18n],
+      severity: 'error', message: 't\'s label in "fi" isn\'t text', path: '/parameters/t/label/fi', rule: [COVJSON.i18n, COVJSON.conformance],
     }]);
   });
 
@@ -151,7 +153,7 @@ describe('parameterFindings: labels', () => {
       severity: 'info',
       message: 'geopheight\'s label repeats its observed property\'s, and likewise for 3 more parameters. CoverageJSON says to leave it out then',
       path: '/parameters/geopheight/label',
-      rule: COVJSON.parameter,
+      rule: COVJSON.label,
     });
   });
 
@@ -168,13 +170,13 @@ describe('parameterFindings: labels', () => {
 
 describe('parameterFindings: no unit', () => {
   it('says so once where no parameter has one, naming two', () => {
-    expect(findings(dmi)).toEqual([{ severity: 'info', message: 'No parameter has a unit: temperature-850hPa, temperature-1000hPa and 1 more', path: '/parameters/temperature-850hPa' }]);
+    expect(findings(dmi)).toEqual([{ severity: 'info', message: 'No parameter has a unit: temperature-850hPa, temperature-1000hPa and 1 more', path: '/parameters/temperature-850hPa', rule: [COVJSON.unit, METOCEAN_COMMON_DRAFT.parameterFields] }]);
     expect(messages(coverage({ a: parameter({ unit: undefined }), b: parameter({ unit: undefined }) }))).toEqual(['No parameter has a unit: a, b']);
     expect(findings(fmi)[1].message).toBe('No parameter has a unit: geopheight, humidity and 2 more');
   });
 
   it('names the one, where only some lack one', () => {
-    expect(findings(coverage({ DBZH: parameter(), RHOHV: parameter({ unit: undefined }) }))).toEqual([{ severity: 'info', message: 'RHOHV has no unit', path: '/parameters/RHOHV' }]);
+    expect(findings(coverage({ DBZH: parameter(), RHOHV: parameter({ unit: undefined }) }))).toEqual([{ severity: 'info', message: 'RHOHV has no unit', path: '/parameters/RHOHV', rule: [COVJSON.unit, METOCEAN_COMMON_DRAFT.parameterFields] }]);
     expect(messages(coverage({ a: parameter(), b: parameter({ unit: undefined }), c: parameter({ unit: undefined }) }))).toEqual(['b has no unit, and likewise for 1 more parameter']);
     expect(messages(coverage({ a: parameter({ unit: undefined }) }))).toEqual(['a has no unit']);
   });

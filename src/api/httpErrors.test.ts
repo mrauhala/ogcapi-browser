@@ -117,6 +117,12 @@ describe('networkFailureMessage', () => {
     }
   });
 
+  it('calls CORS support a recommendation, as EDR’s Recommendation 3 does, not a must', () => {
+    const message = networkFailureMessage({ message: 'CORS error' });
+    expect(message).toBe("CORS blocked: the API doesn't allow cross-origin requests from this origin. EDR recommends that an API meant for browsers allows them, with an Access-Control-Allow-Origin header.");
+    expect(message.toLowerCase()).not.toContain('must');
+  });
+
   it('says a network failure may be either, since a browser cannot tell them apart', () => {
     expect(networkFailureMessage({ message: 'Network Error' })).toMatch(/^Network error.*CORS/);
     expect(networkFailureMessage({ message: 'Failed to fetch' })).toMatch(/^Network error/);

@@ -16,6 +16,7 @@ import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { usePanes } from './contexts/PanesContext';
 import { useValidation } from './contexts/ValidationContext';
 import { alertSeverity } from './validation/severity';
+import RuleLinks from './RuleLinks';
 
 interface CollectionListItemHeaderProps {
   collection: Collection;
@@ -112,6 +113,7 @@ const CollectionsList = () => {
                   {error.title ?? (error.type === 'cors' ? 'CORS Issue' : 'Error')}
                 </AlertTitle>
                 {error.message}
+                <RuleLinks rule={error.rule} />
                 {error.type === 'cors' && (
                   <div style={{ marginTop: '8px', fontSize: '0.875rem' }}>
                     <strong>Possible solutions:</strong>
@@ -137,6 +139,7 @@ const CollectionsList = () => {
           <Alert key={`conf-${index}`} severity={alertSeverity(error.severity)} sx={{ mt: 1 }}>
             <AlertTitle>{error.title ?? 'Conformance Unavailable'}</AlertTitle>
             {error.message}
+            <RuleLinks rule={error.rule} />
           </Alert>
         ))
       }
@@ -146,6 +149,7 @@ const CollectionsList = () => {
           <Alert key={`data-${index}`} severity={alertSeverity(error.severity)} sx={{ mt: 1 }}>
             <AlertTitle>{error.title ?? 'Collections Link Issue'}</AlertTitle>
             {error.message}
+            <RuleLinks rule={error.rule} />
           </Alert>
         ))
       }
