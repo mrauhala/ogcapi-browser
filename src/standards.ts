@@ -170,6 +170,8 @@ export const EDR11 = {
   // A: "200-responses of the server SHALL support the following media types: application/geo+json for resources that
   // include feature content, and application/json for all other resources." Linked to its first item
   edrGeojsonDefinition: edr11('/req/edr-geojson/definition A', '_24f95235-539d-85dc-dac2-eec77558a62f', 'B.29'),
+  // The GeoJSON class's, word for word the same
+  geojsonDefinition: edr11('/req/geojson/definition A', '_d85cfec7-3540-0e2a-dcbb-088deca1ec93', 'B.27'),
   // A: "Every 200-response with the media type application/prs.coverage+json SHALL be a CoverageJSON Object"
   // B: "The schema of all responses with the media type application/prs.coverage+json SHALL conform with the JSON
   // Schema specified for the resource in the Core requirements class."
@@ -253,6 +255,7 @@ export const EDR12 = {
   geojsonContent: edr12('/req/geojson/content A', '_7074d0d8-e04e-a0b9-24bb-cff9a8401a0c', 'B.30'),
   // As 1.1's: "application/geo+json for resources that include feature content"
   edrGeojsonDefinition: edr12('/req/edr-geojson/definition A', '_050d2df9-d0e6-40ba-7336-372056cb0065', 'B.31'),
+  geojsonDefinition: edr12('/req/geojson/definition A', '_4ae1940b-1c86-ba89-8433-a52f301d349a', 'B.29'),
   // A still names application/prs.coverage+json, where B and /req/covjson/definition name application/vnd.cov+json
   covjsonContentA: edr12('/req/covjson/content A', '_1902215f-6f6d-4db8-f23c-f5ef3592a2cf', 'B.34'),
   covjsonContentB: edr12('/req/covjson/content B', '_042d33ad-a3b8-6278-8ce2-33687bd1c422', 'B.34'),
@@ -318,6 +321,7 @@ export const EDR = {
   covjsonContentB: both(EDR11.covjsonContentB, EDR12.covjsonContentB),
   covjsonDefinition: both(EDR11.covjsonDefinition, EDR12.covjsonDefinition),
   edrGeojsonDefinition: both(EDR11.edrGeojsonDefinition, EDR12.edrGeojsonDefinition),
+  geojsonDefinition: both(EDR11.geojsonDefinition, EDR12.geojsonDefinition),
   geojsonContent: both(EDR11.geojsonContent, EDR12.geojsonContent),
   oas30Definition: both(EDR11.oas30Definition, EDR12.oas30Definition),
   oas31Definition: both(undefined, EDR12.oas31Definition),

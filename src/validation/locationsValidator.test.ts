@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { locationsSchemaFor, locationsSchemaRuleOf, validateLocationsResponse, type LocationsSchema } from './locationsValidator';
+import { isEdrGeojsonSchema, locationsSchemaFor, locationsSchemaRuleOf, validateLocationsResponse, type LocationsSchema } from './locationsValidator';
 import { EDR, EDR11, EDR12, type DeclaredEdr } from '../standards';
 import meteogate from './__fixtures__/meteogate-nl-daily-locations.json';
 import fmi from '../locations/__fixtures__/fmi-ecmwf-locations.json';
@@ -69,6 +69,14 @@ describe('locationsSchemaRuleOf', () => {
     expect(locationsSchemaRuleOf('EDR 1.2 Locations FeatureCollection')).toBeUndefined();
     expect(locationsSchemaRuleOf('GeoJSON FeatureCollection')).toBeUndefined();
     expect(locationsSchemaRuleOf(null)).toBeUndefined();
+  });
+
+  it('knows a list checked as EDR GeoJSON by its schema’s name', () => {
+    expect(isEdrGeojsonSchema('EDR 1.2 Locations')).toBe(true);
+    expect(isEdrGeojsonSchema('EDR 1.0 Locations')).toBe(true);
+    expect(isEdrGeojsonSchema(NOT_EDR_GEOJSON)).toBe(false);
+    expect(isEdrGeojsonSchema('CoverageJSON 1.0')).toBe(false);
+    expect(isEdrGeojsonSchema(null)).toBe(false);
   });
 
   it('cites /req/geojson/content A in both versions, linked to its item for features', () => {

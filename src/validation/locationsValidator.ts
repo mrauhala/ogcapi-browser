@@ -48,6 +48,10 @@ export function locationsSchemaFor(conformsTo: readonly string[] | null | undefi
   return { kind: 'geojson', name: `${GEOJSON_NAME} (${why})` };
 }
 
+// Whether a list was checked as EDR GeoJSON, by the name its schema is shown under
+export const isEdrGeojsonSchema = (schemaName: string | null | undefined) =>
+  (Object.keys(EDR_GEOJSON_PATHS) as EdrVersion[]).some(version => edrGeojsonName(version) === schemaName);
+
 // EDR 1.0's text isn't cited, so its schema's findings cite 1.1's. GeoJSON's are cited in the version the API declares
 function ruleOf(schema: LocationsSchema): Citation {
   if (schema.kind === 'geojson') return EDR.geojsonContent;

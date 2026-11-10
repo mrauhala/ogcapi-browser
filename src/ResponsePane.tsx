@@ -34,6 +34,7 @@ import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
 import { locationsListOf } from './locations/locationsList';
 import { locationsMediaTypeFindings } from './locations/mediaType';
+import { isEdrGeojsonSchema } from './validation/locationsValidator';
 import { schemaRuleOf } from './QueryResultValidator';
 import { shortUrl } from './query/requestUrl';
 import { collectionIdOf } from './query/requestLink';
@@ -166,7 +167,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   // The media type of what's checked as CoverageJSON, or of a locations list. Checks is only there with the response's
   // details, and so its Content-Type
   const formatFindings = useMemo(
-    () => (locations ? locationsMediaTypeFindings(contentType ?? '')
+    () => (locations ? locationsMediaTypeFindings(contentType ?? '', isEdrGeojsonSchema(validationSchemaName))
       : validationSchemaName?.startsWith('CoverageJSON') ? mediaTypeFindings(contentType ?? '', parsedJson) : []),
     [locations, validationSchemaName, contentType, parsedJson],
   );
