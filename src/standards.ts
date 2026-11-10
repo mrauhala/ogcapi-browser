@@ -164,6 +164,9 @@ export const EDR11 = {
   // A: "Every 200-response with the media type application/geo+json SHALL be an EDR GeoJSON FeatureCollection Object
   // for features, and an EDR GeoJSON Feature Object for a single feature."
   edrGeojsonContent: edr11('/req/edr-geojson/content A', '_9313c3a3-4052-2886-70fe-1cec2ce54acc', 'B.30'),
+  // A: "Every 200-response with the media type application/geo+json SHALL be a GeoJSON FeatureCollection Object for
+  // features, and a GeoJSON Feature Object for a single feature." Of the GeoJSON class, which asks for no EDR properties
+  geojsonContent: edr11('/req/geojson/content A', '_b3763635-d562-1859-8dde-d15308e413d0', 'B.28'),
   // A: "200-responses of the server SHALL support the following media types: application/geo+json for resources that
   // include feature content, and application/json for all other resources." Linked to its first item
   edrGeojsonDefinition: edr11('/req/edr-geojson/definition A', '_24f95235-539d-85dc-dac2-eec77558a62f', 'B.29'),
@@ -246,6 +249,8 @@ export const EDR12 = {
   widthUnitsDefinition: edr12('/req/edr/REQ_rc-width-units-definition A', '_e94367a5-e9c7-9063-54c3-604bda2e056d', 'B.133'),
   heightUnitsDefinition: edr12('/req/edr/REQ_rc-height-units-definition A', '_ac3bbd2e-f4e6-f744-0bf6-a2a158d1fa7c', 'B.135'),
   edrGeojsonContent: edr12('/req/edr-geojson/content A', '_69adc7ab-8dd9-3f65-c44b-554197db81d2', 'B.32'),
+  // As 1.1's
+  geojsonContent: edr12('/req/geojson/content A', '_7074d0d8-e04e-a0b9-24bb-cff9a8401a0c', 'B.30'),
   // As 1.1's: "application/geo+json for resources that include feature content"
   edrGeojsonDefinition: edr12('/req/edr-geojson/definition A', '_050d2df9-d0e6-40ba-7336-372056cb0065', 'B.31'),
   // A still names application/prs.coverage+json, where B and /req/covjson/definition name application/vnd.cov+json
@@ -313,6 +318,7 @@ export const EDR = {
   covjsonContentB: both(EDR11.covjsonContentB, EDR12.covjsonContentB),
   covjsonDefinition: both(EDR11.covjsonDefinition, EDR12.covjsonDefinition),
   edrGeojsonDefinition: both(EDR11.edrGeojsonDefinition, EDR12.edrGeojsonDefinition),
+  geojsonContent: both(EDR11.geojsonContent, EDR12.geojsonContent),
   oas30Definition: both(EDR11.oas30Definition, EDR12.oas30Definition),
   oas31Definition: both(undefined, EDR12.oas31Definition),
   crossOrigin: both(EDR11.crossOrigin, EDR12.crossOrigin),

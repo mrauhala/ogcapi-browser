@@ -283,7 +283,8 @@ describe('ResponsePane', () => {
     });
 
     it('counts its media type in Checks: an issue for CoverageJSON’s, nothing for GeoJSON’s', () => {
-      const checked = { validationSchemaName: 'EDR 1.0 Locations' };
+      // As KNMI's is checked: its API declares EDR's GeoJSON class, not EDR GeoJSON
+      const checked = { validationSchemaName: 'GeoJSON FeatureCollection (the API declares GeoJSON, not EDR GeoJSON)' };
       expect(list(checked)).toContain('>1 issue<');
       expect(list({ ...checked, contentType: 'application/geo+json' })).not.toContain('issue<');
       // With what the schema found, the errors come first

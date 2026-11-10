@@ -139,6 +139,17 @@ const schemas = [
     output: 'public/schemas/edr/1.2/edrFeatureCollectionGeoJSON.json'
   },
 
+  // A GeoJSON FeatureCollection, for an EDR API's locations where it declares EDR's GeoJSON class and not its EDR GeoJSON
+  // one (/req/geojson/content A). EDR's own geojson/featureGeoJSON.yaml takes its properties from edr-geojson, so this
+  // is OGC API Features Part 1's, OGC's plain one
+  {
+    name: 'GeoJSON FeatureCollection (Features Part 1 v1.0)',
+    url: 'https://schemas.opengis.net/ogcapi/features/part1/1.0/openapi/schemas/featureCollectionGeoJSON.yaml',
+    output: 'public/schemas/geojson/featureCollectionGeoJSON.json',
+    // A GeometryCollection holds geometries, so this one is recursive: one document, its $refs kept inside it
+    bundle: true,
+  },
+
   // OGC API Records Part 1 v1.0 - top level structure (no conformance schema available)
   {
     name: 'Records Part 1 v1.0 - Landing Page',
@@ -272,6 +283,8 @@ async function downloadAndDereference(schema) {
       const response = await fetch(schema.url, { headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       dereferencedSchema = schema.transform(await response.json());
+    } else if (schema.bundle) {
+      dereferencedSchema = await $RefParser.bundle(schema.url);
     } else if (schema.component) {
       const bundle = await parseBundle(schema.url);
       dereferencedSchema = await $RefParser.dereference(componentDocument(bundle, schema.component));

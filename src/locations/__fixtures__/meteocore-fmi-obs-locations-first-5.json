@@ -1,0 +1,173 @@
+{
+ "features": [
+  {
+   "geometry": {
+    "coordinates": [
+     20.85,
+     13.84
+    ],
+    "type": "Point"
+   },
+   "id": "0-148-0-CHD64901",
+   "links": [
+    {
+     "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64901",
+     "rel": "data",
+     "title": "Data for Abéché",
+     "type": "application/vnd.cov+json"
+    }
+   ],
+   "properties": {
+    "datetime": "2026-10-10T00:00:00+00:00/2026-11-09T19:16:00+00:00",
+    "edrqueryendpoint": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64901",
+    "label": "Abéché",
+    "parameter-name": [
+     "air_temperature",
+     "dew_point_temperature",
+     "relative_humidity",
+     "wind_speed",
+     "wind_speed_of_gust",
+     "wind_from_direction"
+    ]
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     18.9728,
+     12.1993
+    ],
+    "type": "Point"
+   },
+   "id": "0-148-0-CHD64904",
+   "links": [
+    {
+     "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64904",
+     "rel": "data",
+     "title": "Data for Baro",
+     "type": "application/vnd.cov+json"
+    }
+   ],
+   "properties": {
+    "datetime": "2026-10-10T00:00:00+00:00/2026-11-09T19:16:00+00:00",
+    "edrqueryendpoint": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64904",
+    "label": "Baro",
+    "parameter-name": [
+     "air_temperature",
+     "dew_point_temperature",
+     "relative_humidity",
+     "wind_speed",
+     "wind_speed_of_gust",
+     "wind_from_direction"
+    ]
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     16.5602,
+     8.6748
+    ],
+    "type": "Point"
+   },
+   "id": "0-148-0-CHD64905",
+   "links": [
+    {
+     "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64905",
+     "rel": "data",
+     "title": "Data for Bebedjia ITRAD",
+     "type": "application/vnd.cov+json"
+    }
+   ],
+   "properties": {
+    "datetime": "2026-10-10T00:00:00+00:00/2026-11-09T19:16:00+00:00",
+    "edrqueryendpoint": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64905",
+    "label": "Bebedjia ITRAD",
+    "parameter-name": [
+     "air_temperature",
+     "dew_point_temperature",
+     "relative_humidity",
+     "wind_speed",
+     "wind_speed_of_gust",
+     "wind_from_direction"
+    ]
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     14.45,
+     9.96
+    ],
+    "type": "Point"
+   },
+   "id": "0-148-0-CHD64908",
+   "links": [
+    {
+     "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64908",
+     "rel": "data",
+     "title": "Data for Binder",
+     "type": "application/vnd.cov+json"
+    }
+   ],
+   "properties": {
+    "datetime": "2026-10-10T00:00:00+00:00/2026-11-09T19:16:00+00:00",
+    "edrqueryendpoint": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64908",
+    "label": "Binder",
+    "parameter-name": [
+     "air_temperature",
+     "dew_point_temperature",
+     "relative_humidity",
+     "wind_speed",
+     "wind_speed_of_gust",
+     "wind_from_direction"
+    ]
+   },
+   "type": "Feature"
+  },
+  {
+   "geometry": {
+    "coordinates": [
+     18.219,
+     11.9832
+    ],
+    "type": "Point"
+   },
+   "id": "0-148-0-CHD64909",
+   "links": [
+    {
+     "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64909",
+     "rel": "data",
+     "title": "Data for Bitkine",
+     "type": "application/vnd.cov+json"
+    }
+   ],
+   "properties": {
+    "datetime": "2026-10-10T00:00:00+00:00/2026-11-09T19:16:00+00:00",
+    "edrqueryendpoint": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations/0-148-0-CHD64909",
+    "label": "Bitkine",
+    "parameter-name": [
+     "air_temperature",
+     "dew_point_temperature",
+     "relative_humidity",
+     "wind_speed",
+     "wind_speed_of_gust",
+     "wind_from_direction"
+    ]
+   },
+   "type": "Feature"
+  }
+ ],
+ "links": [
+  {
+   "href": "https://meteocore.app.meteo.fi/edr/collections/fmi-obs/locations",
+   "rel": "self",
+   "title": "Locations",
+   "type": "application/geo+json"
+  }
+ ],
+ "type": "FeatureCollection"
+}

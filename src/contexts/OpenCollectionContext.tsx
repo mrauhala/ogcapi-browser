@@ -3,7 +3,7 @@ import { executeLocationQuery, getLocationQueryUrl, hasLocationQuery } from '../
 import { collectionUrlOf, extentsOf, geoJsonLinksOf, withLocationsValidation, withoutLocationsValidation } from '../collections/openingCollection';
 import type { Collection } from '../types/api';
 import { detectEdrVersion } from '../standards';
-import { validateLocationsResponse } from '../validation/locationsValidator';
+import { locationsSchemaFor, validateLocationsResponse } from '../validation/locationsValidator';
 import { useApi } from './ApiContext';
 import { useCollection } from './CollectionContext';
 import { useGeoJsonLayers } from './GeoJsonLayerContext';
@@ -84,9 +84,11 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
       // Doesn't hold anything up
       const edrVersion = detectEdrVersion(conformsTo);
       if (edrVersion) {
-        validateLocationsResponse(locations, edrVersion).then(validation => {
+        // EDR's own GeoJSON if the API declares that class, a GeoJSON FeatureCollection if not
+        const schema = locationsSchemaFor(conformsTo, edrVersion);
+        validateLocationsResponse(locations, schema).then(validation => {
           if (openRef.current !== collection) return;
-          setValidationResult(prev => withLocationsValidation(prev, validation, edrVersion));
+          setValidationResult(prev => withLocationsValidation(prev, validation, schema.name));
           setEndpointUrls(prev => ({ ...prev, locations: locationsUrl }));
           setRawResponses(prev => ({ ...prev, locations }));
         });

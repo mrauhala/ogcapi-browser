@@ -82,6 +82,8 @@ describe('QueryResultValidator: CoverageJSON', () => {
     expect(schemaRuleOf('EDR 1.1 Locations')).toBe(EDR11.edrGeojsonContent);
     expect(schemaRuleOf('EDR 1.0 Locations')).toBe(EDR11.edrGeojsonContent);
     expect(schemaRuleOf('EDR 1.3 Locations')).toBeUndefined();
+    // A list from an API that doesn't declare EDR GeoJSON, by the version cited
+    expect(schemaRuleOf('GeoJSON FeatureCollection (the API declares GeoJSON, not EDR GeoJSON)')).toBe(EDR.geojsonContent);
     expect(schemaRuleOf('Something else')).toBeUndefined();
     expect(schemaRuleOf(null)).toBeUndefined();
   });

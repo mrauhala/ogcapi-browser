@@ -6,7 +6,7 @@ import { useApi } from '../contexts/ApiContext';
 import { useGeoJsonLayers } from '../contexts/GeoJsonLayerContext';
 import { useMapInteraction } from '../contexts/MapInteractionContext';
 import { useService } from '../contexts/ServiceContext';
-import { locationsSchemaVersion, validateQueryResponse } from '../locations/locationsList';
+import { locationsSchemaOf, validateQueryResponse } from '../locations/locationsList';
 import type { ValidationError } from '../types/api';
 
 // The latest request and what came back for it, shown in the response pane, which each one opens.
@@ -116,10 +116,10 @@ export function useQueryResponse(showResponse: () => void) {
       // An error's body is shown as it came, but isn't data to check or map
       if (failure) return;
 
-      // Validate query result against registered schemas (e.g. CoverageJSON), and a locations list against the EDR
-      // version its API declares
+      // Validate query result against registered schemas (e.g. CoverageJSON), and a locations list against what its API
+      // declares
       try {
-        const validation = await validateQueryResponse(responseData, responseType, requestUrl, locationsSchemaVersion(requestUrl, apiUrl, conformsTo));
+        const validation = await validateQueryResponse(responseData, responseType, requestUrl, locationsSchemaOf(requestUrl, apiUrl, conformsTo));
         // Another request may have started meanwhile
         if (controller.signal.aborted) return;
         if (validation.matched) {

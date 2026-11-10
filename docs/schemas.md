@@ -26,7 +26,8 @@ Response and document schemas:
 
 | Path | Validates |
 |---|---|
-| `edr/{1.0,1.1,1.2}/edrFeatureCollectionGeoJSON.json` | EDR locations responses and EDR GeoJSON query results |
+| `edr/{1.0,1.1,1.2}/edrFeatureCollectionGeoJSON.json` | EDR locations responses from an API that declares EDR GeoJSON |
+| `geojson/featureCollectionGeoJSON.json` | EDR locations responses from an API that doesn't: a plain GeoJSON FeatureCollection |
 | `covjson/1.0/coveragejson.json` | CoverageJSON query results |
 | `openapi/{3.0,3.1}/schema.json` | servers' API definitions (OpenAPI documents) |
 
@@ -48,6 +49,10 @@ Response and document schemas:
   - **3.1:** AJV's `$dynamicRef` support fails every document on the four `"$dynamicRef": "#meta"`
     references. In the base dialect they resolve to `#/$defs/schema`, so they become plain `$ref`s.
     The validator also registers the `media-range` format.
+- **GeoJSON FeatureCollection** is OGC API Features Part 1 v1.0's `featureCollectionGeoJSON.yaml`. EDR's own
+  `geojson/featureGeoJSON.yaml` takes its properties from `edr-geojson`, so it isn't plain GeoJSON. A GeometryCollection
+  holds geometries, so the schema is recursive: it's bundled into one document with its `$ref`s kept inside, not
+  dereferenced.
 - **CoverageJSON 1.0** is the published `coveragejson.json` (`$id`
   `https://schemas.opengis.net/covjson/1.0/coveragejson.json`); the script doesn't download it.
 
