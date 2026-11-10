@@ -25,6 +25,8 @@ import type { Temporal } from './types/api';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 import { useTimeControl } from './hooks/useTimeControl';
 import { normalizeTemporal, getOverallTemporalExtent, formatDateString } from './DataRetrievalAPI';
+import RuleLinks from './RuleLinks';
+import { EDR } from './standards';
 
 dayjs.extend(utc);
 
@@ -133,10 +135,12 @@ const TimeControl: React.FC<TimeControlProps> = ({ temporal, queryState }) => {
     return (
       <Box>
 
+        {/* EDR's informative Annex C: trs "defaults to Gregorian, but other temporal systems can be supported" */}
         {temporal.trs && !temporal.trs.includes('Gregorian') && (
           <Alert severity="info" sx={{ mb: 1, py: 0.5 }}>
             <Typography variant="caption">
-              Non-standard temporal reference system ({temporal.trs}). Using manual date/time picker.
+              The temporal reference system is {temporal.trs}, not Gregorian, so times are picked by date and time.
+              <RuleLinks rule={EDR.temporalValues} />
             </Typography>
           </Alert>
         )}

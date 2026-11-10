@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import { useQueryValidation } from '../hooks/useQueryValidation';
 import { useOpenApi } from '../contexts/OpenApiContext';
 import type { QueryIssue } from '../query/types';
+import RuleLinks from '../RuleLinks';
 import { focusQueryField, useOpenDocs } from './fieldFocus';
 
 // As the field is named: a dimension by its id, the query on an instance as query
@@ -47,7 +48,7 @@ const QueryStatus: React.FC<{ shown: Set<string> }> = ({ shown }) => {
       <Box sx={{ display: 'flex', flexWrap: 'wrap', columnGap: 1.5, rowGap: 0.25, fontSize: 13, lineHeight: '18px', color: 'text.secondary' }}>
         {missing.length > 0 && <Box component="span" sx={{ color: 'warning.main' }}>Missing: <Names issues={missing} /></Box>}
         {errors.length > 0 && <Box component="span" sx={{ color: 'error.main' }}>{plural(errors.length, 'error')}: <Names issues={errors} /></Box>}
-        {warnings.length > 0 && <Box component="span" sx={{ color: 'warning.main' }}>{plural(warnings.length, 'warning')}: <Names issues={warnings} /></Box>}
+        {warnings.length > 0 && <Box component="span" sx={{ color: 'warning.main' }}>{plural(warnings.length, 'issue')}: <Names issues={warnings} /></Box>}
         {missing.length === 0 && errors.length === 0 && <Box component="span" sx={{ color: 'success.main' }}>✓ Nothing missing</Box>}
         {status === 'loading' && <span>Reading the API docs…</span>}
         {apiOperation && openDocs && (
@@ -62,6 +63,7 @@ const QueryStatus: React.FC<{ shown: Set<string> }> = ({ shown }) => {
       {elsewhere.map(issue => (
         <Typography key={issue.id} component="div" sx={{ fontSize: 12, lineHeight: '16px', mt: 0.5, color: issue.severity === 'error' ? 'error.main' : issue.severity === 'info' ? 'text.secondary' : 'warning.main' }}>
           {issue.message}
+          {issue.rule && <RuleLinks rule={issue.rule} />}
         </Typography>
       ))}
     </Box>
