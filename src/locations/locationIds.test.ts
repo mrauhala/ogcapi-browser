@@ -64,6 +64,10 @@ describe('locationIdFindings', () => {
     expect(EDR.locationsQuery.edr).toEqual({ '1.1': EDR11.locationsQuery, '1.2': EDR12.locationsQuery });
     expect(EDR.locationsList.edr).toEqual({ '1.1': EDR11.locationsList, '1.2': EDR12.locationsList });
     expect(EDR11.locationsQuery.label).toBe('EDR 1.1 8.2.8');
+    // The clause's own paragraph, "If a location id is not defined …", which the standards' test can't tell from another
+    // paragraph's, as it names no requirement
+    expect(EDR11.locationsQuery.url).toBe('https://docs.ogc.org/is/19-086r6/19-086r6.html#_76907fac-bf01-f4f3-6672-cbc8f25486c0');
+    expect(EDR12.locationsQuery.url).toBe('https://docs.ogc.org/is/19-086r9/19-086r9.html#_c7ea2a8a-9696-0d9f-7141-fb986d941c20');
     expect(EDR12.locationsList.label).toBe('EDR 1.2 /req/edr/rc-locations B, test B.151');
     expect(EDR11.locationsList.label).toBe('EDR 1.1 /req/edr/rc-locations D, test B.159');
     expect(RFC.featureId).toEqual({ label: 'GeoJSON (RFC 7946) §3.2', url: 'https://www.rfc-editor.org/rfc/rfc7946.html#section-3.2' });
