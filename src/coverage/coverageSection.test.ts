@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NOT_A_NUMBER, NOT_SENT, toSection, type SectionData, type SectionResult } from './coverageSection';
 import { coverageToProfile } from './coverageProfile';
 import { parseTime } from '../utils/utcTime';
+import { COVJSON, EDR } from '../standards';
 import fmiEc2param from './__fixtures__/sections/fmi-ec-2param.json';
 import fmiEcFrames from './__fixtures__/sections/fmi-ec-frames.json';
 import fmiMultilinestring from './__fixtures__/sections/fmi-multilinestring.json';
@@ -305,7 +306,7 @@ describe('toSection: what it says of z, as a profile does', () => {
     const json = copy(mcRadarFikorZ);
     const referencing = (json.domain as { referencing: { coordinates: string[]; system: unknown }[] }).referencing;
     referencing.find(entry => entry.coordinates.includes('z'))!.system = { type: 'GeographicCRS', id: 'http://www.opengis.net/def/crs/OGC/1.3/CRS84' };
-    expect(zOf(sectionOf(json))).toContainEqual({ message: 'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis', path: '/domain/referencing', severity: 'warning' });
+    expect(zOf(sectionOf(json))).toContainEqual({ message: 'z is referenced to http://www.opengis.net/def/crs/OGC/1.3/CRS84, which has no vertical axis', path: '/domain/referencing', severity: 'warning', rule: COVJSON.spatialReferenced });
   });
 
   it('says nothing of z where there’s none', () => {
@@ -349,7 +350,7 @@ describe('toSection: notes on the levels and values', () => {
   it('says when none of the levels asked for came back, and adds no rows for them', () => {
     const section = sectionOf(mcRadarFikorZ);
     expect(pathNotes(section)).toEqual([{
-      message: "z=0.5, 1.5, 3, 8 were asked for, and none of them is among the response's levels, 0 to 9306.12 m", path: '/domain/axes/z/values', severity: 'info',
+      message: "z=0.5, 1.5, 3, 8 were asked for, and none of them is among the response's levels, 0 to 9306.12 m", path: '/domain/axes/z/values', severity: 'info', rule: [EDR.zResponse, EDR.zIgnored],
     }]);
     expect(section.levels).toHaveLength(39);
     expect(messages(sectionOf(mcSingleNoz, `${urlOf(mcSingleNoz)}&z=850`))).toEqual(["z=850 was asked for, and isn't among what the response sent, which has no z"]);

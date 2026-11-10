@@ -1,10 +1,12 @@
 import Ajv, { ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
+import { EDR11, EDR12, type DeclaredEdr } from '../standards';
 import type { ValidationError } from '../types/api';
 import { condenseAjvErrors, groupArrayItemErrors } from './ajvErrors';
 import { publicUrl } from '../utils/publicUrl';
 
-type EdrVersion = '1.0' | '1.1' | '1.2';
+// Which EDR a server declares is decided with the citations that rest on it, by detectEdrVersion in standards.ts
+type EdrVersion = DeclaredEdr;
 
 const SCHEMA_PATHS: Record<EdrVersion, string> = {
   '1.0': '/schemas/edr/1.0/edrFeatureCollectionGeoJSON.json',
@@ -12,24 +14,10 @@ const SCHEMA_PATHS: Record<EdrVersion, string> = {
   '1.2': '/schemas/edr/1.2/edrFeatureCollectionGeoJSON.json',
 };
 
-// Newest first, so a server declaring several versions is validated against the latest
-const EDR_VERSIONS: EdrVersion[] = ['1.2', '1.1', '1.0'];
-
 const ajv = new Ajv({ allErrors: true, verbose: true, strict: false, validateFormats: true });
 addFormats(ajv);
 
 const compiledValidators = new Map<EdrVersion, ValidateFunction>();
-
-/**
- * Detect EDR version from conformance classes.
- * Returns the highest declared version, or null if no EDR conformance detected (non-EDR service).
- */
-export function detectEdrVersion(conformsTo: string[] | null): EdrVersion | null {
-  if (!conformsTo) return null;
-  return EDR_VERSIONS.find(version =>
-    conformsTo.some(url => url.endsWith(`/spec/ogcapi-edr-1/${version}/conf/core`))
-  ) ?? null;
-}
 
 async function getValidator(version: EdrVersion): Promise<ValidateFunction | null> {
   const cached = compiledValidators.get(version);
@@ -56,6 +44,9 @@ export async function validateLocationsResponse(
   edrVersion: EdrVersion
 ): Promise<{ isValid: boolean; errors: ValidationError[] }> {
   const displayName = `EDR ${edrVersion} Locations`;
+  // /req/edr-geojson/content A: "Every 200-response with the media type application/geo+json SHALL be an EDR GeoJSON
+  // FeatureCollection Object for features". EDR 1.0's text isn't cited, so its schema's findings cite 1.1's
+  const rule = edrVersion === '1.2' ? EDR12.edrGeojsonContent : EDR11.edrGeojsonContent;
 
   const validator = await getValidator(edrVersion);
   if (!validator) {
@@ -86,6 +77,7 @@ export async function validateLocationsResponse(
     schema: displayName,
     section: 'Locations',
     type: 'schema' as const,
+    rule,
   }));
 
   console.warn(`❌ ${displayName}: ${validator.errors?.length ?? 0} validation error(s) in ${errors.length} group(s)`);

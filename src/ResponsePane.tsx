@@ -30,6 +30,7 @@ import { useCollection } from './contexts/CollectionContext';
 import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
 import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
+import { schemaRuleOf } from './QueryResultValidator';
 import { shortUrl } from './query/requestUrl';
 import { collectionIdOf } from './query/requestLink';
 import { checksCount, responseTabs, shownTab, type ResponseTab } from './responseTabs';
@@ -287,6 +288,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
         {!isLoading && response && tab === 'checks' && (
           <ResponseChecks
             schemaName={validationSchemaName}
+            schemaRule={schemaRuleOf(validationSchemaName)}
             checkedAs={validationSchemaName ? inheritedDomainType(parsedJson) : null}
             findings={validationErrors}
             lines={errorLineList}
@@ -298,6 +300,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
             formatNotes={formatNotes}
             dataNotes={dataNotes}
             collectionId={checkedAgainst ? String(checkedAgainst.id) : null}
+            url={url}
             onGoToNote={line => {
               setNoteLine(line);
               setPreferredTab('raw');

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CollectionsList from './CollectionsList';
 import type { Collection, ValidationResult } from './types/api';
+import { COMMON1, EDR } from './standards';
 
 const state = vi.hoisted(() => ({
   api: {} as Record<string, unknown>,
@@ -117,6 +118,26 @@ describe('CollectionsList', () => {
     expect(html).toContain('First collection');
     expect(html).not.toContain('Show Validation');
     expect(html).not.toContain('Data Query');
+  });
+
+  it('cites the rule a load problem rests on, in the EDR version the API declares', () => {
+    state.collections = [collection];
+    const problems = [
+      { title: 'Conformance Link Missing', message: 'No conformance', section: 'conformance', rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink] },
+      { title: 'Collections Link Missing', message: 'No data link', section: 'data link', severity: 'warning' as const },
+    ];
+    const html = render({ isValid: false, errors: problems });
+    expect(html).toContain('No conformance');
+    expect(html).toContain('>EDR 1.1 /req/core/root-success B, test B.3</a>');
+    expect(html).toContain('>Common 1 /req/landing-page/root-success B</a>');
+    // The one without a rule cites none
+    expect(html.split('target="_blank"').length - 1).toBe(2);
+    state.api.conformsTo = ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core'];
+    expect(render({ isValid: false, errors: problems })).toContain('>EDR 1.2 /req/core/root-success B, test B.3</a>');
+    // A failed load cites its rule too
+    state.collections = [];
+    expect(render({ isValid: false, errors: [{ title: 'Collections CORS Error', message: 'blocked', type: 'cors', section: 'collections endpoint', rule: EDR.crossOrigin }] }))
+      .toContain('>EDR 1.2 Recommendation 3</a>');
   });
 
   it("falls back on the API's licence for a collection without one", () => {

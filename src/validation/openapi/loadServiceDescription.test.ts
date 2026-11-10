@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
-import { capturedOfFailure, forgetServiceDescription, loadServiceDescription, parseServiceDescription, pickOpenApiLink, WebPageError } from './loadServiceDescription';
+import { capturedOfFailure, forgetServiceDescription, loadServiceDescription, NotADocumentError, parseServiceDescription, pickOpenApiLink, unavailable, WebPageError } from './loadServiceDescription';
+import { EDR } from '../../standards';
 import { fixtureText } from './__fixtures__/servers';
 
-vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+vi.mock('axios', () => ({ default: { get: vi.fn(), isAxiosError: (error: unknown) => typeof error === 'object' && error !== null && 'isAxiosError' in error } }));
 const get = vi.mocked(axios.get);
 
 describe('pickOpenApiLink', () => {
@@ -53,7 +54,26 @@ describe('parseServiceDescription', () => {
   });
 
   it('rejects text that is neither', async () => {
-    await expect(parseServiceDescription('just text')).rejects.toThrow();
+    await expect(parseServiceDescription('just text')).rejects.toThrow(NotADocumentError);
+  });
+});
+
+describe('unavailable', () => {
+  const answered = (status: number) => Object.assign(new Error(`Request failed with status code ${status}`), { isAxiosError: true, response: { status } });
+
+  it('cites the 200 /req/core/api-definition-success asks for, where the server answers 404', () => {
+    expect(unavailable(answered(404))).toMatchObject({ severity: 'warning', message: 'The API definition could not be loaded (HTTP 404)', rule: EDR.apiDefinitionSuccessA });
+    expect(unavailable(answered(500)).rule).toBeUndefined();
+  });
+
+  it('cites its content being "an API Definition document", for a web page or text that is no document', () => {
+    expect(unavailable(new WebPageError('https://x.org/api is a web page, not an OpenAPI document'))).toMatchObject({ severity: 'warning', rule: EDR.apiDefinitionSuccessB });
+    // Its severity stays as it was: severities follow in a later change
+    expect(unavailable(new NotADocumentError('The API definition is neither JSON nor YAML'))).toMatchObject({ severity: 'info', rule: EDR.apiDefinitionSuccessB });
+  });
+
+  it('cites nothing for a request that got no answer', () => {
+    expect(unavailable(new Error('Network Error')).rule).toBeUndefined();
   });
 });
 

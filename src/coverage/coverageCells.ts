@@ -104,7 +104,7 @@ export interface CellNote {
   // Where it is: a path, or else its parameter's first such value, by its place in the data, or its unit
   path?: string;
   at?: number | 'unit';
-  rule?: Rule;
+  rule?: Rule | readonly Rule[];
 }
 
 export interface DrawableCells {
@@ -943,7 +943,7 @@ function readMultiPoint(coverage: Json, type: string, paramDefs: Json, topRef: u
     notes.push({
       level: 'warn', text: `The composite axis's coordinates are ${names.join(', ')}, not x, y${roles.z >= 0 ? ', z' : ''}. They're read by name: ${names[roles.x]} as x, ${names[roles.y]} as y${third}`,
       checks: 'info', path: `${prefix}/domain/axes/composite/coordinates`,
-      ...(/^multipoint(series)?$/i.test(type) ? { rule: /series$/i.test(type) ? COVJSON.multiPointSeries : COVJSON.multiPoint } : {}),
+      ...(/^multipoint(series)?$/i.test(type) ? { rule: /series$/i.test(type) ? COVJSON.multiPointSeriesComposite : COVJSON.multiPointComposite } : {}),
     });
   }
 
@@ -1086,8 +1086,10 @@ function gridNotes({ xv, yv, crs, nx, ny, parameters, broken, prefix, referencin
 }): CellNote[] {
   const notes: CellNote[] = broken.map(({ problem }) => ({ level: 'error', text: problem }));
   // CoverageJSON: x, y and z MUST be referenced by a spatial coordinate reference system
-  if (!crs.declared) notes.push({ level: 'warn', text: `referencing says nothing about x and y. They're taken as ${crs.geographic ? 'lon/lat, since they fit' : 'plain numbers, since they don’t fit lon/lat'}`, checks: 'error', path: referencingAt, rule: COVJSON.domainTypes });
-  if (crs.declared && crs.geographic && !crs.inDegrees) notes.push({ level: 'error', text: 'x or y is beyond what degrees can be, so they may be swapped or not in this CRS', checks: 'error', path: `${prefix}/domain/axes` });
+  if (!crs.declared) notes.push({ level: 'warn', text: `referencing says nothing about x and y. They're taken as ${crs.geographic ? 'lon/lat, since they fit' : 'plain numbers, since they don’t fit lon/lat'}`, checks: 'error', path: referencingAt, rule: COVJSON.spatialReferenced });
+  // CoverageJSON 9.10: with longitude and latitude axes, "x" MUST refer to longitude and "y" to latitude, and 9.5.1.1:
+  // in the defined domain types "x" is geodetic longitude and "y" geodetic latitude
+  if (crs.declared && crs.geographic && !crs.inDegrees) notes.push({ level: 'error', text: 'x or y is beyond what degrees can be, so they may be swapped or not in this CRS', checks: 'error', path: `${prefix}/domain/axes`, rule: [COVJSON.xIsLongitude, COVJSON.geographicAxes] });
   if (crs.geographic) {
     for (const [name, values] of [['x', xv], ['y', yv]] as const) {
       const drift = axisDrift(values);

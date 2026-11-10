@@ -16,14 +16,15 @@ import { Temporal, normalizeTemporal, formatTemporalInterval, getOverallTemporal
 interface TemporalExtentProps {
   temporal: Temporal | null | undefined;
   collectionId?: string;
-  isSubsection?: boolean;
+  // Its title as a part of the collection's extent, numbered under the extent's letter
+  subsection?: string;
 }
 
-const TemporalExtent: React.FC<TemporalExtentProps> = ({ temporal, collectionId, isSubsection = false }) => {
+const TemporalExtent: React.FC<TemporalExtentProps> = ({ temporal, collectionId, subsection }) => {
   const [showDetails, setShowDetails] = useState(false);
 
   const getAlertTitle = () => {
-    return isSubsection ? "G.2: Temporal Extent (Optional)" : "TEMPORAL EXTENT";
+    return subsection ?? "TEMPORAL EXTENT";
   };
 
   // If no temporal extent, show appropriate message

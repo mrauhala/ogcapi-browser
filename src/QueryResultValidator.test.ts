@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { QueryResultValidator } from './QueryResultValidator';
+import { QueryResultValidator, schemaRuleOf } from './QueryResultValidator';
+import { COVJSON, EDR, EDR11 } from './standards';
 
 const POLYTOPE = readFileSync('src/coverage/__fixtures__/polytope-op-multipoint-area.json', 'utf8');
 const edited = (edit: (json: Record<string, any>) => void) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -70,7 +71,15 @@ describe('QueryResultValidator: CoverageJSON', () => {
     expect(await QueryResultValidator.getInstance().validate(wrong, 'application/json')).toMatchObject({ matched: false });
   });
 
-  it('says what isn’t JSON', async () => {
-    expect(await QueryResultValidator.getInstance().validate('{"type":"Coverage",', 'application/prs.coverage+json')).toMatchObject({ valid: false, errors: [{ message: 'Failed to parse response as JSON' }] });
+  it('says what isn’t JSON, citing EDR’s "SHALL be a CoverageJSON Object"', async () => {
+    expect(await QueryResultValidator.getInstance().validate('{"type":"Coverage",', 'application/prs.coverage+json')).toMatchObject({ valid: false, errors: [{ message: 'Failed to parse response as JSON', rule: EDR.covjsonContentA }] });
+  });
+
+  it('names the rule each schema’s findings rest on', () => {
+    expect(schemaRuleOf('CoverageJSON 1.0')).toEqual([COVJSON.conformance, EDR.covjsonContentB]);
+    // Its schema is EDR 1.1's
+    expect(schemaRuleOf('EDR Locations FeatureCollection')).toBe(EDR11.edrGeojsonContent);
+    expect(schemaRuleOf('Something else')).toBeUndefined();
+    expect(schemaRuleOf(null)).toBeUndefined();
   });
 });

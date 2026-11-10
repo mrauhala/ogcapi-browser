@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { COMMON1, EDR, OAS } from '../../standards';
 import type { Collection } from '../../types/api';
 import { lintOpenApiForEdr } from './lintEdr';
 import { buildOperationIndex } from './operationIndex';
@@ -122,6 +123,32 @@ describe('lintOpenApiForEdr rules', () => {
     } as unknown as Collection;
     const doc = { openapi: '3.1.0', servers: [{ url: 'https://x.org/edr' }], paths: { '/collections/{id}/instances': { get: { parameters: [param('f', { enum: ['json', 'html'] }, false)] } } } };
     expect(lintOpenApiForEdr(buildOperationIndex({ url: 'https://x.org/edr/api', doc }), doc, [instances])).toEqual([]);
+  });
+
+  it('cites what each finding rests on, and where EDR differs from itself on within-units', () => {
+    const doc = (parameters: unknown[], servers = 'https://x.org/edr') => ({ openapi: '3.1.0', servers: [{ url: servers }], paths: { '/collections/{id}/radius': { get: { parameters } } } });
+    const rules = (parameters: unknown[], servers?: string) => {
+      const d = doc(parameters, servers);
+      return Object.fromEntries(lintOpenApiForEdr(buildOperationIndex({ url: 'https://x.org/edr/api', doc: d }), d, [collection]).map(f => [`${f.keyword} ${f.message.split(' (collection')[0]}`, f.rule]));
+    };
+    const found = rules([
+      param('coords', {}), param('within-units', { type: 'number', enum: ['km'] }, false),
+      param('f', { enum: ['coveragejson'] }, false),
+    ]);
+    expect(found).toEqual({
+      'edr-required-undeclared radius queries: the API docs don\'t declare within, which EDR requires': [EDR.radiusWithin, COMMON1.notEverything],
+      'edr-required-optional radius queries: the API docs mark within-units optional; EDR requires it': [EDR.radiusWithinUnits, EDR.withinUnitsDefinition],
+      'unit-not-string Parameter within-units is typed number, but units are strings (e.g. km)': EDR.withinUnitsDefinition,
+      'enum-vs-metadata radius queries: within-units doesn\'t allow mi, which the collection lists in within_units': [EDR.withinUnitsDefinition, COMMON1.notEverything],
+      'enum-case radius queries: f allows CoverageJSON only in different letter case': COMMON1.caseSensitive,
+      'enum-vs-metadata radius queries: f doesn\'t allow GeoJSON, which the collection offers': [EDR.fResponseB, COMMON1.notEverything],
+    });
+    expect(rules([param('coords', {}), param('within', {}), param('within-units', {})])['f-undeclared radius queries: the API docs don\'t declare f, though the collection offers several output formats'])
+      .toEqual([EDR.queryF, COMMON1.notEverything]);
+    expect(rules([...complete], 'https://x.org/v2')['servers-mismatch Operations match only when the servers URL is ignored: check the document\'s servers']).toBe(OAS.paths);
+    // No rule says a $ref must resolve in so many words, or that a path parameter's enum must hold the id
+    const loose = rules([{ $ref: '#/components/parameters/gone' }, ...complete.slice(1)]);
+    expect(Object.entries(loose).filter(([key]) => key.startsWith('broken-ref')).map(([, rule]) => rule)).toEqual([undefined]);
   });
 
   it('flags missing required parameters, a missing f and broken refs', () => {

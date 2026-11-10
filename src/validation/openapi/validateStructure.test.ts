@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
 import { validateOpenApiStructure, type OasVersion } from './validateStructure';
+import { COMMON1, EDR } from '../../standards';
 import { parseServiceDescription } from './loadServiceDescription';
 import { fixtureText, SERVERS, type ServerName } from './__fixtures__/servers';
 
@@ -74,5 +75,16 @@ describe('validateOpenApiStructure', () => {
   it('notes documents it cannot validate (Swagger 2.0)', async () => {
     const { errors } = await validateOpenApiStructure({ swagger: '2.0' }, loadSchema);
     expect(errors).toEqual([expect.objectContaining({ severity: 'info', keyword: 'version' })]);
+    // The app's limit, which no rule is behind
+    expect(errors[0].rule).toBeUndefined();
+  });
+
+  it('cites the OpenAPI class of its version: EDR’s and Common’s for 3.0, EDR 1.2’s for 3.1', async () => {
+    const thirty = await validateOpenApiStructure({ openapi: '3.0.3', info: { title: 'x', version: '1' }, paths: { a: {} } }, loadSchema);
+    expect(thirty.errors.length).toBeGreaterThan(0);
+    expect(thirty.errors.every(error => JSON.stringify(error.rule) === JSON.stringify([EDR.oas30Definition, COMMON1.oas30Definition]))).toBe(true);
+    const thirtyOne = await validateOpenApiStructure({ openapi: '3.1.0', info: { title: 'x' }, paths: {} }, loadSchema);
+    expect(thirtyOne.errors.length).toBeGreaterThan(0);
+    expect(thirtyOne.errors.every(error => error.rule === EDR.oas31Definition)).toBe(true);
   });
 });

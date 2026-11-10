@@ -1061,7 +1061,7 @@ describe('cellFindings: what Checks says of the picture', () => {
 
   it('makes an error of x and y with no coordinate system, pointing at the referencing that should have one, with its rule', () => {
     expect(find(grid({ referencing: [] }), /referencing says nothing/)).toEqual({
-      message: "referencing says nothing about x and y. They're taken as lon/lat, since they fit", severity: 'error', path: '/domain/referencing', rule: COVJSON.domainTypes,
+      message: "referencing says nothing about x and y. They're taken as lon/lat, since they fit", severity: 'error', path: '/domain/referencing', rule: COVJSON.spatialReferenced,
     });
     const none = grid() as Json;
     delete none.domain.referencing;
@@ -1072,8 +1072,8 @@ describe('cellFindings: what Checks says of the picture', () => {
     expect(find(grid(), /referencing says nothing/)).toBeUndefined();
   });
 
-  it('makes an error of x or y beyond degrees', () => {
-    expect(find(grid({ x: [200, 300, 400] }), /beyond what degrees/)).toMatchObject({ severity: 'error', path: '/domain/axes' });
+  it('makes an error of x or y beyond degrees, with its rules', () => {
+    expect(find(grid({ x: [200, 300, 400] }), /beyond what degrees/)).toMatchObject({ severity: 'error', path: '/domain/axes', rule: [COVJSON.xIsLongitude, COVJSON.geographicAxes] });
   });
 
   it('notes what the picture guesses, each at its first value', () => {
@@ -1117,10 +1117,10 @@ describe('cellFindings: what Checks says of the picture', () => {
   });
 
   it('notes a composite axis read by name, citing the rule the schema finds broken', () => {
-    expect(find(polytopeArea, /read by name/)).toMatchObject({ severity: 'info', path: '/coverages/0/domain/axes/composite/coordinates', rule: COVJSON.multiPoint });
+    expect(find(polytopeArea, /read by name/)).toMatchObject({ severity: 'info', path: '/coverages/0/domain/axes/composite/coordinates', rule: COVJSON.multiPointComposite });
     const series = JSON.parse(JSON.stringify(polytopeArea));
     series.domainType = 'MultiPointSeries';
-    expect(find(series, /read by name/)?.rule).toEqual(COVJSON.multiPointSeries);
+    expect(find(series, /read by name/)?.rule).toEqual(COVJSON.multiPointSeriesComposite);
     series.domainType = 'Custom';
     expect(find(series, /read by name/)?.rule).toBeUndefined();
   });

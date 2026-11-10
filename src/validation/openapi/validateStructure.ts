@@ -4,6 +4,7 @@ import type { ValidationError } from '../../types/api';
 import { ajvErrorToValidationError, condenseAjvErrors } from '../ajvErrors';
 import { publicUrl } from '../../utils/publicUrl';
 import { resolvePointer, unescapePointerSegment } from './refs';
+import { COMMON1, EDR } from '../../standards';
 
 export type OasVersion = '3.0' | '3.1';
 
@@ -41,13 +42,21 @@ export function oasVersionOf(doc: Record<string, unknown>): OasVersion | null {
   return null;
 }
 
+// What a document's structure rests on: EDR's and Common's OpenAPI 3.0 classes, "The JSON representation SHALL conform
+// to the OpenAPI Specification, version 3.0", and EDR 1.2's 3.1 class, "… SHALL conform to the OpenAPI Specification
+// 3.1." EDR 1.1 has no 3.1 class, so it cites none for 3.1
+const RULES: Record<OasVersion, ValidationError['rule']> = {
+  '3.0': [EDR.oas30Definition, COMMON1.oas30Definition],
+  '3.1': EDR.oas31Definition,
+};
+
 const MAX_ERRORS = 200;
 const MAX_NAMES = 6;
 
 // The same problem in many places is reported once: Meteogate's climate observations have 153
 // parameters without a schema. Says how many and which (by name when they have one), and keeps the
 // first one's path to navigate to.
-function summarizeRepeated(errors: ErrorObject[], doc: unknown, schemaName: string): ValidationError[] {
+function summarizeRepeated(errors: ErrorObject[], doc: unknown, schemaName: string, rule: ValidationError['rule']): ValidationError[] {
   const groups = new Map<string, { kind: string; errors: ErrorObject[] }>();
   for (const error of errors) {
     // What the error is about: 'parameters' for /paths/~1a/get/parameters/0
@@ -58,7 +67,7 @@ function summarizeRepeated(errors: ErrorObject[], doc: unknown, schemaName: stri
   }
   return [...groups.values()].map(({ kind, errors: group }) => {
     const [first] = group;
-    const extra = { section: 'OpenAPI', schema: schemaName, severity: 'error' as const };
+    const extra = { section: 'OpenAPI', schema: schemaName, severity: 'error' as const, rule };
     if (group.length === 1) return ajvErrorToValidationError(first, extra);
     const names = [...new Set(group
       .map(error => (resolvePointer(doc, error.instancePath) as { name?: unknown } | undefined)?.name)
@@ -95,7 +104,7 @@ export async function validateOpenApiStructure(
   }
   const validate = await validators.get(version)!;
   if (validate(doc)) return { schemaName, errors: [] };
-  const summarized = summarizeRepeated(condenseAjvErrors(validate.errors ?? [], Infinity), doc, schemaName);
+  const summarized = summarizeRepeated(condenseAjvErrors(validate.errors ?? [], Infinity), doc, schemaName, RULES[version]);
   if (summarized.length <= MAX_ERRORS) return { schemaName, errors: summarized };
   return {
     schemaName,
