@@ -40,6 +40,19 @@ describe('the rules cited', () => {
     expect(lost).toEqual([]);
   });
 
+  // Each rule is its own statement: two linking to one paragraph means one of them points at another rule's words. EDR's
+  // pairs reuse their versions' rules, which are the same objects
+  it('each link to a statement of their own', () => {
+    const byUrl = new Map<string, Set<string>>();
+    const seen = new Set<Rule>();
+    for (const [where, rule] of everyRule) {
+      if (seen.has(rule)) continue;
+      seen.add(rule);
+      byUrl.set(rule.url, (byUrl.get(rule.url) ?? new Set()).add(where));
+    }
+    expect([...byUrl].filter(([, wheres]) => wheres.size > 1).map(([url, wheres]) => `${url}: ${[...wheres].join(', ')}`)).toEqual([]);
+  });
+
   it('name the requirement and the statement EDR’s text has at their link', () => {
     const edr = everyRule.filter(([, rule]) => rule.requirement);
     // Every EDR requirement cited, 1.1's and 1.2's, less the recommendation and the annex
