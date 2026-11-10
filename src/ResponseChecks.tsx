@@ -10,6 +10,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { checksCount } from './responseTabs';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
 import { useCitedEdr } from './hooks/useCitedEdr';
+import { findingMessage, findingPath } from './findingText';
 import type { ValidationError } from './types/api';
 
 // A long list says little more, and every finding is flagged in Raw anyway
@@ -69,12 +70,6 @@ export function ChecksTabLabel({ findings }: { findings: Pick<ValidationError, '
       )}
     </span>
   );
-}
-
-// A finding's message starts with its path, which is shown apart. One at the root has only the colon
-export function findingMessage({ path, message }: ValidationError): string {
-  const rest = path && message.startsWith(path) ? message.slice(path.length) : message;
-  return rest.replace(/^:\s*/, '');
 }
 
 interface ResponseChecksProps {
@@ -143,7 +138,7 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
               line={lineIndex >= 0 ? lines[lineIndex].line : undefined}
               onClick={() => onGoToLine(lineIndex)}
             >
-              {finding.path && <Box component="span" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary', mr: 1 }}>{finding.path}</Box>}
+              {finding.path && <Box component="span" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'text.secondary', mr: 1 }}>{findingPath(finding)}</Box>}
               {findingMessage(finding)}
               {/* Its schema's rule is on the schema's line */}
               {finding.rule !== schemaRule && <RuleLinks rule={finding.rule} edr={edr} />}

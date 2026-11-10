@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
+import { findingMessage, findingPath } from './findingText';
 import type { ValidationError } from './types/api';
 import { COVJSON, EDR, EDR12 } from './standards';
 
@@ -52,6 +53,30 @@ describe('ResponseChecks', () => {
 
   it('keeps a message that does not start with its path whole', () => {
     expect(render({ findings: [{ path: '/a', message: 'odd: really', severity: 'info' }] })).toContain('>/a</span>odd: really');
+  });
+
+  // As the locations validator groups them: one per kind, with the first feature's path for its line
+  it('shows a finding grouped over an array’s items once, at the path they share', () => {
+    const grouped: ValidationError = { path: '/features/0/properties', message: "/features/*/properties: must have required property 'label' (10 of 10 features)", severity: 'error' };
+    const html = render({ schemaName: 'EDR 1.0 Locations', findings: [grouped] });
+    expect(html).toContain(">/features/*/properties</span>must have required property &#x27;label&#x27; (10 of 10 features)");
+    expect(html.split('/features/0/properties').length - 1).toBe(0);
+    expect(findingPath(grouped)).toBe('/features/*/properties');
+    expect(findingMessage(grouped)).toBe("must have required property 'label' (10 of 10 features)");
+  });
+
+  it('keeps its own path for a finding whose message starts with another', () => {
+    const elsewhere: ValidationError = { path: '/features/0/properties', message: '/features/*/geometry: must be object', severity: 'error' };
+    expect(findingPath(elsewhere)).toBe('/features/0/properties');
+    expect(findingMessage(elsewhere)).toBe('/features/*/geometry: must be object');
+    // An item's place has to be an index for a * to stand for it
+    expect(findingPath({ path: '/features/a/properties', message: '/features/*/properties: x' })).toBe('/features/a/properties');
+    expect(findingPath({ path: '/features/0', message: '/features/*/properties: x' })).toBe('/features/0');
+    expect(findingPath({ path: '/features/0/properties', message: '/features/*: x' })).toBe('/features/0/properties');
+    expect(findingPath({ path: '/features//properties', message: '/features/*/properties: x' })).toBe('/features//properties');
+    expect(findingPath({ path: '/features/0/properties', message: 'no path here' })).toBe('/features/0/properties');
+    expect(findingPath(FINDING)).toBe('/ranges/t');
+    expect(findingPath({ message: '/features/*/properties: x' })).toBeUndefined();
   });
 
   it('links a finding to its line in Raw', () => {

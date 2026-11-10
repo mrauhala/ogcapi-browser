@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { QueryResultValidator } from '../QueryResultValidator';
 import { httpFailure, networkFailureMessage } from '../api/httpErrors';
 import { sendRequest } from '../api/sendRequest';
 import type { ResponseDetails } from '../api/sendRequest';
+import { useApi } from '../contexts/ApiContext';
 import { useGeoJsonLayers } from '../contexts/GeoJsonLayerContext';
+import { useMapInteraction } from '../contexts/MapInteractionContext';
 import { useService } from '../contexts/ServiceContext';
+import { locationsSchemaOf, validateQueryResponse } from '../locations/locationsList';
 import type { ValidationError } from '../types/api';
 
 // The latest request and what came back for it, shown in the response pane, which each one opens.
@@ -12,6 +14,9 @@ import type { ValidationError } from '../types/api';
 export function useQueryResponse(showResponse: () => void) {
   const { setGeoJsonLayers } = useGeoJsonLayers();
   const { getAuthCredentials } = useService();
+  const { apiUrl, conformsTo } = useApi();
+  // A location picked in the last response's list is that response's
+  const { showResponseLocation } = useMapInteraction();
 
   // Abort controller for in-flight data fetches
   const fetchControllerRef = useRef<AbortController | null>(null);
@@ -48,6 +53,7 @@ export function useQueryResponse(showResponse: () => void) {
       fetchControllerRef.current?.abort();
       fetchControllerRef.current = null;
       releaseImage();
+      showResponseLocation(null);
       showResponse();
       setIsLoading(false);
       // A response of the API's own load comes with its details and is shown like one just sent. If none came, it may next time
@@ -62,7 +68,7 @@ export function useQueryResponse(showResponse: () => void) {
     };
     document.addEventListener('open-validation-response', handleOpenValidationResponse);
     return () => document.removeEventListener('open-validation-response', handleOpenValidationResponse);
-  }, [releaseImage, showResponse]);
+  }, [releaseImage, showResponse, showResponseLocation]);
 
   // Fetches a query into the response pane
   const fetchQuery = useCallback(async (requestUrl: string) => {
@@ -82,6 +88,7 @@ export function useQueryResponse(showResponse: () => void) {
     setContentType(null);
     setResponse(null);
     releaseImage();
+    showResponseLocation(null);
 
     try {
       const { body, ...details } = await sendRequest(requestUrl, getAuthCredentials(requestUrl), controller.signal);
@@ -109,9 +116,10 @@ export function useQueryResponse(showResponse: () => void) {
       // An error's body is shown as it came, but isn't data to check or map
       if (failure) return;
 
-      // Validate query result against registered schemas (e.g. CoverageJSON)
+      // Validate query result against registered schemas (e.g. CoverageJSON), and a locations list against what its API
+      // declares
       try {
-        const validation = await QueryResultValidator.getInstance().validate(responseData, responseType, requestUrl);
+        const validation = await validateQueryResponse(responseData, responseType, requestUrl, locationsSchemaOf(requestUrl, apiUrl, conformsTo));
         // Another request may have started meanwhile
         if (controller.signal.aborted) return;
         if (validation.matched) {
@@ -170,7 +178,7 @@ export function useQueryResponse(showResponse: () => void) {
       // Not when a newer request took over: its spinner stays until it's done
       if (fetchControllerRef.current === controller) setIsLoading(false);
     }
-  }, [getAuthCredentials, setGeoJsonLayers, showResponse, releaseImage]);
+  }, [getAuthCredentials, setGeoJsonLayers, showResponse, releaseImage, showResponseLocation, apiUrl, conformsTo]);
 
   // The pane's Try again: the request that failed, even if the query builder has moved on
   const retry = useCallback(() => {

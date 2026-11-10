@@ -186,19 +186,19 @@ describe('withoutLocationsValidation', () => {
 
 describe('withLocationsValidation', () => {
   it('adds what was found', () => {
-    const result = withLocationsValidation({ isValid: true, errors: [OTHER_ERROR] }, { isValid: false, errors: [LOCATIONS_ERROR] }, '1.1');
+    const result = withLocationsValidation({ isValid: true, errors: [OTHER_ERROR] }, { isValid: false, errors: [LOCATIONS_ERROR] }, 'EDR 1.1 Locations');
     expect(result.locationsValidation).toEqual({ isValid: false, errors: [LOCATIONS_ERROR], schemaResults: [{ schema: 'EDR 1.1 Locations', isValid: false }] });
     expect(result.errors).toEqual([OTHER_ERROR, LOCATIONS_ERROR]);
     expect(result.isValid).toBe(false);
   });
 
   it('replaces what was found before', () => {
-    const result = withLocationsValidation({ isValid: true, errors: [LOCATIONS_ERROR] }, { isValid: true, errors: [] }, '1.1');
+    const result = withLocationsValidation({ isValid: true, errors: [LOCATIONS_ERROR] }, { isValid: true, errors: [] }, 'EDR 1.1 Locations');
     expect(result.errors).toBeNull();
     expect(result.locationsValidation?.errors).toBeNull();
   });
 
   it("doesn't make an invalid service valid", () => {
-    expect(withLocationsValidation({ isValid: false, errors: [OTHER_ERROR] }, { isValid: true, errors: [] }, '1.1').isValid).toBe(false);
+    expect(withLocationsValidation({ isValid: false, errors: [OTHER_ERROR] }, { isValid: true, errors: [] }, 'EDR 1.1 Locations').isValid).toBe(false);
   });
 });

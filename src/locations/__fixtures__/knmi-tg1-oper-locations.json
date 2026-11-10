@@ -1,0 +1,145 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     7.1427397728,
+     50.8658981323
+    ]
+   },
+   "properties": {
+    "name": "Cologne Bonn Airport"
+   },
+   "id": "EDDK"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.76389,
+     52.308601
+    ]
+   },
+   "properties": {
+    "name": "Amsterdam Airport Schiphol"
+   },
+   "id": "EHAM"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     5.37452983856,
+     51.4500999451
+    ]
+   },
+   "properties": {
+    "name": "Eindhoven Airport"
+   },
+   "id": "EHEH"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     5.77014,
+     50.911701
+    ]
+   },
+   "properties": {
+    "name": "Maastricht Aachen Airport"
+   },
+   "id": "EHBK"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     6.889167,
+     52.275833
+    ]
+   },
+   "properties": {
+    "name": "Twente Airport"
+   },
+   "id": "EHTW"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     6.57944011688,
+     53.1197013855
+    ]
+   },
+   "properties": {
+    "name": "Eelde Airport"
+   },
+   "id": "EHGG"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     4.781111240386963,
+     52.926944732666016
+    ]
+   },
+   "properties": {
+    "name": "De Kooy"
+   },
+   "id": "EHKD"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     5.179722309112549,
+     52.0988883972168
+    ]
+   },
+   "properties": {
+    "name": "De Bilt"
+   },
+   "id": "EHDB"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     5.75166654586792,
+     53.22305679321289
+    ]
+   },
+   "properties": {
+    "name": "Vliegbasis Leeuwarden"
+   },
+   "id": "EHLW"
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     3.5958333015441895,
+     51.44138717651367
+    ]
+   },
+   "properties": {
+    "name": "Vlissingen"
+   },
+   "id": "EHFS"
+  }
+ ]
+}

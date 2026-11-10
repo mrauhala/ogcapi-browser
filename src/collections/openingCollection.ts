@@ -61,7 +61,8 @@ export function withoutLocationsValidation(result: ValidationResult): Validation
 export function withLocationsValidation(
   result: ValidationResult,
   validation: { isValid: boolean; errors: NonNullable<ValidationResult['errors']> },
-  edrVersion: string,
+  // The schema's name, as it was checked against
+  schemaName: string,
 ): ValidationResult {
   const errors = [...(result.errors || []).filter(error => !isLocationsError(error)), ...validation.errors];
   return {
@@ -69,7 +70,7 @@ export function withLocationsValidation(
     locationsValidation: {
       isValid: validation.isValid,
       errors: validation.errors.length > 0 ? validation.errors : null,
-      schemaResults: [{ schema: `EDR ${edrVersion} Locations`, isValid: validation.isValid }],
+      schemaResults: [{ schema: schemaName, isValid: validation.isValid }],
     },
     errors: errors.length > 0 ? errors : null,
     isValid: result.isValid && validation.isValid,

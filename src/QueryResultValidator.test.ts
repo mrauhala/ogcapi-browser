@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { QueryResultValidator, schemaRuleOf } from './QueryResultValidator';
-import { COVJSON, EDR, EDR11 } from './standards';
+import { COVJSON, EDR, EDR11, EDR12 } from './standards';
 
 const POLYTOPE = readFileSync('src/coverage/__fixtures__/polytope-op-multipoint-area.json', 'utf8');
 const edited = (edit: (json: Record<string, any>) => void) => { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -77,8 +77,13 @@ describe('QueryResultValidator: CoverageJSON', () => {
 
   it('names the rule each schema’s findings rest on', () => {
     expect(schemaRuleOf('CoverageJSON 1.0')).toEqual([COVJSON.conformance, EDR.covjsonContentB]);
-    // Its schema is EDR 1.1's
-    expect(schemaRuleOf('EDR Locations FeatureCollection')).toBe(EDR11.edrGeojsonContent);
+    // A locations list's, by the version it was checked against: EDR 1.0's text isn't cited, so 1.1's stands for it
+    expect(schemaRuleOf('EDR 1.2 Locations')).toBe(EDR12.edrGeojsonContent);
+    expect(schemaRuleOf('EDR 1.1 Locations')).toBe(EDR11.edrGeojsonContent);
+    expect(schemaRuleOf('EDR 1.0 Locations')).toBe(EDR11.edrGeojsonContent);
+    expect(schemaRuleOf('EDR 1.3 Locations')).toBeUndefined();
+    // A list from an API that doesn't declare EDR GeoJSON, by the version cited
+    expect(schemaRuleOf('GeoJSON FeatureCollection (the API declares GeoJSON, not EDR GeoJSON)')).toBe(EDR.geojsonContent);
     expect(schemaRuleOf('Something else')).toBeUndefined();
     expect(schemaRuleOf(null)).toBeUndefined();
   });

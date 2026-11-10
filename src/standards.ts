@@ -164,6 +164,14 @@ export const EDR11 = {
   // A: "Every 200-response with the media type application/geo+json SHALL be an EDR GeoJSON FeatureCollection Object
   // for features, and an EDR GeoJSON Feature Object for a single feature."
   edrGeojsonContent: edr11('/req/edr-geojson/content A', '_9313c3a3-4052-2886-70fe-1cec2ce54acc', 'B.30'),
+  // A: "Every 200-response with the media type application/geo+json SHALL be a GeoJSON FeatureCollection Object for
+  // features, and a GeoJSON Feature Object for a single feature." Of the GeoJSON class, which asks for no EDR properties
+  geojsonContent: edr11('/req/geojson/content A', '_b3763635-d562-1859-8dde-d15308e413d0', 'B.28'),
+  // A: "200-responses of the server SHALL support the following media types: application/geo+json for resources that
+  // include feature content, and application/json for all other resources." Linked to its first item
+  edrGeojsonDefinition: edr11('/req/edr-geojson/definition A', '_24f95235-539d-85dc-dac2-eec77558a62f', 'B.29'),
+  // The GeoJSON class's, word for word the same
+  geojsonDefinition: edr11('/req/geojson/definition A', '_d85cfec7-3540-0e2a-dcbb-088deca1ec93', 'B.27'),
   // A: "Every 200-response with the media type application/prs.coverage+json SHALL be a CoverageJSON Object"
   // B: "The schema of all responses with the media type application/prs.coverage+json SHALL conform with the JSON
   // Schema specified for the resource in the Core requirements class."
@@ -180,6 +188,12 @@ export const EDR11 = {
   // intervals available in the collection, each member of the array can either be a single time, an ISO 8601 time
   // interval or an ISO 8601 time duration"
   temporalValues: edr11('Annex C.7 (informative)', '_8f4c9f38-bc6a-4b98-8fd9-772e42d60ab2'),
+  // The Locations query, in the clause's text: "If a location id is not defined the API SHALL return a GeoJSON features
+  // array of valid location identifiers, the schema of the GeoJSON response SHOULD be defined in the OpenAPI definition"
+  locationsQuery: edr11('8.2.8', '_76907fac-bf01-f4f3-6672-cbc8f25486c0'),
+  // D: "If a locationId is not specified a list of valid locationId’s SHALL be returned with a description of their
+  // geospatial extent."
+  locationsList: edr11('/req/edr/rc-locations D', '_784daa3f-2230-d6c2-626b-30bd13ba9256', 'B.159'),
   // What each query type's GET operation "SHALL include" (or, for some, "MUST include"): "A position GET or POST
   // operation SHALL include a coords query parameter", "A radius GET or POST operation MUST include a within-units
   // query parameter", "A cube GET or POST operation SHALL include a z query parameter", …
@@ -243,6 +257,11 @@ export const EDR12 = {
   widthUnitsDefinition: edr12('/req/edr/REQ_rc-width-units-definition A', '_e94367a5-e9c7-9063-54c3-604bda2e056d', 'B.133'),
   heightUnitsDefinition: edr12('/req/edr/REQ_rc-height-units-definition A', '_ac3bbd2e-f4e6-f744-0bf6-a2a158d1fa7c', 'B.135'),
   edrGeojsonContent: edr12('/req/edr-geojson/content A', '_69adc7ab-8dd9-3f65-c44b-554197db81d2', 'B.32'),
+  // As 1.1's
+  geojsonContent: edr12('/req/geojson/content A', '_7074d0d8-e04e-a0b9-24bb-cff9a8401a0c', 'B.30'),
+  // As 1.1's: "application/geo+json for resources that include feature content"
+  edrGeojsonDefinition: edr12('/req/edr-geojson/definition A', '_050d2df9-d0e6-40ba-7336-372056cb0065', 'B.31'),
+  geojsonDefinition: edr12('/req/geojson/definition A', '_4ae1940b-1c86-ba89-8433-a52f301d349a', 'B.29'),
   // A still names application/prs.coverage+json, where B and /req/covjson/definition name application/vnd.cov+json
   covjsonContentA: edr12('/req/covjson/content A', '_1902215f-6f6d-4db8-f23c-f5ef3592a2cf', 'B.34'),
   covjsonContentB: edr12('/req/covjson/content B', '_042d33ad-a3b8-6278-8ce2-33687bd1c422', 'B.34'),
@@ -253,6 +272,11 @@ export const EDR12 = {
   oas31Definition: edr12('/req/oas31/oas-definition A', '_0396bf08-e85d-1246-0a8a-19b6f040e362'),
   crossOrigin: edr12('Recommendation 3', '_b41b4d07-fb4e-7add-07cd-d7684805ffb6'),
   temporalValues: edr12('Annex C.8 (informative)', '_db0d9ee1-a7e2-4238-af58-631cd46f6404'),
+  // "If a location id is not defined, the API implementation SHALL return a GeoJSON features array of valid location
+  // identifiers and the schema of the GeoJSON response SHOULD be defined in the OpenAPI definition of the EDR service."
+  locationsQuery: edr12('8.2.8', '_c7ea2a8a-9696-0d9f-7141-fb986d941c20'),
+  // B, as 1.1's D
+  locationsList: edr12('/req/edr/rc-locations B', '_98bca02a-03b6-6add-e630-3959a302eb99', 'B.151'),
   // "… SHALL include …", as in 1.1, all SHALL now; a cube no longer has to include z
   positionCoords: edr12('/req/edr/rc-position B', '_627e531f-5174-8af2-c1f8-d2f8db2b92e4', 'B.64'),
   areaCoords: edr12('/req/edr/rc-area B', '_99d70341-bb6c-459c-7028-d6d60e5e2bee', 'B.82'),
@@ -307,9 +331,14 @@ export const EDR = {
   covjsonContentA: both(EDR11.covjsonContentA, EDR12.covjsonContentA),
   covjsonContentB: both(EDR11.covjsonContentB, EDR12.covjsonContentB),
   covjsonDefinition: both(EDR11.covjsonDefinition, EDR12.covjsonDefinition),
+  edrGeojsonDefinition: both(EDR11.edrGeojsonDefinition, EDR12.edrGeojsonDefinition),
+  geojsonDefinition: both(EDR11.geojsonDefinition, EDR12.geojsonDefinition),
+  geojsonContent: both(EDR11.geojsonContent, EDR12.geojsonContent),
   oas30Definition: both(EDR11.oas30Definition, EDR12.oas30Definition),
   oas31Definition: both(undefined, EDR12.oas31Definition),
   crossOrigin: both(EDR11.crossOrigin, EDR12.crossOrigin),
+  locationsQuery: both(EDR11.locationsQuery, EDR12.locationsQuery),
+  locationsList: both(EDR11.locationsList, EDR12.locationsList),
   temporalValues: both(EDR11.temporalValues, EDR12.temporalValues),
   positionCoords: both(EDR11.positionCoords, EDR12.positionCoords),
   areaCoords: both(EDR11.areaCoords, EDR12.areaCoords),
@@ -377,6 +406,9 @@ export const RFC = {
   // "A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range
   // of language identified by the overall tag."
   languageTag: { label: 'BCP 47 (RFC 5646) §2.1', url: 'https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1' } as Rule,
+  // GeoJSON's Feature Object: "If a Feature has a commonly used identifier, that identifier SHOULD be included as a member
+  // of the Feature object with the name "id", and the value of this member is either a JSON string or number."
+  featureId: { label: 'GeoJSON (RFC 7946) §3.2', url: 'https://www.rfc-editor.org/rfc/rfc7946.html#section-3.2' } as Rule,
 };
 
 // ---- MetOcean Common Profile for OGC API: a draft, cited only in notes, by file, commit and line ----

@@ -1,135 +1,62 @@
 import React, { useMemo } from 'react';
 import Box from '@mui/material/Box';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import TextField from '@mui/material/TextField';
 import CollapsibleSection from './CollapsibleSection';
-import InputAdornment from '@mui/material/InputAdornment';
-import SearchIcon from '@mui/icons-material/Search';
-import CancelIcon from '@mui/icons-material/Cancel';
-import { 
-  DataGrid, 
-  GridColDef,
-  Toolbar,
-  QuickFilter,
-  QuickFilterControl,
-  QuickFilterClear,
-} from '@mui/x-data-grid';
+import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import { featureIdColumn, searchToolbar } from './featureColumns';
+import { featureRows, type FeatureRow } from './featureRows';
 
 interface LocationFeatureListProps {
   features: any[] | null;
   onFeatureSelect?: (feature: any) => void;
 }
 
-interface LocationRow {
-  id: string | number;
-  name: string;
-  featureId: string;
-  latitude?: number;
-  longitude?: number;
-  originalFeature: any;
-}
+const LocationsToolbar = searchToolbar('Search locations...');
+
+// A point's latitude or longitude
+const pointCoordinate = (row: FeatureRow, axis: 0 | 1): number | undefined => {
+  const geometry = row.feature.geometry as { type?: string; coordinates?: number[] } | null | undefined;
+  return geometry?.type === 'Point' && geometry.coordinates ? geometry.coordinates[axis] : undefined;
+};
+
+const columns: GridColDef<FeatureRow>[] = [
+  {
+    field: 'name',
+    headerName: 'Name',
+    flex: 1,
+    minWidth: 150,
+    valueGetter: (_value, row) => {
+      const properties = row.feature.properties as { name?: string; title?: string } | null | undefined;
+      return properties?.name || properties?.title || `Feature ${row.id + 1}`;
+    },
+  },
+  { ...featureIdColumn, flex: 0.8 },
+  {
+    field: 'latitude',
+    headerName: 'Lat',
+    width: 80,
+    valueGetter: (_value, row) => pointCoordinate(row, 1),
+    valueFormatter: (value: number | undefined) => value ? value.toFixed(4) : '',
+  },
+  {
+    field: 'longitude',
+    headerName: 'Lon',
+    width: 80,
+    valueGetter: (_value, row) => pointCoordinate(row, 0),
+    valueFormatter: (value: number | undefined) => value ? value.toFixed(4) : '',
+  },
+];
 
 const LocationFeatureList: React.FC<LocationFeatureListProps> = ({ features, onFeatureSelect }) => {
-
-  // Transform features into rows for DataGrid
-  const rows: LocationRow[] = useMemo(() => {
-    if (!features) return [];
-    return features.map((feature, index) => {
-      const { id, properties } = feature;
-      const name = properties?.name || properties?.title || `Feature ${index + 1}`;
-      const coordinates = feature.geometry?.coordinates;
-      
-      return {
-        id: id || `feature-${index}`,
-        name: name,
-        featureId: id || '',
-        latitude: coordinates && feature.geometry?.type === 'Point' ? coordinates[1] : undefined,
-        longitude: coordinates && feature.geometry?.type === 'Point' ? coordinates[0] : undefined,
-        originalFeature: feature
-      };
-    });
-  }, [features]);
+  const rows = useMemo(() => featureRows(features ?? [], []), [features]);
 
   if (!features || features.length === 0) {
     return null;
   }
 
-  // Define columns for DataGrid
-  const columns: GridColDef[] = [
-    {
-      field: 'name',
-      headerName: 'Name',
-      flex: 1,
-      minWidth: 150,
-    },
-    {
-      field: 'featureId',
-      headerName: 'ID',
-      flex: 0.8,
-      minWidth: 100,
-    },
-    {
-      field: 'latitude',
-      headerName: 'Lat',
-      width: 80,
-      valueFormatter: (value: number | undefined) => value ? value.toFixed(4) : '',
-    },
-    {
-      field: 'longitude',
-      headerName: 'Lon',
-      width: 80,
-      valueFormatter: (value: number | undefined) => value ? value.toFixed(4) : '',
-    },
-  ];
-
-  const handleRowClick = (params: any) => {
-    if (onFeatureSelect && params.row.originalFeature) {
-      onFeatureSelect(params.row.originalFeature);
-    }
+  const handleRowClick = ({ row }: { row: FeatureRow }) => {
+    onFeatureSelect?.(row.feature);
   };
-
-  // Custom toolbar with QuickFilter
-  function CustomToolbar() {
-    return (
-      <Toolbar>
-        <QuickFilter>
-          <QuickFilterControl
-            render={({ ref, ...controlProps }, state) => (
-              <TextField
-                {...controlProps}
-                inputRef={ref}
-                placeholder="Search locations..."
-                size="small"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                    endAdornment: state.value ? (
-                      <InputAdornment position="end">
-                        <QuickFilterClear
-                          edge="end"
-                          size="small"
-                          aria-label="Clear search"
-                        >
-                          <CancelIcon fontSize="small" />
-                        </QuickFilterClear>
-                      </InputAdornment>
-                    ) : null,
-                    ...controlProps.slotProps?.input,
-                  },
-                  ...controlProps.slotProps,
-                }}
-              />
-            )}
-          />
-        </QuickFilter>
-      </Toolbar>
-    );
-  }
 
   return (
     <CollapsibleSection
@@ -145,7 +72,7 @@ const LocationFeatureList: React.FC<LocationFeatureListProps> = ({ features, onF
               rows={rows}
               columns={columns}
               slots={{
-                toolbar: CustomToolbar,
+                toolbar: LocationsToolbar,
               }}
               showToolbar
               initialState={{
