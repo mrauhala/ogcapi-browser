@@ -1,5 +1,10 @@
 import type { Collection } from '../types/api';
 
+// An id as one segment of a URL's path. A path segment may hold ':' and '@' as they are (RFC 3986 3.3, pchar), as
+// servers write them in their own links (a run's time, a URN), and some servers answer 404 to %3A. Everything else
+// is percent-encoded, ';' too, which some servers read as a path parameter
+export const pathSegment = (id: string) => encodeURIComponent(id).replace(/%3A/gi, ':').replace(/%40/gi, '@');
+
 // Validate that a URL uses a safe protocol (http/https or relative)
 function isSafeUrl(url: string): boolean {
   const trimmed = url.trim();

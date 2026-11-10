@@ -9,6 +9,14 @@ import { makeRoomForWireTiming } from './responseSizes';
 import { pickOpenApiLink } from '../validation/openapi/loadServiceDescription';
 import { classifyDataLinks, dataLinkUrls, hasCollectionsList } from './landingPageLinks';
 
+// The landing page's URL: at {root}/, as OGC API Common has it, or at the root as given; with f=json unless f is set
+export function landingUrlOf(apiUrl: string, atRoot: boolean): string {
+  const url = new URL(apiUrl);
+  if (atRoot && !url.pathname.endsWith('/')) url.pathname += '/';
+  if (!url.searchParams.has('f')) url.searchParams.set('f', 'json');
+  return url.toString();
+}
+
 export async function getCollections(apiUrl: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<GetCollectionsResult> {
   // Initialize the schema validator outside the try block so it's accessible in the catch block
   const validator = SchemaValidator.getInstance();
@@ -28,14 +36,29 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
     // Step 1: Fetch and validate the landing page
     console.log('Step 1: Fetching landing page from:', sanitizeUrl(apiUrl));
 
-    // Add f=json format parameter if not already present
-    const landingPageUrl = new URL(apiUrl);
-    if (!landingPageUrl.searchParams.has('f')) {
-      landingPageUrl.searchParams.set('f', 'json');
-    }
-
+    // The landing page is at {root}/: "The server SHALL support the HTTP GET operation on the URI {root}/" (OGC API
+    // Common Part 1 /req/landing-page/root-op A). KNMI answers there only, which a link's root, worked out without the
+    // slash, missed. A server that answers only without it is read from there, and told
     makeRoomForWireTiming();
-    const landingPageResponse = await capturedGet<LandingPage>(landingPageUrl.toString(), auth, signal, capture => { captured.landingPage = capture; });
+    const record = (capture: CapturedResponse) => { captured.landingPage = capture; };
+    const atRoot = landingUrlOf(apiUrl, true);
+    let landingPageResponse;
+    let answeredAt = atRoot;
+    try {
+      landingPageResponse = await capturedGet<LandingPage>(atRoot, auth, signal, record);
+    } catch (error) {
+      const asGiven = landingUrlOf(apiUrl, false);
+      if (asGiven === atRoot || (error as { response?: { status?: number } }).response?.status !== 404) throw error;
+      landingPageResponse = await capturedGet<LandingPage>(asGiven, auth, signal, record);
+      answeredAt = asGiven;
+      linkWarnings.push({
+        title: 'Landing Page Not at {root}/',
+        message: `${atRoot} answered 404, so the landing page was read from ${asGiven}. OGC API Common puts it at {root}/, with the slash.`,
+        type: 'unknown',
+        section: 'landing page',
+        severity: 'warning',
+      });
+    }
     landingPageData = landingPageResponse.data;
 
     // Step 2: Extract the collections URL and conformance URL from landing page links
@@ -409,7 +432,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
     return {
       collections: collections,
       validation: combinedValidation,
-      landingPageUrl: apiUrl,
+      landingPageUrl: answeredAt,
       collectionsUrl: collectionsUrl || undefined,
       conformanceUrl: conformanceUrl || undefined,
       landingPageTitle: landingPageData?.title,
