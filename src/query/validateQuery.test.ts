@@ -59,6 +59,8 @@ describe('EDR geometry rules', () => {
   it('radius checks the radius and its unit against within_units', () => {
     expect(problems(issuesFor(FMI, 'radius', { points: [HELSINKI] }))).toEqual([]);
     expect(problems(issuesFor(FMI, 'radius', { points: [HELSINKI], radius: { value: 0, units: 'km' } }))).toEqual(['warning within']);
+    // Saying so without a "must", which no rule has
+    expect(issuesFor(FMI, 'radius', { points: [HELSINKI], radius: { value: -2, units: 'km' } }).find(issue => issue.field === 'within')?.message).toBe("A radius of -2 isn't greater than 0");
     const wrongUnit = issuesFor(FMI, 'radius', { points: [HELSINKI], radius: { value: 5, units: 'm' } });
     expect(problems(wrongUnit)).toEqual(['error within-units']);
     expect(wrongUnit[0].message).toContain('km, mi');
