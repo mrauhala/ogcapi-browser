@@ -60,7 +60,9 @@ export function checkQueryUrlAgainstOpenApi(url: string, index: OperationIndex):
     if (param.in === 'path') {
       const value = pathParams[param.name];
       if (value !== undefined && param.enumValues && enumMatch(value, param.enumValues) === 'not-allowed') {
-        add('warning', `path:${param.name}`, 'enum', `The API docs don't list "${value}" as a ${param.name}`, param.pointer);
+        // What they do list shows when the docs write ids another way than the server's own lists do
+        add('warning', `path:${param.name}`, 'enum',
+          `The API docs don't list "${value}" for ${param.name} (they list ${listed(param.enumValues)})`, param.pointer);
       }
       continue;
     }

@@ -64,9 +64,9 @@ describe('checkQueryUrlAgainstOpenApi', () => {
     expect(brief(`${POSITION}&z=850,700`)).toEqual(["warning z: The API docs don't list 700 for z (they list 850, 500)"]);
   });
 
-  it('checks path parameters against their enum', () => {
+  it('checks path parameters against their enum, saying what the docs do list', () => {
     expect(brief('https://example.org/edr/collections/radar/position?coords=POINT(25 60)'))
-      .toEqual(['warning path:collectionId: The API docs don\'t list "radar" as a collectionId']);
+      .toEqual(['warning path:collectionId: The API docs don\'t list "radar" for collectionId (they list obs, model)']);
   });
 
   it('notes parameters the document does not declare, in one note', () => {

@@ -108,6 +108,10 @@ describe('collectionUrlOf', () => {
     expect(collectionUrlOf(collection(), 'https://api.test//')).toBe('https://api.test/collections/a');
   });
 
+  it("writes an id's ':' and '@' as they are, as a path may hold them, and ';' encoded", () => {
+    expect(collectionUrlOf(collection({ id: 'urn:wmo:md:a@b;c' }), 'https://api.test')).toBe('https://api.test/collections/urn:wmo:md:a@b%3Bc');
+  });
+
   it('keeps an id that would end the path inside the path', () => {
     expect(collectionUrlOf(collection({ id: 'a b#c?d/e' }), 'https://api.test')).toBe('https://api.test/collections/a%20b%23c%3Fd%2Fe');
     expect(collectionUrlOf(collection({ id: 7 as unknown as string }), 'https://api.test')).toBe('https://api.test/collections/7');

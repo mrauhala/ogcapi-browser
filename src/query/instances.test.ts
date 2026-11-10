@@ -41,6 +41,11 @@ describe('instances', () => {
       .toBe(`${FMI_LIST}/20261006T000000`);
   });
 
+  it("writes an id's ':' as it is, as FMI links its runs and answers 404 to %3A, and encodes what a path can't hold", () => {
+    expect(instanceUrl(fmiInstance('2026-11-09T00:00:00Z', '2026-11-09T00:00:00Z'), FMI_LIST)).toBe(`${FMI_LIST}/2026-11-09T00:00:00Z`);
+    expect(instanceUrl(fmiInstance('run a/b?c#d', '2026-11-09T00:00:00Z'), FMI_LIST)).toBe(`${FMI_LIST}/run%20a%2Fb%3Fc%23d`);
+  });
+
   it('lists the instances until one is picked, then asks for a query on it', () => {
     expect(instanceStep(FMI_LIST, null)).toMatchObject({ url: FMI_LIST, issues: [{ id: 'edr:instance:list', severity: 'info' }] });
     expect(instanceStep(FMI_LIST, fmiInstance('20261006T000000', '2026-10-06T03:00:00Z')))

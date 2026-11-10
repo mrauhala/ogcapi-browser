@@ -1,4 +1,5 @@
 import type { Collection } from '../types/api';
+import { pathSegment } from '../utils/href';
 import type { QueryIssue } from './types';
 
 // An instance (e.g. a model run) has a collection's shape: its own extent, parameters and data
@@ -18,12 +19,12 @@ export function sortInstancesNewestFirst(instances: Instance[]): Instance[] {
     (startOf(b) - startOf(a)) || String(b.id).localeCompare(String(a.id), undefined, { numeric: true }));
 }
 
-// The instance's own URL: its self link, else the list URL plus its id (ids may hold ':')
+// The instance's own URL: its self link, else the list URL plus its id, whose ':' stays as it is (FMI's run times)
 export function instanceUrl(instance: Instance, listHref: string): string {
   const self = (instance.links ?? []).find(link => link.rel === 'self' && typeof link.href === 'string');
   if (self) return self.href as string;
   const url = new URL(listHref);
-  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${encodeURIComponent(String(instance.id))}`;
+  url.pathname = `${url.pathname.replace(/\/+$/, '')}/${pathSegment(String(instance.id))}`;
   url.search = '';
   return url.toString();
 }

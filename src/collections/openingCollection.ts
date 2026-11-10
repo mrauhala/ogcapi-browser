@@ -1,6 +1,6 @@
 import type { Collection, ValidationResult } from '../types/api';
 import { normalizeBbox } from '../utils/extents/bbox';
-import { normalizeHref } from '../utils/href';
+import { normalizeHref, pathSegment } from '../utils/href';
 import { wholeValue } from '../query/dimensionText';
 import { allSectionsValid, isProblem } from '../validation/severity';
 
@@ -34,7 +34,7 @@ export function geoJsonLinksOf(collection: Collection, datetime = ''): { url: st
 // servers link each of its queries as data (MeteoCore's and Polytope's first is /position, FMI's /area),
 // and a query nobody chose isn't the request. The service URL's own trailing slash would double the one here.
 export function collectionUrlOf(collection: Collection, apiUrl: string): string {
-  return `${apiUrl.replace(/\/+$/, '')}/collections/${encodeURIComponent(String(collection.id))}`;
+  return `${apiUrl.replace(/\/+$/, '')}/collections/${pathSegment(String(collection.id))}`;
 }
 
 export function extentsOf(collection: Collection): [number, number, number, number][] | null {
