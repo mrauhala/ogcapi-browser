@@ -1,5 +1,5 @@
-import type { Rule, ValidationError } from '../types/api';
-import { COVJSON, EDR12 } from '../standards';
+import type { ValidationError } from '../types/api';
+import { COVJSON, EDR12, METOCEAN_COMMON_DRAFT, RFC } from '../standards';
 import { i18nText, isLanguageTag } from '../utils/i18nText';
 
 // What a coverage response says of its parameters: their units, labels and languages, each against CoverageJSON 9.3.
@@ -58,25 +58,31 @@ const sameText = (a: Json, b: Json) => {
 };
 
 // What's found, of one parameter, and why it matters, which follows how many more parameters have it
-interface Fault { kind: string; severity: NonNullable<ValidationError['severity']>; message: string; why?: string; path: string; rule?: Rule | readonly Rule[] }
+interface Fault { kind: string; severity: NonNullable<ValidationError['severity']>; message: string; why?: string; path: string; rule?: ValidationError['rule'] }
 
 function labelFaults({ id, parameter, path }: Definition, faults: Fault[]) {
   const { label } = parameter;
   if (label === undefined) return;
   const at = `${path}/label`;
-  const rule = [COVJSON.parameter, COVJSON.i18n];
   if (!isObject(label)) {
     const why = typeof label === 'string' ? `CoverageJSON has an i18n object: {"en": "${label}"}` : undefined;
-    faults.push({ kind: 'label-form', severity: 'error', message: `${id}'s label ${typeof label === 'string' ? 'is text' : `isn't an i18n object`}`, why, path: at, rule });
+    // CoverageJSON 9.3: the label "MUST be an i18n object". Where the standards differ: EDR 1.2's rc-parameters D has a
+    // collection's parameter's label "SHALL be a string", which a server may pass on to its responses
+    faults.push({
+      kind: 'label-form', severity: 'error', message: `${id}'s label ${typeof label === 'string' ? 'is text' : `isn't an i18n object`}`, why, path: at,
+      rule: [COVJSON.label, { edr: { '1.2': EDR12.parameterLabel } }],
+    });
     return;
   }
+  // An i18n object's keys are BCP 47 language tags and its values the text (CoverageJSON 9.2), as its schema checks
+  // (CoverageJSON 2: conformance is by the schema)
   const badTag = Object.keys(label).find(tag => !isLanguageTag(tag));
-  if (badTag !== undefined) faults.push({ kind: 'label-tag', severity: 'error', message: `${id}'s label has the language "${badTag}"`, why: `That isn't a language tag, such as "en"`, path: at, rule });
+  if (badTag !== undefined) faults.push({ kind: 'label-tag', severity: 'error', message: `${id}'s label has the language "${badTag}"`, why: `That isn't a language tag, such as "en"`, path: at, rule: [COVJSON.i18n, COVJSON.conformance, RFC.languageTag] });
   const notText = Object.entries(label).find(([, text]) => typeof text !== 'string');
-  if (notText) faults.push({ kind: 'label-text', severity: 'error', message: `${id}'s label in "${notText[0]}" isn't text`, path: `${at}/${pointerPart(notText[0])}`, rule });
+  if (notText) faults.push({ kind: 'label-text', severity: 'error', message: `${id}'s label in "${notText[0]}" isn't text`, path: `${at}/${pointerPart(notText[0])}`, rule: [COVJSON.i18n, COVJSON.conformance] });
   const observed = isObject(parameter.observedProperty) ? parameter.observedProperty.label : undefined;
   if (isObject(observed) && sameText(label, observed)) {
-    faults.push({ kind: 'label-repeats', severity: 'info', message: `${id}'s label repeats its observed property's`, why: 'CoverageJSON says to leave it out then', path: at, rule: COVJSON.parameter });
+    faults.push({ kind: 'label-repeats', severity: 'info', message: `${id}'s label repeats its observed property's`, why: 'CoverageJSON says to leave it out then', path: at, rule: COVJSON.label });
   }
 }
 
@@ -88,15 +94,16 @@ function unitFaults({ id, parameter, path }: Definition, faults: Fault[]) {
   const at = `${path}/unit/symbol`;
   if (type === UCUM_HTTPS) {
     faults.push({
-      kind: 'ucum-https', severity: 'info', path: `${at}/type`, rule: [COVJSON.parameter, EDR12.parameters],
+      kind: 'ucum-https', severity: 'info', path: `${at}/type`, rule: [COVJSON.unit, EDR12.parameterUnit],
       message: `${id}'s unit type is ${UCUM_HTTPS}`,
       why: `That's EDR 1.2's, for a collection's parameters. CoverageJSON's is ${UCUM}, so the two standards differ`,
     });
   } else if (type !== UCUM && LOOKS_LIKE_UCUM.test(type)) {
-    faults.push({ kind: 'ucum-spelling', severity: 'warning', message: `${id}'s unit type is ${type}`, why: `For UCUM it must be ${UCUM}`, path: `${at}/type`, rule: COVJSON.parameter });
+    faults.push({ kind: 'ucum-spelling', severity: 'warning', message: `${id}'s unit type is ${type}`, why: `For UCUM it must be ${UCUM}`, path: `${at}/type`, rule: COVJSON.unit });
   } else if (NAMES_A_UNIT.test(type)) {
     faults.push({
-      kind: 'unit-as-type', severity: 'info', path: `${at}/type`, rule: [COVJSON.parameter, COVJSON.customTypes],
+      // Where the standards differ: the MetOcean Common profile, a draft, has unit.symbol.type a QUDT unit's URI
+      kind: 'unit-as-type', severity: 'info', path: `${at}/type`, rule: [COVJSON.unit, COVJSON.customValue, METOCEAN_COMMON_DRAFT.qudtUnits],
       message: `${id}'s unit type is ${type}`,
       why: `That names a unit, where CoverageJSON's type names the scheme the symbol is written in, such as UCUM. A custom one is allowed, but a unit's URI fits unit.id`,
     });
@@ -104,10 +111,13 @@ function unitFaults({ id, parameter, path }: Definition, faults: Fault[]) {
   if (!LOOKS_LIKE_UCUM.test(type) || typeof value !== 'string') return;
   const name = `${id} ${i18nText(parameter.label) ?? ''} ${isObject(parameter.observedProperty) ? i18nText(parameter.observedProperty.label) ?? '' : ''}`.toLowerCase();
   const mixup = UCUM_MIXUPS.find(each => each.code === value && (!each.named || each.named.test(name)));
-  if (mixup) faults.push({ kind: `ucum-${mixup.code}`, severity: 'warning', message: `${id}'s unit is "${value}" in UCUM`, why: mixup.says, path: `${at}/value`, rule: COVJSON.parameter });
+  if (mixup) faults.push({ kind: `ucum-${mixup.code}`, severity: 'warning', message: `${id}'s unit is "${value}" in UCUM`, why: mixup.says, path: `${at}/value`, rule: COVJSON.unit });
 }
 
-// A unit is a MAY, so its absence is a note. One with categories MUST NOT have one, so it isn't counted
+// A unit is a MAY, so its absence is a note. One with categories MUST NOT have one, so it isn't counted. The draft
+// MetOcean Common profile asks every parameter for one: "A parameter object SHALL specify the following fields:
+// ``label``, ``description``, ``unit``"
+const UNITLESS_RULE = [COVJSON.unit, METOCEAN_COMMON_DRAFT.parameterFields];
 function unitlessFaults(all: Definition[], faults: Fault[]) {
   const counted = all.filter(({ parameter }) => !(isObject(parameter.observedProperty) && Array.isArray(parameter.observedProperty.categories)));
   const unitless = counted.filter(({ parameter }) => parameter.unit === undefined);
@@ -116,10 +126,10 @@ function unitlessFaults(all: Definition[], faults: Fault[]) {
   if (unitless.length === counted.length && counted.length > 1) {
     const named = unitless.slice(0, 2).map(each => each.id).join(', ');
     const rest = unitless.length - 2;
-    faults.push({ kind: 'unitless-all', severity: 'info', message: `No parameter has a unit: ${named}${rest > 0 ? ` and ${rest} more` : ''}`, path: first.path });
+    faults.push({ kind: 'unitless-all', severity: 'info', message: `No parameter has a unit: ${named}${rest > 0 ? ` and ${rest} more` : ''}`, path: first.path, rule: UNITLESS_RULE });
     return;
   }
-  for (const { id, path } of unitless) faults.push({ kind: 'unitless', severity: 'info', message: `${id} has no unit`, path });
+  for (const { id, path } of unitless) faults.push({ kind: 'unitless', severity: 'info', message: `${id} has no unit`, path, rule: UNITLESS_RULE });
 }
 
 // The same fault in many parameters is said once, of the first, with how many more

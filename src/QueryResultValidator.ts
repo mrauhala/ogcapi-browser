@@ -1,6 +1,7 @@
 import Ajv, { type ErrorObject, ValidateFunction } from 'ajv';
 import addFormats from 'ajv-formats';
 import { withInheritedDomainType } from './coverage/inheritedDomainType';
+import { COVJSON, EDR, EDR11 } from './standards';
 import { ValidationError } from './types/api';
 import { condenseAjvErrors } from './validation/ajvErrors';
 import { publicUrl } from './utils/publicUrl';
@@ -15,6 +16,9 @@ interface QueryResultSchema {
   detect: (data: string, contentType: string, url?: string) => boolean;
   // The document as the standard reads it, where the schema alone would miss something
   asRead?: (json: unknown) => unknown;
+  // What its findings rest on, and a body that isn't JSON at all
+  rule: ValidationError['rule'];
+  notJsonRule?: ValidationError['rule'];
 }
 
 export interface QueryResultValidation {
@@ -65,6 +69,12 @@ const SCHEMAS: QueryResultSchema[] = [
     schemaPath: '/schemas/covjson/1.0/coveragejson.json',
     detect: detectCoverageJson,
     asRead: withInheritedDomainType,
+    // CoverageJSON 2: "a software implementation shall implement any CoverageJSON object as a valid JSON object that
+    // conforms to the CoverageJSON schema". EDR /req/covjson/content B: "The schema of all responses with the media
+    // type … SHALL conform with the JSON Schema specified for the resource", and A: "Every 200-response with the media
+    // type … SHALL be a CoverageJSON Object"
+    rule: [COVJSON.conformance, EDR.covjsonContentB],
+    notJsonRule: EDR.covjsonContentA,
   },
   {
     id: 'edr-locations',
@@ -72,8 +82,15 @@ const SCHEMAS: QueryResultSchema[] = [
     schemaType: 'json-schema',
     schemaPath: '/schemas/edr/1.1/edrFeatureCollectionGeoJSON.json',
     detect: detectEdrLocations,
+    // EDR 1.1's schema, so EDR 1.1's rule: "Every 200-response with the media type application/geo+json SHALL be an
+    // EDR GeoJSON FeatureCollection Object for features"
+    rule: EDR11.edrGeojsonContent,
   },
 ];
+
+// The rule a response schema's findings rest on, by the name it's shown under
+export const schemaRuleOf = (schemaName: string | null | undefined): ValidationError['rule'] =>
+  SCHEMAS.find(schema => schema.displayName === schemaName)?.rule;
 
 // An enum's error says there are allowed values, but not which
 function allowedValues({ params }: ErrorObject): string {
@@ -124,7 +141,7 @@ export class QueryResultValidator {
         matched: true,
         schemaName: schema.displayName,
         valid: false,
-        errors: [{ message: 'Failed to parse response as JSON', type: 'schema' }],
+        errors: [{ message: 'Failed to parse response as JSON', type: 'schema', ...(schema.notJsonRule ? { rule: schema.notJsonRule } : {}) }],
       };
     }
 

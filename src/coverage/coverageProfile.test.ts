@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { coverageToProfile, MOST_LOCATIONS, type CoverageProfile, type ProfileContext } from './coverageProfile';
-import { COVJSON } from '../standards';
+import { COVJSON, EDR } from '../standards';
 import extents from './__fixtures__/profiles/vertical-extents.json';
 import mcIfs1tAll from './__fixtures__/profiles/mc-ifs-1t-all.json';
 import fmiEcmwf1tAll from './__fixtures__/profiles/fmi-ecmwf-1t-all.json';
@@ -149,17 +149,22 @@ describe('coverageToProfile: levels', () => {
     expect(profileOf(mcIfsZrange, MC).missingFrom).toBeNull();
   });
 
-  it("takes a declared level missing from a range asked for as the collection's", () => {
+  it("takes a declared level missing from a range asked for as the collection's, citing no rule, since EDR's is for when no z is asked", () => {
     const profile = profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x?z=500/1000');
     expect(profile.missing).toEqual([925]);
     expect(profile.missingFrom).toBe('collection');
+    expect(profile.notes.find(note => note.message.startsWith('Level 925'))).toEqual({
+      message: "Level 925 hPa is in the collection's extent, and isn't in the response", path: '/coverages/0/domain/axes/z/values', severity: 'warning', source: 'collection',
+    });
   });
 
-  it('names declared levels that aren’t in the response, when nothing was asked', () => {
+  it('names declared levels that aren’t in the response, when nothing was asked, citing EDR’s rule for when no z is asked', () => {
     const profile = profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x?f=CoverageJSON');
     expect(profile.missing).toEqual([925]);
     expect(profile.missingFrom).toBe('collection');
-    expect(messages(profile)).toContain("Level 925 hPa is in the collection's extent, and isn't in the response");
+    expect(profile.notes.find(note => note.message.startsWith('Level 925'))).toEqual({
+      message: "Level 925 hPa is in the collection's extent, and isn't in the response", path: '/coverages/0/domain/axes/z/values', severity: 'warning', source: 'collection', rule: EDR.zAllLevels,
+    });
   });
 
   it('counts an asked level that never came, though no vrs is read (FMI, z=1000,850,500,333)', () => {
@@ -422,7 +427,7 @@ describe('coverageToProfile: what kind of finding each is', () => {
     expect(kinds(profileOf(mcIfsAsked777, MC))["z=777 was asked for, and isn't in the response"]).toBe('warning');
     expect(messages(profileOf(mcIfsAsked777, MC)).some(message => /^Every level asked for/.test(message))).toBe(false);
     expect(kinds(profileOf(mcIfsZunsorted, MC))["Levels aren't in order: 500, 1000, 850"]).toBe('error');
-    expect(profileOf(mcIfsZunsorted, MC).notes.find(note => note.message.startsWith("Levels aren't in order"))?.rule).toEqual(COVJSON.domain);
+    expect(profileOf(mcIfsZunsorted, MC).notes.find(note => note.message.startsWith("Levels aren't in order"))?.rule).toEqual(COVJSON.monotonic);
   });
 
   it('makes an issue of z with nothing to go on, of a direction against the usual, and of a value sent twice', () => {
@@ -462,9 +467,11 @@ describe('coverageToProfile: what kind of finding each is', () => {
     expect(Object.keys(outside).some(message => /vrs/.test(message))).toBe(false);
   });
 
-  it('passes every declared level being there when nothing was asked, and not when one is missing', () => {
+  it('passes every declared level being there when nothing was asked, citing EDR’s rule for when no z is asked, and not when one is missing', () => {
     const declared = { values: ['1000', '850', '500'] };
-    expect(kinds(profileOf(mcIfsZunsorted, declared, 'x'))["Every level in the collection's extent is in the response"]).toBe('pass');
+    expect(profileOf(mcIfsZunsorted, declared, 'x').notes.find(note => note.message === "Every level in the collection's extent is in the response")).toEqual({
+      message: "Every level in the collection's extent is in the response", path: '/coverages/0/domain/axes/z/values', severity: 'pass', source: 'collection', rule: EDR.zAllLevels,
+    });
     expect(kinds(profileOf(mcIfsZunsorted, { values: ['1000', '925', '850', '500'] }, 'x'))["Every level in the collection's extent is in the response"]).toBeUndefined();
   });
 
@@ -533,7 +540,7 @@ describe('coverageToProfile: KNMI, a coverage per parameter', () => {
       'Every level asked for is in the response: 500, 700, 850, 925': 'pass',
     });
     expect(Object.keys(notes).some(message => /vrs/.test(message))).toBe(false);
-    expect(profileOf(knmiPl, KNMI).notes.find(note => /CRS84/.test(note.message))?.path).toBe('/coverages/0/domain/referencing');
+    expect(profileOf(knmiPl, KNMI).notes.find(note => /CRS84/.test(note.message))).toMatchObject({ path: '/coverages/0/domain/referencing', rule: COVJSON.spatialReferenced });
   });
 
   it('only notes a parameter on fewer levels when nothing was asked, since that can be how it is', () => {

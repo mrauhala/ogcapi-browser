@@ -1,5 +1,7 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import { COMMON1, EDR11, EDR12, FEATURES1 } from './standards';
+import type { ValidationError } from './types/api';
 import { publicUrl } from './utils/publicUrl';
 
 // Schema type definitions
@@ -14,6 +16,13 @@ interface SchemaConfig {
     collections?: string;
     conformance?: string;
   };
+  // The requirement each schema checks, where its standard's text has been read: "The content of that response SHALL
+  // be based upon the [OpenAPI 3.0] schema landingPage.yaml" (confClasses.yaml, collections.yaml)
+  rules?: {
+    landingPage?: ValidationError['rule'];
+    collections?: ValidationError['rule'];
+    conformance?: ValidationError['rule'];
+  };
 }
 
 // Configuration for all supported schemas - using individual schema files
@@ -26,7 +35,8 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/features-p1-v1.0/landingPage.json',
       collections: '/schemas/individual/features-p1-v1.0/collections.json',
       conformance: '/schemas/individual/features-p1-v1.0/confClasses.json'
-    }
+    },
+    rules: { landingPage: FEATURES1.rootSuccessB, collections: FEATURES1.collectionsSuccessB, conformance: FEATURES1.conformanceSuccessB },
   },
   {
     type: 'features-p2-v1.0',
@@ -45,7 +55,8 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/edr-p1-v1.2/landingPage.json',
       collections: '/schemas/individual/edr-p1-v1.2/collections.json',
       conformance: '/schemas/individual/edr-p1-v1.2/confClasses.json'
-    }
+    },
+    rules: { landingPage: EDR12.rootSuccessB, collections: EDR12.collectionsSuccessB, conformance: EDR12.conformanceSuccessB },
   },
   {
     type: 'edr-p1-v1.1',
@@ -55,7 +66,8 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/edr-p1-v1.1/landingPage.json',
       collections: '/schemas/individual/edr-p1-v1.1/collections.json',
       conformance: '/schemas/individual/edr-p1-v1.1/confClasses.json'
-    }
+    },
+    rules: { landingPage: EDR11.rootSuccessB, collections: EDR11.collectionsSuccessB, conformance: EDR11.conformanceSuccessB },
   },
   {
     type: 'edr-p1-v1.0',
@@ -65,7 +77,9 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/edr-p1-v1.0/landingPage.json',
       collections: '/schemas/individual/edr-p1-v1.0/collections.json',
       conformance: '/schemas/individual/edr-p1-v1.0/confClasses.json'
-    }
+    },
+    // EDR 1.0's text isn't cited: its requirements are cited as 1.1 words them
+    rules: { landingPage: EDR11.rootSuccessB, collections: EDR11.collectionsSuccessB, conformance: EDR11.conformanceSuccessB },
   },
   {
     type: 'common-p1-v1.0',
@@ -75,7 +89,8 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/common-p1-v1.0/landingPage.json',
       conformance: '/schemas/individual/common-p1-v1.0/confClasses.json'
       // Note: Common doesn't define collections
-    }
+    },
+    rules: { landingPage: COMMON1.rootSuccessB, conformance: COMMON1.conformanceSuccessB },
   },
   {
     type: 'common-p2-v1.0',
@@ -351,6 +366,7 @@ export class SchemaValidator {
               keyword: error.keyword,
               params: error.params,
               data: error.data,
+              ...(config?.rules?.collections ? { rule: config.rules.collections } : {}),
             }));
             
             // Group errors by collection and tag each error with collectionId
@@ -464,6 +480,7 @@ export class SchemaValidator {
               keyword: error.keyword,
               params: error.params,
               data: error.data,
+              ...(config?.rules?.landingPage ? { rule: config.rules.landingPage } : {}),
             }));
             allErrors.push(...errors);
           }
@@ -542,6 +559,7 @@ export class SchemaValidator {
               keyword: error.keyword,
               params: error.params,
               data: error.data,
+              ...(config?.rules?.conformance ? { rule: config.rules.conformance } : {}),
             }));
             allErrors.push(...errors);
           }

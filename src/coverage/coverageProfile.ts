@@ -3,7 +3,7 @@ import { coverageParameters, distinctLabel, parameterLabel, parameterUnit } from
 import { parseTime, utcMoment } from '../utils/utcTime';
 import { axisFault, axisValues, pointerPart } from './coverageCells';
 import type { ParameterFigures } from './coverageSummary';
-import { COVJSON } from '../standards';
+import { COVJSON, EDR } from '../standards';
 import { askedLevels, declaredFits, declaredInterval, declaredLevels, defaultScale, expectedLevels, isNumber, readVerticalAxis, vrsAbout, withUnit, type LevelScale, type VerticalAxis, zFindings } from './verticalAxis';
 
 // A coverage as profiles: values at several levels, at one point or a few. Nothing about its shape is taken for
@@ -338,7 +338,7 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   const pass = (message: string, path: string) => note(message, path, 'pass');
   // Against the collection's metadata. With a path where it's the response that's off, and none where it's about the
   // collection alone
-  const against = (severity: 'warning' | 'pass', message: string, path?: string) => notes.push({ message, ...(path ? { path } : {}), severity, source: 'collection' });
+  const against = (severity: 'warning' | 'pass', message: string, path?: string, rule?: ValidationError['rule']) => notes.push({ message, ...(path ? { path } : {}), severity, source: 'collection', ...(rule ? { rule } : {}) });
   const zPath = `${prefix(0)}/domain/axes/z`;
   const listed = (values: number[]) => `${values.slice(0, 5).join(', ')}${values.length > 5 ? ` and ${values.length - 5} more` : ''}`;
   const one = (count: number, singular: string, plural: string) => (count === 1 ? singular : plural);
@@ -362,11 +362,13 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   if (missing.length && asked?.kind === 'list') {
     issue(`z=${listed(missing)} ${one(missing.length, 'was', 'were')} asked for, and ${one(missing.length, "isn't", "aren't")} in the response`, zValues);
   } else if (missing.length) {
-    against('warning', `${one(missing.length, 'Level', 'Levels')} ${listed(missing)}${axis.unit ? ` ${axis.unit}` : ''} ${one(missing.length, 'is', 'are')} in the collection's extent, and ${one(missing.length, "isn't", "aren't")} in the response`, zValues);
+    // EDR /req/edr/z-response: "If the z parameter is not provided, the server SHOULD return data at all available
+    // vertical levels". With a range asked for, that doesn't apply, and no rule is cited
+    against('warning', `${one(missing.length, 'Level', 'Levels')} ${listed(missing)}${axis.unit ? ` ${axis.unit}` : ''} ${one(missing.length, 'is', 'are')} in the collection's extent, and ${one(missing.length, "isn't", "aren't")} in the response`, zValues, asked ? undefined : EDR.zAllLevels);
   } else if (asked?.kind === 'list' && asked.values.some(value => levelSet.has(value))) {
     pass(`Every level asked for is in the response: ${listed(asked.values)}`, zValues);
   } else if (!asked && declaredFits(declared, levels)) {
-    against('pass', "Every level in the collection's extent is in the response", zValues);
+    against('pass', "Every level in the collection's extent is in the response", zValues, EDR.zAllLevels);
   }
   if (undeclared.length) against('warning', `z ${listed(undeclared)} ${one(undeclared.length, "isn't", "aren't")} among the levels in the collection's extent`, zValues);
   else if (declaredFits(declared, levels)) against('pass', "Every level in the response is among those in the collection's extent", zValues);
@@ -375,7 +377,7 @@ export function coverageToProfile(json: unknown, context: ProfileContext = {}): 
   if (interval && outside.length) against('warning', `z ${listed(outside)} ${one(outside.length, 'is', 'are')} outside the collection's extent, ${interval[0]} to ${interval[1]}`, zValues);
   else if (interval) against('pass', `Every level is inside the collection's extent, ${interval[0]} to ${interval[1]}`, zValues);
   // CoverageJSON: an axis's values MUST be ordered monotonically
-  if (outOfOrder) notes.push({ message: `Levels aren't in order: ${outOfOrder.values.join(', ')}`, path: outOfOrder.path, severity: 'error', rule: COVJSON.domain });
+  if (outOfOrder) notes.push({ message: `Levels aren't in order: ${outOfOrder.values.join(', ')}`, path: outOfOrder.path, severity: 'error', rule: COVJSON.monotonic });
   if (mostLevels !== levels.length) note(`The levels change from time to time: ${levels.length} in all, at most ${mostLevels} at a time`, `${zPath}/values`);
   if (duplicates) issue(`${plural(duplicates, 'value')} sent again for a level already sent. The first is used`, `${prefix(0)}/ranges`);
 

@@ -15,14 +15,14 @@ import mcMepsClosed from './__fixtures__/sections/mc-meps-closed.json';
 import mcRadarFikorZ from './__fixtures__/sections/mc-radar-fikor-z.json';
 import mcSingleNoz from './__fixtures__/sections/mc-single-noz.json';
 import fmiTrajectoryOnePlace from './__fixtures__/profiles/fmi-trajectory-one-place.json';
-import { COVJSON } from '../standards';
+import { COVJSON, EDR, METOCEAN_COMMON_DRAFT } from '../standards';
 import { counting } from './cellsTestData';
 
 const hours = (from: number, count: number, step = 1) => Array.from({ length: count }, (_, i) => new Date(Date.UTC(2026, 10, 5, from + i * step)).toISOString().replace('.000', ''));
 const axes = (t: string[], x = 10, y = 50) => ({ x: { values: [x] }, y: { values: [y] }, t: { values: t } });
 const range = (values: unknown[]) => ({ type: 'NdArray', dataType: 'float', axisNames: ['t'], shape: [values.length], values });
 const temperature = { type: 'Parameter', unit: { symbol: { value: 'K' } }, observedProperty: { label: { en: 'Air temperature' } } };
-const FITS: ValidationError = { message: "Every parameter's values fit its shape and axes", path: '/ranges', severity: 'pass' };
+const FITS: ValidationError = { message: "Every parameter's values fit its shape and axes", path: '/ranges', severity: 'pass', rule: COVJSON.rangesFitDomain };
 // The notes besides what passed
 const noted = (notes: ValidationError[]) => notes.filter(note => note.severity !== 'pass');
 
@@ -544,8 +544,8 @@ describe('summarizeCoverage: the times', () => {
     const json = point([1, 2, 3]);
     const temporal = { interval: [['2026-11-05T01:00:00Z', null]] };
     const notes = summarizeCoverage(json, { url: 'https://x/collections/a/position?datetime=2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', temporal })!.notes;
-    expect(notes).toContainEqual({ message: 'Every time is inside the datetime asked for, 2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', path: '/domain/axes/t/values/0', severity: 'pass' });
-    expect(notes).toContainEqual({ message: "t 2026-11-05T00:00:00Z is outside the collection's extent, from 2026-11-05T01:00:00Z", path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection' });
+    expect(notes).toContainEqual({ message: 'Every time is inside the datetime asked for, 2026-11-05T00:00:00Z/2026-11-05T02:00:00Z', path: '/domain/axes/t/values/0', severity: 'pass', rule: EDR.datetimeResponse });
+    expect(notes).toContainEqual({ message: "t 2026-11-05T00:00:00Z is outside the collection's extent, from 2026-11-05T01:00:00Z", path: '/domain/axes/t/values/0', severity: 'warning', source: 'collection', rule: EDR.extent });
   });
 });
 
@@ -563,18 +563,18 @@ describe('summarizeCoverage: every range against its domain', () => {
   it('makes an error of values that don’t fit, where they are, and passes nothing', () => {
     const json = JSON.parse(JSON.stringify(mcIfs1tAll));
     json.coverages[0].ranges.t.values.pop();
-    expect(errors(json)).toEqual([{ message: 't: shape 14 makes 14 values, and values has 13', path: '/coverages/0/ranges/t/values', severity: 'error' }]);
+    expect(errors(json)).toEqual([{ message: 't: shape 14 makes 14 values, and values has 13', path: '/coverages/0/ranges/t/values', severity: 'error', rule: COVJSON.shapeProduct }]);
     expect(passes(json)).toEqual([]);
   });
 
   it('makes an error of Polytope’s axisNames, which name the parameter and not an axis', () => {
-    expect(errors(polytopeArea)).toEqual([{ message: `2t: axisNames has "2t", which isn't an axis of the domain`, path: '/coverages/0/ranges/2t/axisNames', severity: 'error' }]);
+    expect(errors(polytopeArea)).toEqual([{ message: `2t: axisNames has "2t", which isn't an axis of the domain`, path: '/coverages/0/ranges/2t/axisNames', severity: 'error', rule: COVJSON.rangesFitDomain }]);
   });
 
   it('says a fault the coverages share once, where it first is, and how many more have it', () => {
     const json = several(t, [1, 2, 3], [4, 5, 6], [7, 8, 9]);
     for (const coverage of json.coverages.slice(1)) coverage.ranges.t2m.axisNames = ['z'];
-    expect(errors(json)).toEqual([{ message: `t2m: axisNames has "z", which isn't an axis of the domain, and likewise in 1 more coverage`, path: '/coverages/1/ranges/t2m/axisNames', severity: 'error' }]);
+    expect(errors(json)).toEqual([{ message: `t2m: axisNames has "z", which isn't an axis of the domain, and likewise in 1 more coverage`, path: '/coverages/1/ranges/t2m/axisNames', severity: 'error', rule: COVJSON.rangesFitDomain }]);
     json.coverages[0].ranges.t2m.axisNames = ['z'];
     expect(errors(json)[0].message).toMatch(/, and likewise in 2 more coverages$/);
     expect(errors(json)[0].path).toBe('/coverages/0/ranges/t2m/axisNames');
@@ -616,14 +616,14 @@ describe('summarizeCoverage: every range against its domain', () => {
   it('checks a TiledNdArray’s names and shape, which it has without values', () => {
     const axes = { x: { values: [1, 2] }, y: { values: [2] } };
     const tiled = { type: 'TiledNdArray', axisNames: ['x'], shape: [3], tileSets: [] };
-    expect(errors({ type: 'Coverage', domain: { axes }, ranges: { a: tiled } })).toEqual([{ message: 'a: shape says x has 3 values, and the axis has 2', path: '/ranges/a/shape', severity: 'error' }]);
+    expect(errors({ type: 'Coverage', domain: { axes }, ranges: { a: tiled } })).toEqual([{ message: 'a: shape says x has 3 values, and the axis has 2', path: '/ranges/a/shape', severity: 'error', rule: COVJSON.rangesFitDomain }]);
   });
 });
 
 describe('summarizeCoverage: what it says of the parameters', () => {
   it('adds the parameters’ findings to its notes', () => {
     const notes = summarizeCoverage(mcIfs1tAll)!.notes.filter(note => /unit type/.test(note.message));
-    expect(notes).toEqual([expect.objectContaining({ severity: 'info', path: '/parameters/r/unit/symbol/type', rule: [COVJSON.parameter, COVJSON.customTypes] })]);
+    expect(notes).toEqual([expect.objectContaining({ severity: 'info', path: '/parameters/r/unit/symbol/type', rule: [COVJSON.unit, COVJSON.customValue, METOCEAN_COMMON_DRAFT.qudtUnits] })]);
     expect(notes[0].message).toMatch(/^r's unit type is https:\/\/qudt\.org\/vocab\/unit\/PERCENT, and likewise for 2 more parameters\. /);
   });
 });
@@ -639,7 +639,7 @@ describe('summarizeCoverage: axes in order', () => {
 
   it('makes an error of x or y that turns back, at the value where it does, with its rule', () => {
     expect(orderOf(gridOf({ x: { values: [1, 3, 2] }, y: { values: [60, 61] } }))).toEqual([
-      { message: "x isn't in order: 2 comes after 3", path: '/domain/axes/x/values/2', severity: 'error', rule: COVJSON.domain },
+      { message: "x isn't in order: 2 comes after 3", path: '/domain/axes/x/values/2', severity: 'error', rule: COVJSON.monotonic },
     ]);
     expect(orderOf(gridOf({ x: { values: [1, 2, 3] }, y: { values: [61, 60, 62] } }))[0]).toMatchObject({ message: "y isn't in order: 62 comes after 60", path: '/domain/axes/y/values/2' });
   });
@@ -668,7 +668,7 @@ describe('summarizeCoverage: axes in order', () => {
     // Each counted once, however often it turns
     const collection = { type: 'CoverageCollection', coverages: [turned([1, 2, 3]), turned([1, 3, 2]), turned([1, 3, 2, 1]), turned([5, 7, 6])] };
     expect(orderOf(collection)).toEqual([
-      { message: "x isn't in order: 2 comes after 3, and likewise in 2 more coverages", path: '/coverages/1/domain/axes/x/values/2', severity: 'error', rule: COVJSON.domain },
+      { message: "x isn't in order: 2 comes after 3, and likewise in 2 more coverages", path: '/coverages/1/domain/axes/x/values/2', severity: 'error', rule: COVJSON.monotonic },
     ]);
   });
 });
