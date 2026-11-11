@@ -3,8 +3,19 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import PointerText from './PointerText';
 
 const render = (path: string, after?: string) => renderToStaticMarkup(<PointerText path={path} after={after ? <i>{after}</i> : undefined} />);
+// The text between tags, without emotion's styles, and a <wbr> as `wbr`. Read tag by tag, rather than cut out by a
+// pattern, as CodeQL reads one as incomplete sanitization, even in a test
+const read = (html: string, wbr: string) => {
+  let inStyle = false;
+  return html.split(/(<[^>]*>)/).map(piece => {
+    if (!piece.startsWith('<')) return inStyle ? '' : piece;
+    if (/^<style[\s>]/.test(piece)) inStyle = true;
+    else if (piece === '</style>') inStyle = false;
+    return piece === '<wbr/>' ? wbr : '';
+  }).join('');
+};
 // Where it may break: a <wbr> at each, as | here
-const breaks = (html: string) => html.replace(/<style[^>]*>.*?<\/style>/g, '').replace(/<wbr\/>/g, '|').replace(/<[^>]+>/g, '');
+const breaks = (html: string) => read(html, '|');
 
 describe('PointerText', () => {
   it('may break after each /, and after each ~1, a / in a name', () => {
@@ -15,7 +26,7 @@ describe('PointerText', () => {
 
   it('shows the pointer as it is', () => {
     const path = '/paths/~1items/get/parameters/0';
-    expect(render(path).replace(/<[^>]+>/g, '')).toBe(path);
+    expect(read(render(path), '')).toBe(path);
     expect(render('root')).toBe('root');
     expect(render('')).toBe('');
   });
