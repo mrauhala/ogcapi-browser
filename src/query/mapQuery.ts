@@ -109,3 +109,17 @@ export function linkQuery(href: string | null): string[] {
     return [];
   }
 }
+
+// What picking a style puts in the form's fields: of what its own link asks for, the names the form holds (as
+// parameter-name), each in place of what the last style's link put there, or of nothing. A value chosen since stays.
+// Gives the values to set, and what this link put in, for the next style to replace
+export function styleLinkFills(href: string, held: Readonly<Record<string, string>>, linkedBefore: Readonly<Record<string, string>>):
+  { fills: Record<string, string>; linked: Record<string, string> } {
+  const asks = new Map(linkQuery(href || null).map(pair => [pair.slice(0, pair.indexOf('=')), pair.slice(pair.indexOf('=') + 1)]));
+  const fills: Record<string, string> = {};
+  for (const [name, now] of Object.entries(held)) {
+    if (now && now !== linkedBefore[name]) continue;
+    fills[name] = asks.get(name) ?? '';
+  }
+  return { fills, linked: { ...fills } };
+}

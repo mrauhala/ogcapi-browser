@@ -8,18 +8,22 @@ import type { QueryIssue } from './query/types';
 import { withItemsQuery } from './query/itemsQuery';
 import fmiEcmwf from './query/__fixtures__/fmi-ecmwf.json';
 import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
+import mapsParams from './query/__fixtures__/meteocore-maps-params.json';
+import { mapStylesOf, withLinkQueries } from './query/mapQuery';
+import { apiDocsParams } from './query/declared';
+import { buildOperationIndex, matchOperation } from './validation/openapi/operationIndex';
 
 // The form: its fields as blocks, each a title and the name as sent, and the level and custom dimension fields for
 // each form their text can take. What they need from around them is stood in for
-const issues = vi.hoisted(() => ({ list: [] as QueryIssue[] }));
+const issues = vi.hoisted(() => ({ list: [] as QueryIssue[], apiOperation: null as unknown }));
 // The request line, and what the form built: the same unless a test types something the form can't hold
-const around = vi.hoisted(() => ({ requestUrl: 'https://a.example/edr/collections/ifs/position', collectionUrl: null as string | null, radius: null as number | null, radiusUnits: '', mobile: false }));
+const around = vi.hoisted(() => ({ requestUrl: 'https://a.example/edr/collections/ifs/position', collectionUrl: null as string | null, radius: null as number | null, radiusUnits: '', mobile: false, conformsTo: undefined as string[] | undefined }));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedFeature: null, collectionUrl: around.collectionUrl ?? around.requestUrl, locationFeatures: [] }) }));
 vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ showMap: () => {}, isMobile: around.mobile }) }));
 vi.mock('./contexts/OpenCollectionContext', () => ({ useOpenCollection: () => ({ leaveQuery: () => {} }) }));
 vi.mock('./contexts/RequestUrlContext', () => ({ useRequestUrl: () => ({ requestUrl: around.requestUrl, editUrl: () => {} }) }));
 vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
-vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ apiUrl: 'https://a.example/edr/' }) }));
+vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ apiUrl: 'https://a.example/edr/', conformsTo: around.conformsTo }) }));
 vi.mock('./contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: 'none', description: null }) }));
 vi.mock('./contexts/MapInteractionContext', () => ({
   useMapInteraction: () => ({
@@ -27,12 +31,14 @@ vi.mock('./contexts/MapInteractionContext', () => ({
     selectedBbox: null, setSelectedBbox: () => {}, viewExtent: null,
   }),
 }));
-vi.mock('./hooks/useQueryValidation', () => ({ useQueryValidation: () => ({ issues: issues.list, active: true, apiOperation: null }) }));
+vi.mock('./hooks/useQueryValidation', () => ({ useQueryValidation: () => ({ issues: issues.list, active: true, apiOperation: issues.apiOperation }) }));
 vi.mock('./TimeControl', () => ({ default: () => null }));
 vi.mock('./InstancePicker', () => ({ default: () => null }));
 
 beforeEach(() => {
   issues.list = [];
+  issues.apiOperation = null;
+  around.conformsTo = undefined;
   around.requestUrl = 'https://a.example/edr/collections/ifs/position';
   around.collectionUrl = null;
   around.radius = null;
@@ -390,5 +396,68 @@ describe('the form’s blocks', () => {
     expect(blockIds(html)).toEqual(['query', 'location', 'datetime', 'more']);
     expect(shown(field(html, 'location'))).toContain('Location location (path) 0 listed · optional');
     expect(html).toContain('placeholder="None: list them all, or type to search"');
+  });
+});
+
+// A map on MeteoCore: its style, its parameter as rows, its format, each tagged by who declared it
+describe('a map’s form', () => {
+  const ROOT = 'https://meteocore.app.meteo.fi';
+  const collectionOf = (id: string) => withLinkQueries(structuredClone(mapsParams.collections.find(each => each.id === id)) as unknown as Collection);
+  const index = buildOperationIndex({ url: `${ROOT}/api`, doc: mapsParams.api as unknown as Record<string, unknown> });
+  const operationFor = (path: string) => {
+    const entry = matchOperation(index, `${ROOT}${path}`)!.entry;
+    return { template: entry.template, pointer: entry.pointer, required: [], params: apiDocsParams(entry.params) };
+  };
+  const mapState = (id: string, overrides: Partial<Record<string, unknown>> = {}) => ({
+    styleId: '', styleByLink: false, selectStyle: () => {},
+    mapStyles: { status: 'ready', styles: mapStylesOf(mapsParams.styles[id as 'ecmwf-aifs-single']?.styles ?? []), source: 'link' },
+    ...overrides,
+  });
+  const tagsOf = (html: string) => html.split('class="MuiChip-label').slice(1).map(rest => rest.slice(rest.indexOf('>') + 1, rest.indexOf('<')));
+
+  it('is the style, the parameter as rows and the format from the API docs, each tagged, and More', () => {
+    around.requestUrl = `${ROOT}/collections/ecmwf-aifs-single/map?parameter-name=2t`;
+    around.conformsTo = mapsParams.conformsTo;
+    issues.apiOperation = operationFor('/collections/ecmwf-aifs-single/map');
+    const html = form(collectionOf('ecmwf-aifs-single'), 'map', { ...mapState('ecmwf-aifs-single'), selectedParameters: ['2t'] });
+    expect(blockIds(html)).toEqual(['query', 'style', 'parameter-name', 'f', 'more']);
+    expect(tagsOf(field(html, 'style'))).toEqual(['styled-map']);
+    expect(tagsOf(field(html, 'parameter-name'))).toEqual(['MetOcean Maps (draft)', 'API docs']);
+    expect(tagsOf(field(html, 'f'))).toEqual(['API docs']);
+    const parameter = field(html, 'parameter-name');
+    expect(count(parameter, 'role="radio"')).toBe(18);
+    expect(count(parameter, 'aria-checked="true"')).toBe(1);
+    expect(shown(parameter)).toContain('Parameter parameter-name 1 of 18 · optional');
+    expect(shown(parameter)).not.toContain('Left out');
+    expect(shown(field(html, 'style'))).toContain('contours for 2t fmi-hires for 2t default');
+    const format = field(html, 'f');
+    expect(shown(format)).toContain('image/png default image/jpeg image/webp');
+    expect(shown(format)).toContain("Left out: by Accept , which the app sends as */* : the server's default, image/png by the API docs");
+    // A map has no time or levels said for it here
+    expect(shown(html)).not.toContain('No datetime or z');
+  });
+
+  it('types the API docs’ parameter-name where the collection has no parameter_names, and leaves out what nobody declares', () => {
+    around.requestUrl = `${ROOT}/collections/fmi-radar-composite-dbz/map`;
+    issues.apiOperation = operationFor('/collections/fmi-radar-composite-dbz/map');
+    const html = form(collectionOf('fmi-radar-composite-dbz'), 'map', mapState('fmi-radar-composite-dbz', { mapStyles: { status: 'ready', styles: [], source: null } }));
+    expect(blockIds(html)).toEqual(['query', 'parameter-name', 'f', 'more']);
+    expect(html).toContain('placeholder="Type a parameter"');
+    expect(typedValue(html, 'parameter-name')).toBe('');
+    // Without the API's conformance, no class is named
+    expect(tagsOf(field(html, 'parameter-name'))).toEqual(['API docs']);
+    issues.apiOperation = null;
+    expect(blockIds(form(collectionOf('fmi-radar-composite-dbz'), 'map', mapState('fmi-radar-composite-dbz', { mapStyles: { status: 'ready', styles: [], source: null } }))))
+      .toEqual(['query', 'more']);
+  });
+
+  it('types an f the request has where the API docs list no values, and shows a style’s issue in its field', () => {
+    around.requestUrl = `${ROOT}/collections/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=tp&f=image/gif`;
+    issues.list = [{ id: 'metadata:style:unlisted-tp', severity: 'warning', source: 'metadata', field: 'style', message: "fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx" }];
+    const html = form(collectionOf('ecmwf-aifs-single'), 'map', { ...mapState('ecmwf-aifs-single', { styleId: 'fmi-hires', styleByLink: true }), selectedParameters: ['tp'], selectedFormat: 'image/gif' });
+    expect(blockIds(html)).toEqual(['query', 'style', 'parameter-name', 'f', 'more']);
+    expect(typedValue(html, 'f')).toBe('image/gif');
+    expect(shown(field(html, 'style'))).toContain("fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx");
+    expect(shown(field(html, 'style'))).toContain('The request has parameter-name=tp instead, as chosen');
   });
 });

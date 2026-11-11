@@ -50,4 +50,12 @@ describe('styleHints', () => {
     const odd = { id: 'x', title: 'X', href: `${IFS}/render?s=x`, parameters: [] };
     expect(styleHints(state({ styles: [odd] }), odd, 'x')[1]).toBe('X. Its map link: `…/collections/ecmwf-ifs-pressure/render?s=x`');
   });
+
+  it('says what the request has instead of what the link adds, where a field holds another value', () => {
+    expect(styleHints(state(), pick('contours'), 'contours', true, { 'parameter-name': 'gh', f: '' })[2]).toBe('The link adds `parameter-name=gh`, which the request now has');
+    expect(styleHints(state(), pick('contours'), 'contours', true, { 'parameter-name': 't', f: '' })[2])
+      .toBe('The link adds `parameter-name=gh`. The request has `parameter-name=t` instead, as chosen');
+    expect(styleHints(state(), pick('contours'), 'contours', true, { 'parameter-name': '', f: '' })[2])
+      .toBe('The link adds `parameter-name=gh`. The request has no `parameter-name` instead, as chosen');
+  });
 });

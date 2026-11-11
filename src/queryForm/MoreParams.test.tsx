@@ -100,4 +100,15 @@ describe('MoreParams', () => {
     expect(rows(render(withoutCrs(DWD, 'cube'), 'cube'))).toEqual([['crs', 'EPSG:4326']]);
     expect(rows(render(DWD, 'cube'))).toEqual([]);
   });
+
+  it('shows what’s wrong with another parameter under its row, as that nothing declares it', () => {
+    around.requestUrl = `${BASE}?foo=bar&debug=1&foo=again`;
+    around.issues = [{ id: 'openapi:foo:undeclared', severity: 'warning', source: 'openapi', field: 'foo', message: 'Not declared: nobody names foo', pointer: '/paths/x' }];
+    const html = render();
+    expect(rows(html)).toEqual([['foo', 'bar'], ['debug', '1'], ['foo', 'again']]);
+    // Once, under the first foo, which jumps there
+    expect(html.split('Not declared: nobody names foo').length - 1).toBe(1);
+    expect(html.indexOf('Not declared')).toBeLessThan(html.indexOf('value="debug"'));
+    expect(html).toContain('id="query-field-foo"');
+  });
 });

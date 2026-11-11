@@ -11,6 +11,8 @@ import { SEVERITY_ORDER } from './types';
 import { paramOf } from './requestUrl';
 import type { ApiDocsCheck } from '../validation/openapi/checkQueryUrl';
 import { EDR, FEATURES1 } from '../standards';
+import { apiDocsParams } from './declared';
+import { mapApiDocsIssues, mapQueryIssues } from './mapOffer';
 
 // ── Collection extents, computed once per collection (validation runs on every slider tick) ──
 
@@ -353,8 +355,12 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   const add: Add = (severity, source, field, key, message, input, rule) =>
     issues.push({ id: `${source}:${field}:${key}`, severity, source, field, message, input, ...(rule ? { rule } : {}) });
 
-  // Maps requires no parameter, and the form doesn't hold a map's yet: a bare map is complete
-  if (model.queryType === 'map') return issues;
+  // Maps requires no parameter: a bare map is complete. Its parameter is checked against parameter_names, and its style
+  // against what the styles and parameters say of each other
+  if (model.queryType === 'map') {
+    return mapQueryIssues(model.collection, model.parameters, model.styleId ?? '', model.styles ?? [])
+      .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  }
   checkGeometry(model, add);
   checkFormat(model, add);
   if (model.rule?.featureList) {
@@ -389,7 +395,9 @@ export function addApiDocsIssues(model: QueryModel | null, issues: QueryIssue[],
       return { ...issue, id: issue.id.replace(`:${issue.field}:`, `:${field}:`), field, input };
     })
     .filter(issue => !flagged.has(issue.field));
-  return [...own, ...placed].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+  // A map's parameter-name where the API docs take one, and the request has several
+  const mapped = model?.queryType === 'map' && check.operation ? mapApiDocsIssues(model.parameters, apiDocsParams(check.operation.entry.params)) : [];
+  return [...own, ...placed, ...mapped.filter(issue => !flagged.has(issue.field))].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 
 // The form's issues for the request line as typed: a parameter the line has isn't missing, though the form may not

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection } from '../types/api';
 import { fromItemsLink } from './itemsQuery';
-import { fromMapLink, linkQuery, mapStylesOf, styleMapHref, styleOfPath, withLinkQueries, withMapQuery } from './mapQuery';
+import { fromMapLink, linkQuery, mapStylesOf, styleLinkFills, styleMapHref, styleOfPath, withLinkQueries, withMapQuery } from './mapQuery';
 import { buildQueryModel, type QueryModelInput } from './queryModel';
 import { buildQueryUrl } from './buildQueryUrl';
 import { isForCollection, matchDataQuery, readQuerySelections } from './parseQueryUrl';
 import { fieldSpecs } from './fieldSpecs';
-import { validateQuery } from './validateQuery';
+import { addApiDocsIssues, validateQuery } from './validateQuery';
+import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl';
+import { buildOperationIndex } from '../validation/openapi/operationIndex';
+import params from './__fixtures__/meteocore-maps-params.json';
 import meteocore from './__fixtures__/meteocore-maps.json';
 
 const ROOT = 'https://meteocore.app.meteo.fi/collections';
@@ -157,18 +160,30 @@ const input = (collection: Collection, overrides: Partial<QueryModelInput> = {})
 const urlOf = (model: QueryModelInput) => buildQueryUrl(buildQueryModel(model)!);
 
 describe('a map request', () => {
-  it('is the collection’s map and nothing else: Maps requires nothing, and nothing is filled in', () => {
-    expect(urlOf(input(radar()))).toBe(`${ROOT}/fmi-radar-composite-dbz/map`);
+  // Nothing chosen for the map: what's left is another query's, which a map doesn't take
+  const bare = { format: '', parameters: [] };
+
+  it('is the collection’s map and nothing else: Maps requires nothing, and another query’s values aren’t sent', () => {
+    expect(urlOf(input(radar(), bare))).toBe(`${ROOT}/fmi-radar-composite-dbz/map`);
   });
 
-  it('is a style’s own map link for a style picked, what it asks for included', () => {
+  it('sends the parameter and the format the form holds, and nothing else', () => {
+    expect(urlOf(input(ifs(), { parameters: ['gh'], format: 'image/webp' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh&f=image%2Fwebp`);
+    expect(urlOf(input(ifs(), { parameters: ['gh', 'd'], format: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh%2Cd`);
+  });
+
+  it('is a style’s own map link for a style picked, what it asks for included, with the form’s parameter in place of the link’s', () => {
     const href = `${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh`;
-    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href }))).toBe(href);
+    // As picking the style fills the field
+    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['gh'], format: '' }))).toBe(href);
+    // Another chosen, and none: MeteoCore answers the last with 404, which is worth seeing
+    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['dpt'], format: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=dpt`);
+    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, ...bare }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map`);
   });
 
   it('goes by the path Maps gives a style without a link of its own, as for one from a typed URL', () => {
-    expect(urlOf(input(ifs(), { styleId: 'contours' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map`);
-    expect(urlOf(input(ifs(), { styleId: '', styleHref: 'https://elsewhere.example/x' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map`);
+    expect(urlOf(input(ifs(), { styleId: 'contours', ...bare }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map`);
+    expect(urlOf(input(ifs(), { styleId: '', styleHref: 'https://elsewhere.example/x', ...bare }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map`);
   });
 
   it('takes a style only for a map query', () => {
@@ -176,10 +191,11 @@ describe('a map request', () => {
     expect(model.baseHref).toBe(`${ROOT}/meteoalarm-finland/items`);
   });
 
-  it('has no fields of its own yet, and nothing to find wrong', () => {
+  it('has fields for its parameter and format only, and finds nothing wrong in another query’s values', () => {
     const collection = withLinkQueries(ifs());
-    expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] })).toEqual([]);
-    expect(validateQuery(buildQueryModel(input(ifs(), { datetime: 'nonsense', vertical: '777' }))!)).toEqual([]);
+    expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] }).map(spec => spec.name)).toEqual(['parameter-name']);
+    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['datetime', 'z', 'bbox'] })).toEqual([]);
+    expect(validateQuery(buildQueryModel(input(ifs(), { parameters: ['gh'], datetime: 'nonsense', vertical: '777' }))!)).toEqual([]);
   });
 });
 
@@ -204,11 +220,56 @@ describe('a map URL, read back', () => {
     expect(isForCollection(`${ROOT}/fmi-radar-composite-dbz/map/tiles`, radar())).toBe(false);
   });
 
-  it('gives the form nothing it holds: what the URL asks for stays in the line, as typed', () => {
-    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5`;
+  it('gives the form its parameter and format, and nothing else: the rest stays in the line, as typed', () => {
+    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5`;
     expect(readQuerySelections(url, view(), 'map')).toEqual({
-      format: '', parameters: [], datetime: '', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
+      format: 'image/png', parameters: ['t', 'gh'], datetime: '', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
       bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: {},
     });
+  });
+});
+
+describe('styleLinkFills', () => {
+  const CONTOURS = `${ROOT}/ecmwf-aifs-single/styles/contours/map?parameter-name=2t`;
+  const FMI = `${ROOT}/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=2t&f=image/webp`;
+  const DEFAULT = `${ROOT}/ecmwf-aifs-single/styles/default/map`;
+  const empty = { 'parameter-name': '', f: '' };
+
+  it('fills the empty fields with what the style’s link asks for, and empties them where it asks for none', () => {
+    expect(styleLinkFills(CONTOURS, empty, {})).toEqual({ fills: { 'parameter-name': '2t', f: '' }, linked: { 'parameter-name': '2t', f: '' } });
+    expect(styleLinkFills(FMI, empty, {}).fills).toEqual({ 'parameter-name': '2t', f: 'image/webp' });
+    expect(styleLinkFills('', empty, {}).fills).toEqual({ 'parameter-name': '', f: '' });
+  });
+
+  it('replaces what the last style’s link put in, but not a value chosen since or before', () => {
+    expect(styleLinkFills(DEFAULT, { 'parameter-name': '2t', f: '' }, { 'parameter-name': '2t', f: '' }).fills).toEqual({ 'parameter-name': '', f: '' });
+    expect(styleLinkFills(FMI, { 'parameter-name': 'msl', f: '' }, { 'parameter-name': '2t', f: '' })).toEqual({ fills: { f: 'image/webp' }, linked: { f: 'image/webp' } });
+    expect(styleLinkFills(CONTOURS, { 'parameter-name': 'tp', f: 'image/png' }, {})).toEqual({ fills: {}, linked: {} });
+  });
+});
+
+describe('a map request’s issues', () => {
+  const aifs = () => withLinkQueries(structuredClone(params.collections.find(each => each.id === 'ecmwf-aifs-single')) as unknown as Collection);
+  const aifsStyles = mapStylesOf(params.styles['ecmwf-aifs-single'].styles);
+  const index = buildOperationIndex({ url: 'https://meteocore.app.meteo.fi/api', doc: params.api as unknown as Record<string, unknown> });
+  const modelOf = (overrides: Partial<QueryModelInput>) => buildQueryModel(input(aifs(), { format: '', parameters: [], styles: aifsStyles, ...overrides }))!;
+  const all = (overrides: Partial<QueryModelInput>) => {
+    const model = modelOf(overrides);
+    return addApiDocsIssues(model, validateQuery(model), checkQueryUrlAgainstOpenApi(buildQueryUrl(model)!, index)).map(issue => `${issue.severity} ${issue.field}: ${issue.message}`);
+  };
+
+  it('are none for MeteoCore’s own pairs', () => {
+    expect(all({})).toEqual([]);
+    expect(all({ parameters: ['2t'], styleId: 'fmi-hires', styleHref: `${ROOT}/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=2t`, format: 'image/webp' })).toEqual([]);
+  });
+
+  it('check its parameter against parameter_names, its style against its parameter, and its count against the API docs', () => {
+    expect(all({ parameters: ['nope'] })).toEqual(["error parameter-name: nope isn't among the collection's parameter_names"]);
+    expect(all({ parameters: ['tp'], styleId: 'fmi-hires' })).toEqual(["warning style: fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx"]);
+    expect(all({ parameters: ['2t', 'msl'] })).toEqual(["warning parameter-name: The API docs' parameter-name is a string, one parameter, and the request has 2"]);
+    // One issue on a field: the error is enough
+    expect(all({ parameters: ['2t', 'nope'] })).toEqual(["error parameter-name: nope isn't among the collection's parameter_names"]);
+    // The API docs' own say on f
+    expect(all({ format: 'image/gif' })).toEqual(["warning f: The API docs don't list image/gif for f (they list image/png, image/jpeg, image/webp)"]);
   });
 });

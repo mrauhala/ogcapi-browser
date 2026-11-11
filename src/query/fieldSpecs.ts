@@ -10,6 +10,8 @@ import { timeIsOnlyAFilter } from './queryModel';
 import { expandTemporalValues, getOverallTemporalExtent, normalizeTemporal } from '../utils/extents/temporal';
 import { getVerticalUnit } from '../utils/extents/vertical';
 import { expandCustomDimensionValues, getEffectiveCustomDimensions } from '../utils/extents/custom';
+import type { ApiDocsParam, Declarer } from './declared';
+import { mapFieldSpecs } from './mapOffer';
 
 export type Requirement = 'required' | 'optional' | 'required by the API docs';
 
@@ -28,6 +30,9 @@ export interface FieldSpec {
   grammar?: string; // the forms a typed value takes, said while the field is empty or wrong
   unit?: FieldSpec; // a size's unit, in the same block and on the same row: within-units with within
   marked?: string; // the value the metadata names as the default, as default_output_format: marked, not sent
+  options?: string[]; // the values to pick from where the API docs list them, as a map's f
+  choice?: 'one' | 'several'; // how many values it takes, where the form can tell: a map's parameter-name
+  declaredBy?: Declarer[]; // who declared it, tagged in its head: a conformance class, a draft profile, the API docs
 }
 
 export interface FieldContext {
@@ -35,6 +40,8 @@ export interface FieldContext {
   hasLocation?: boolean; // a location is picked: a locations query is for its data, not a list
   hasItem?: boolean; // an item is named: an items query is for that one, not a list, and takes only f
   inRequest?: string[]; // the parameters the request line has: a field shows for one the metadata has nothing for
+  conformsTo?: readonly string[] | null; // the API's conformance classes, which declare a map's parameters
+  apiDocs?: ApiDocsParam[] | null; // the API docs' operation's query parameters, where there's one to read
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -152,8 +159,8 @@ function itemsTime(collection: Collection): Hint {
 // custom dimensions and f
 export function fieldSpecs(collection: Collection, queryKey: string, chosen: { parameters: number }, context: FieldContext = {}): FieldSpec[] {
   const queryType = queryTypeOf(collection, queryKey);
-  // A map's parameters have no fields of their own yet: its style is a part of the path, and the rest is under More
-  if (queryType === 'map') return [];
+  // A map's: its style is a part of the path, and of its parameters those this form has fields for, as declared
+  if (queryType === 'map') return mapFieldSpecs(collection, chosen, context);
   const rule = EDR_QUERY_RULES[queryType];
   const variables = queryVariables(collection, queryKey);
   const apiRequired = context.apiRequired ?? [];

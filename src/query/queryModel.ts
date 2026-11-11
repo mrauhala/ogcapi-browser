@@ -3,7 +3,7 @@ import { normalizeHref } from '../utils/href';
 import { TYPE_PARAMS } from './buildQueryUrl';
 import { EDR_QUERY_RULES, type EdrQueryRule } from './edrRules';
 import { itemHref } from './itemsQuery';
-import { styleMapHref } from './mapQuery';
+import { styleMapHref, type MapStyle } from './mapQuery';
 import { queryTypeOf } from './queryTypes';
 import type { BBox } from './types';
 
@@ -34,6 +34,7 @@ export interface QueryModelInput {
   itemId?: string; // one item of an items query, a part of its path: '' or left out for the list
   styleId?: string; // a map query's style, a part of its path: '' or left out for the collection's own map
   styleHref?: string; // the style's own map link, as the server gives it: '' to go by the path Maps gives a style
+  styles?: MapStyle[]; // a map query's styles, which say what parameters each is for: its style is checked against them
 }
 
 export interface QueryModel extends QueryModelInput {

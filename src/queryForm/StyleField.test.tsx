@@ -5,6 +5,10 @@ import { words } from '../coverage/cellsTestData';
 import { mapStylesOf } from '../query/mapQuery';
 import type { MapStylesState } from '../hooks/useMapStyles';
 import meteocore from '../query/__fixtures__/meteocore-maps.json';
+import params from '../query/__fixtures__/meteocore-maps-params.json';
+import draft from '../query/__fixtures__/metocean-maps-draft.json';
+import type { Collection } from '../types/api';
+import type { QueryIssue } from '../query/types';
 
 vi.mock('../contexts/ApiContext', () => ({ useApi: () => ({ conformsTo: [], apiUrl: 'https://meteocore.app.meteo.fi' }) }));
 
@@ -52,5 +56,47 @@ describe('StyleField', () => {
     expect(render({ styles: [], source: null })).toBe('');
     expect(render({ status: 'idle', styles: [], source: null })).toBe('');
     expect(words(render({ styles: [], source: null }, 'night'))).toContain('night isn\'t among the styles listed');
+  });
+});
+
+const AIFS = params.collections.find(each => each.id === 'ecmwf-aifs-single') as unknown as Collection;
+const aifsStyles = mapStylesOf(params.styles['ecmwf-aifs-single'].styles);
+const DRAFT = draft.collection as unknown as Collection;
+const draftStyles = mapStylesOf(draft.styles);
+// The toggles' text, in order: each value, and its tag after it
+const toggles = (html: string) => html.split('<button').slice(1).map(button => words(`<button${button.slice(0, button.indexOf('</button>'))}`));
+const renderFor = (collection: Collection, styles: typeof aifsStyles, chosen: string[], more: Partial<Parameters<typeof StyleField>[0]> = {}) => renderToStaticMarkup(
+  <StyleField state={{ status: 'ready', styles, source: 'link' }} styleId="" onChange={() => {}} collection={collection} chosen={chosen} {...more} />,
+);
+
+describe('StyleField, for the parameters chosen', () => {
+  it('puts the styles for them first, marked, and says on whose word', () => {
+    expect(toggles(renderFor(AIFS, aifsStyles, []))).toEqual(['default', 'contours', 'fmi-hires']);
+    const html = renderFor(AIFS, aifsStyles, ['2t']);
+    expect(toggles(html)).toEqual(['contours for 2t', 'fmi-hires for 2t', 'default']);
+    expect(words(html)).toContain("Marked first: the styles for 2t , as the styles' parameters say. The others can be sent too");
+    expect(words(renderFor(AIFS, aifsStyles, ['tp']))).not.toContain('Marked');
+  });
+
+  it('marks the one a parameter’s metocean:defaultStyle names, and names it as what’s drawn without a style', () => {
+    const html = renderFor(DRAFT, draftStyles, ['msl']);
+    expect(toggles(html)).toEqual(['contours for msl', 'isobars default for msl', 'default', 'fmi-hires']);
+    expect(words(html)).toContain("Marked first: the styles for msl , as its metocean:styles and the styles' parameters say");
+    expect(words(html)).toContain("Left out: the collection's own …/map , in the style its parameters' metocean:defaultStyle names: isobars for msl");
+    expect(words(renderFor(DRAFT, draftStyles, ['tp']))).toContain("Left out: the collection's own …/map , in the server's default style");
+  });
+
+  it('shows its issues, and who declared it', () => {
+    const issues: QueryIssue[] = [{ id: 'metadata:style:unlisted-tp', severity: 'warning', source: 'metadata', field: 'style', message: "fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx" }];
+    const html = renderFor(AIFS, aifsStyles, ['tp'], { issues, declaredBy: [{ kind: 'class', name: 'styled-map', uri: 'http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map' }] });
+    expect(words(html)).toContain("fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx");
+    expect(words(html)).toContain('Style style (path) 3 listed · optional styled-map');
+  });
+
+  it('says when the request has another value than the style’s link adds', () => {
+    const html = renderToStaticMarkup(
+      <StyleField state={{ status: 'ready', styles: aifsStyles, source: 'link' }} styleId="fmi-hires" onChange={() => {}} collection={AIFS} chosen={['tp']} held={{ 'parameter-name': 'tp', f: '' }} />,
+    );
+    expect(words(html)).toContain('The link adds parameter-name=2t . The request has parameter-name=tp instead, as chosen');
   });
 });

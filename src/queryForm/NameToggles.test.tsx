@@ -39,4 +39,10 @@ describe('NameToggles', () => {
     expect(render('', { tall: true })).toContain('height:40px');
     expect(render('')).not.toContain('height:40px');
   });
+
+  it('tags an option with what the metadata says of it, after its name', () => {
+    const html = renderToStaticMarkup(<NameToggles label="style" options={['contours', 'default']} value="" onChange={() => {}} tags={{ contours: 'for 2t' }} />);
+    expect(words(html)).toBe('contours for 2t default');
+    expect(pressed(html)).toEqual([false, false]);
+  });
 });
