@@ -7,14 +7,14 @@ import CollectionValidationErrors from './CollectionValidationErrors';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
 import { hasMapsSupport } from './api/maps';
 import { useCitedEdr } from './hooks/useCitedEdr';
-import { collectionInfoLetter, EDR } from './standards';
+import { collectionInfoLetter, EDR, FEATURES1 } from './standards';
 import type { Citation, EdrRule } from './types/api';
 import TemporalExtent from './TemporalExtent';
 import VerticalExtent from './VerticalExtent';
 import { Collection, ValidationResult, normalizeHref } from './DataRetrievalAPI';
 
 // A field's title, with the statement it's checked against
-const Title = ({ children, rule }: { children: ReactNode; rule?: Citation }) => (
+const Title = ({ children, rule }: { children: ReactNode; rule?: Citation | readonly Citation[] }) => (
   <AlertTitle>{children}{rule && <RuleLinks rule={rule} />}</AlertTitle>
 );
 
@@ -34,8 +34,8 @@ interface FieldCheck {
 }
 
 // The schema's rule a bbox's shape rests on: "The content of that response SHALL be based upon the schema
-// collections.yaml"
-const BBOX_RULE = EDR.collectionsSuccessB;
+// collections.yaml", EDR's and Features Part 1's alike, whose collections.yaml has the same array of boxes
+const BBOX_RULE: readonly Citation[] = [EDR.collectionsSuccessB, FEATURES1.collectionsSuccessB];
 
 function checksOf(collection: Collection): FieldCheck[] {
   const maps = hasMapsSupport(collection);

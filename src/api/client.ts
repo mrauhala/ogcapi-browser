@@ -8,7 +8,7 @@ import { capturedGet, type CapturedLoad, type CapturedResponse } from './capture
 import { makeRoomForWireTiming } from './responseSizes';
 import { pickOpenApiLink } from '../validation/openapi/loadServiceDescription';
 import { classifyDataLinks, dataLinkUrls, hasCollectionsList } from './landingPageLinks';
-import { COMMON1, EDR, FEATURES1 } from '../standards';
+import { COMMON1, EDR, FEATURES1, MAPS1 } from '../standards';
 
 // The landing page's URL: at {root}/, as OGC API Common has it, or at the root as given; with f=json unless f is set
 export function landingUrlOf(apiUrl: string, atRoot: boolean): string {
@@ -29,6 +29,13 @@ function unreachedSeverity(type: ValidationError['type'], title: string, afterLa
   if (title.endsWith('Authentication Error')) return { severity: 'info' };
   return {};
 }
+
+// Cross-origin requests, which EDR's Recommendation 3 and Features Part 1's /rec/core/cross-origin A ask for, and Maps'
+// cors class requires, where the API declares it
+const MAPS_CORS = '/spec/ogcapi-maps-1/1.0/conf/cors';
+const crossOrigin = (conformsTo?: string[]): ValidationError['rule'] => [
+  EDR.crossOrigin, FEATURES1.crossOrigin, ...(conformsTo?.some(uri => uri.endsWith(MAPS_CORS)) ? [MAPS1.cors] : []),
+];
 
 export async function getCollections(apiUrl: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<GetCollectionsResult> {
   // Initialize the schema validator outside the try block so it's accessible in the catch block
@@ -146,7 +153,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
           // The landing page SHALL include a link to "/conformance (relation type conformance)", or in Common Part 1 the
           // relation type ‘http://www.opengis.net/def/rel/ogc/1.0/conformance’: it has neither, as with no link at all
           severity: 'error',
-          rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink],
+          rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink, FEATURES1.rootSuccessB],
         });
       }
     } else {
@@ -275,7 +282,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
 
       // EDR Recommendation 3: "cross-origin requests SHOULD be supported"; /req/core/conformance-success A: "A
       // successful execution of the operation SHALL be reported as a response with an HTTP status code 200."
-      const rule = errorType === 'cors' ? EDR.crossOrigin : errorTitle === 'Conformance Not Found' ? EDR.conformanceSuccessA : undefined;
+      const rule = errorType === 'cors' ? crossOrigin() : errorTitle === 'Conformance Not Found' ? [EDR.conformanceSuccessA, FEATURES1.conformanceSuccessA] : undefined;
       conformanceError = { title: errorTitle, message: errorMessage, type: errorType, section: 'conformance', ...unreachedSeverity(errorType, errorTitle, true), ...(rule ? { rule } : {}) };
       console.warn('Error fetching conformance, will use default schema:', errorMessage);
     }
@@ -286,7 +293,7 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
         message: 'Conformance link (rel="conformance") not found in landing page.',
         type: 'unknown',
         section: 'conformance',
-        rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink],
+        rule: [EDR.rootConformanceLink, COMMON1.rootConformanceLink, FEATURES1.rootSuccessB],
       };
     }
 
@@ -550,8 +557,9 @@ export async function getCollections(apiUrl: string, auth?: AuthCredentials, sig
 
     // Cross-origin requests "SHOULD be supported" (EDR Recommendation 3), and the landing page and the collections each
     // "SHALL be reported as a response with an HTTP status code 200" (root-success A, rc-md-success A)
-    const fatalRule = errorType === 'cors' ? EDR.crossOrigin
-      : errorTitle.endsWith('Not Found') ? (isCollections ? EDR.collectionsSuccessA : EDR.rootSuccessA)
+    // A collections list that failed has had the conformance fetched beside it, and so knows whether Maps' cors is declared
+    const fatalRule = errorType === 'cors' ? crossOrigin(conformsTo)
+      : errorTitle.endsWith('Not Found') ? (isCollections ? [EDR.collectionsSuccessA, FEATURES1.collectionsSuccessA] : [EDR.rootSuccessA, FEATURES1.rootSuccessA])
         : undefined;
 
     // If there's an error with the request, return empty collections and the error.

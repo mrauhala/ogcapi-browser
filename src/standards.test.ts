@@ -11,6 +11,9 @@ const ANCHORS: Record<string, string[]> = anchors;
 // What EDR's text says each cited statement is, by its link: the id of its requirement and the letter before it
 const STATEMENTS: Record<string, string> = statements;
 
+// The documents whose HTML has ids only on whole requirements, not on their statements: the Features parts
+const BY_REQUIREMENT = ['https://docs.ogc.org/is/17-069r4/17-069r4.html', 'https://docs.ogc.org/is/18-058r1/18-058r1.html', 'https://docs.ogc.org/is/19-079r2/19-079r2.html'];
+
 const isRule = (value: unknown): value is Rule => typeof value === 'object' && value !== null && 'url' in value && 'label' in value;
 
 // Every rule standards.ts exports, by where it is
@@ -41,22 +44,28 @@ describe('the rules cited', () => {
   });
 
   // Each rule is its own statement: two linking to one paragraph means one of them points at another rule's words. EDR's
-  // pairs reuse their versions' rules, which are the same objects
+  // pairs reuse their versions' rules, which are the same objects. The Features parts give ids only to whole
+  // requirements, so their statements share a link and are told apart by the letter in their labels
   it('each link to a statement of their own', () => {
     const byUrl = new Map<string, Set<string>>();
     const seen = new Set<Rule>();
     for (const [where, rule] of everyRule) {
       if (seen.has(rule)) continue;
       seen.add(rule);
-      byUrl.set(rule.url, (byUrl.get(rule.url) ?? new Set()).add(where));
+      const statement = BY_REQUIREMENT.some(document => rule.url.startsWith(`${document}#`)) ? `${rule.url} ${rule.label}` : rule.url;
+      byUrl.set(statement, (byUrl.get(statement) ?? new Set()).add(where));
     }
     expect([...byUrl].filter(([, wheres]) => wheres.size > 1).map(([url, wheres]) => `${url}: ${[...wheres].join(', ')}`)).toEqual([]);
   });
 
-  it('name the requirement and the statement EDR’s text has at their link', () => {
+  it('name the requirement and the statement the text has at their link', () => {
     const edr = everyRule.filter(([, rule]) => rule.requirement);
-    // Every EDR requirement cited, 1.1's and 1.2's, less the recommendation and the annex
+    // Every EDR requirement cited, 1.1's and 1.2's, less the recommendation and the annex, and Records', Maps' and
+    // Common Part 2's, whose statements have ids of their own too
     expect(edr.length).toBeGreaterThanOrEqual(100);
+    for (const document of ['https://docs.ogc.org/is/20-004r1/', 'https://docs.ogc.org/is/20-058/', 'https://docs.ogc.org/DRAFTS/20-024']) {
+      expect(edr.some(([, rule]) => rule.url.startsWith(document)), document).toBe(true);
+    }
     const wrong = edr.filter(([, rule]) => STATEMENTS[rule.url] !== `${rule.requirement}${rule.statement ? ` ${rule.statement}` : ''}`)
       .map(([where, rule]) => `${where}: ${rule.requirement} ${rule.statement} is ${STATEMENTS[rule.url]} in the text`);
     expect(wrong).toEqual([]);
@@ -68,6 +77,27 @@ describe('the rules cited', () => {
     for (const [where, rule] of everyRule) {
       if (rule.url.startsWith('https://docs.ogc.org/is/19-086r6/')) expect(rule.label.startsWith('EDR 1.1 '), where).toBe(true);
       if (rule.url.startsWith('https://docs.ogc.org/is/19-086r9/')) expect(rule.label.startsWith('EDR 1.2 '), where).toBe(true);
+    }
+  });
+
+  // Features, Records and Maps by their part, and a draft as one, as Checks shows each beside the finding
+  it('name the standard and part they link into, and a draft as a draft', () => {
+    const NAMES: [string, string][] = [
+      ['https://docs.ogc.org/is/17-069r4/', 'Features 1 '],
+      ['https://docs.ogc.org/is/18-058r1/', 'Features 2 '],
+      ['https://docs.ogc.org/is/19-079r2/', 'Features 3 '],
+      ['https://docs.ogc.org/is/20-004r1/', 'Records 1 '],
+      ['https://docs.ogc.org/is/20-058/', 'Maps 1 '],
+      ['https://docs.ogc.org/DRAFTS/20-024', 'Common 2 (draft) '],
+    ];
+    for (const [document, name] of NAMES) {
+      const rules = everyRule.filter(([, rule]) => rule.url.startsWith(document));
+      expect(rules.length, document).toBeGreaterThan(0);
+      for (const [where, rule] of rules) expect(rule.label.startsWith(name), where).toBe(true);
+    }
+    // A Features rule names its statement's letter where the requirement has more than one, as its link can't
+    for (const [where, rule] of everyRule.filter(([, each]) => each.url.startsWith('https://docs.ogc.org/is/17-069r4/'))) {
+      expect(rule.label, where).toMatch(/^Features 1 \/(req|rec)\/[\w/-]+(?: [A-Z]|, its notes)$/);
     }
   });
 

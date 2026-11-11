@@ -1,6 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { COMMON1, EDR11, EDR12, FEATURES1 } from './standards';
+import { COMMON1, EDR11, EDR12, FEATURES1, FEATURES2, MAPS1, RECORDS1 } from './standards';
 import type { ValidationError } from './types/api';
 import { publicUrl } from './utils/publicUrl';
 import { appFault, isProblem } from './validation/severity';
@@ -24,7 +24,12 @@ interface SchemaConfig {
     collections?: ValidationError['rule'];
     conformance?: ValidationError['rule'];
   };
+  // A rule for some of a collections schema's findings, by where they are, in place of the schema's own
+  pathRules?: { path: RegExp; rule: ValidationError['rule'] }[];
 }
+
+// Where in a collections list a dimension's extent is, other than space and time: /collections/0/extent/elevation/…
+const ADDITIONAL_DIMENSION = /^\/collections\/\d+\/extent\/(?!spatial(?:\/|$)|temporal(?:\/|$))[^/]+/;
 
 // Configuration for all supported schemas - using individual schema files
 const SCHEMA_CONFIGS: SchemaConfig[] = [
@@ -46,7 +51,9 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
     schemas: {
       // Features Part 2 only defines CRS extensions for collections, no landing page or conformance
       collections: '/schemas/individual/features-p2-v1.0/collections.json'
-    }
+    },
+    // The schema checks the crs list's entries are URIs
+    rules: { collections: FEATURES2.crsUri },
   },
   {
     type: 'edr-p1-v1.2',
@@ -111,7 +118,13 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/records-p1-v1.0/landingPage.json',
       collections: '/schemas/individual/records-p1-v1.0/catalogs.json'
       // Note: Records doesn't have a conformance schema
-    }
+    },
+    // The landing page is Features Part 1's, which the records-api class requires; each catalog has Table 11's
+    // properties, in the schema of /req/records-api/catalog-response
+    rules: {
+      landingPage: [RECORDS1.featuresApi, FEATURES1.rootSuccessB],
+      collections: [RECORDS1.catalogsResponseB, RECORDS1.catalogProperties],
+    },
   },
   {
     type: 'maps-p1-v1.0',
@@ -121,7 +134,12 @@ const SCHEMA_CONFIGS: SchemaConfig[] = [
       landingPage: '/schemas/individual/maps-p1-v1.0/landingPage.json',
       collections: '/schemas/individual/maps-p1-v1.0/collections.json',
       conformance: '/schemas/individual/maps-p1-v1.0/confClasses.json'
-    }
+    },
+    // Maps names no schema of its own for these: the landing page and conformance shapes are Common Part 1's. Its
+    // collections shape is Common Part 2's, a draft, uncited here, but for the extent of a dimension beyond space and
+    // time, which is Maps' own, extent-uad.yaml
+    rules: { landingPage: COMMON1.rootSuccessB, conformance: COMMON1.conformanceSuccessB },
+    pathRules: [{ path: ADDITIONAL_DIMENSION, rule: MAPS1.additionalDimensions }],
   }
 ];
 
@@ -394,17 +412,21 @@ export class SchemaValidator {
       try {
         const passed = validatorSet.collections(data);
         // As its standard's text rates each, and none an error where the API doesn't declare the schema
-        const errors = passed || !validatorSet.collections.errors ? [] : validatorSet.collections.errors.map((error: any) => this.rated(asTheTextSays({
-          schema: displayName,
-          schemaType: schemaType,
-          section: 'Collections',
-          path: error.instancePath || error.dataPath || 'root',
-          message: `${error.instancePath || error.dataPath || ''}: ${error.message}`,
-          keyword: error.keyword,
-          params: error.params,
-          data: error.data,
-          ...(config?.rules?.collections ? { rule: config.rules.collections } : {}),
-        }, schemaType)));
+        const errors = passed || !validatorSet.collections.errors ? [] : validatorSet.collections.errors.map((error: any) => {
+          const path = error.instancePath || error.dataPath || 'root';
+          const rule = config?.pathRules?.find(each => each.path.test(path))?.rule ?? config?.rules?.collections;
+          return this.rated(asTheTextSays({
+            schema: displayName,
+            schemaType: schemaType,
+            section: 'Collections',
+            path,
+            message: `${error.instancePath || error.dataPath || ''}: ${error.message}`,
+            keyword: error.keyword,
+            params: error.params,
+            data: error.data,
+            ...(rule ? { rule } : {}),
+          }, schemaType));
+        });
         // Valid where nothing found counts against the server: a MAY the schema requires doesn't
         const isValid = !errors.some(isProblem);
 
