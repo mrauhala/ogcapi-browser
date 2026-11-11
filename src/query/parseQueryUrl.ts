@@ -1,7 +1,7 @@
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
 import { DATA_PARAMS, TYPE_PARAMS } from './buildQueryUrl';
-import { withItemsQuery } from './itemsQuery';
+import { styleOfPath, withLinkQueries } from './mapQuery';
 import { geometryKindOf, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
 import type { BBox } from './types';
 
@@ -14,6 +14,7 @@ export interface QueryTarget {
   queryKey: string;
   locationId?: string; // a locations query for one location
   itemId?: string; // an items query for one item
+  styleId?: string; // a map query in a style
 }
 
 export interface QuerySelections {
@@ -69,6 +70,8 @@ export function matchDataQuery(url: string, collection: Collection): QueryTarget
     if (query.queryType === 'items' && below && !below.includes('/')) {
       return { queryKey: query.queryKey, itemId: below };
     }
+    const styleId = query.queryType === 'map' ? styleOfPath(path, query.path) : null;
+    if (styleId) return { queryKey: query.queryKey, styleId };
   }
   return null;
 }
@@ -87,9 +90,9 @@ export function matchInstance(url: string, collection: Collection): { queryKey: 
   return null;
 }
 
-// Whether the form can follow this URL at all: it's for the open collection, its items link among its queries
+// Whether the form can follow this URL at all: it's for the open collection, its items and map links among its queries
 export const isForCollection = (url: string, collection: Collection): boolean =>
-  !!matchDataQuery(url, withItemsQuery(collection)) || !!matchInstance(url, collection);
+  !!matchDataQuery(url, withLinkQueries(collection)) || !!matchInstance(url, collection);
 
 const NUMBER = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?';
 const PAIR = new RegExp(`^\\s*(${NUMBER})\\s+(${NUMBER})\\s*$`);
@@ -139,9 +142,17 @@ function boxOf(text: string | null): BBox | null {
 }
 
 // What a request URL says, in the form's terms
+// Nothing the form holds: what a map query's form has, besides its style in the path, and what a URL for it gives
+const NOTHING_HELD: QuerySelections = {
+  format: '', parameters: [], datetime: '', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
+  bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: {},
+};
+
 export function readQuerySelections(url: string, collection: Collection, queryKey: string): QuerySelections {
   const params = new URL(url).searchParams;
   const queryType = queryTypeOf(collection, queryKey);
+  // A map's parameters have no fields yet: they stay in the line as typed, and are sent
+  if (queryType === 'map') return { ...NOTHING_HELD, customDims: {}, points: [], polygons: [], queryParams: {} };
   const kind = geometryKindOf(queryType);
   const coords = params.get('coords') ?? '';
 

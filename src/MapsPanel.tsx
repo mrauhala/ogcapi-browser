@@ -10,12 +10,10 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
-import { transformExtent } from 'ol/proj';
 
 import type { Collection } from './DataRetrievalAPI';
 import { normalizeHref, expandTemporalValues } from './DataRetrievalAPI';
 import {
-  buildDynamicMapUrl,
   fetchStyles,
   getMapsLinks,
   getStyleLinks,
@@ -25,9 +23,6 @@ import {
 } from './api/maps';
 import { useMapsLayers, type MapsLayer } from './contexts/MapsLayerContext';
 import { useService } from './contexts/ServiceContext';
-import { useMapInteraction } from './contexts/MapInteractionContext';
-import { useCollection } from './contexts/CollectionContext';
-import { readableUrl } from './query/requestUrl';
 import { intervalEnds, wholeValue } from './query/dimensionText';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 
@@ -83,8 +78,6 @@ function currentDimensions(q: UseQueryUrlReturn): Record<string, string> | undef
 export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelProps) {
   const { setMapsLayers, setMapsBundles } = useMapsLayers();
   const { getAuthCredentials } = useService();
-  const { viewExtent, viewSize } = useMapInteraction();
-  const { setCollectionUrl } = useCollection();
   const [styles, setStyles] = useState<StyleEntry[] | null>(null);
   const [stylesError, setStylesError] = useState<string | null>(null);
   const [stylesLoading, setStylesLoading] = useState(false);
@@ -293,45 +286,11 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
     }
   };
 
-  // Serialized custom-dimension selection, so the preview effect re-runs when any dim changes
-  // (kept as one variable to avoid complex expressions in the dependency array).
-  const customDimSelectionKey = JSON.stringify(queryState.dimensions);
-
-  // Publish a copy-pasteable /map URL into the request URL reflecting style + datetime + current
-  // map view. Only runs when no EDR data_query is active (which would otherwise own the URL).
-  useEffect(() => {
-    if (queryState.selectedDataQuery) return;
-    const mapHref = normalizeHref(effectiveMapLink?.href);
-    if (!mapHref || !viewExtent || !viewSize) return;
-
-    const [lonMin, latMin, lonMax, latMax] = transformExtent(viewExtent, 'EPSG:3857', 'EPSG:4326');
-    const url = buildDynamicMapUrl(mapHref, {
-      bbox: [lonMin, latMin, lonMax, latMax],
-      crs: 'EPSG:3857',
-      width: viewSize[0],
-      height: viewSize[1],
-      format: selectedFormat,
-      datetime: currentDatetime(queryState),
-      elevation: currentElevation(queryState),
-      dimensions: currentDimensions(queryState),
-      styleId: (selectedStyle && !styleLinks.mapLink && !styleLinks.tilesetsLink) ? selectedStyle.id : undefined,
-      transparent: true,
-    });
-    setCollectionUrl(readableUrl(url));
-    // We intentionally exclude setCollectionUrl from deps (stable from context) — and the
-    // queryState reference is stable enough that watching its substructure here is overkill.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    effectiveMapLink?.href, selectedFormat, viewExtent, viewSize,
-    queryState.selectedDataQuery,
-    queryState.datetime, queryState.vertical,
-    customDimSelectionKey,
-  ]);
-
   if (!supported) return null;
 
   return (
-    <Box sx={{ mb: 2 }}>
+    // Apart from the form above it: these are layers on the map, not the request
+    <Box sx={{ mt: 2, mb: 2 }}>
       <Typography variant="subtitle2" sx={{ mb: 1 }}>Map layers</Typography>
 
       {/* In a narrow pane Add layer goes on a line of its own, leaving the choices wide enough to read */}

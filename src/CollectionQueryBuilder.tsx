@@ -32,6 +32,7 @@ import { useOpenDocs } from './queryForm/fieldFocus';
 import { BoxPickers } from './queryForm/ValueInputs';
 import ParamText from './queryForm/ParamText';
 import ItemText from './queryForm/ItemText';
+import StyleField from './queryForm/StyleField';
 import MoreParams from './queryForm/MoreParams';
 import { paramOf, paramsIn } from './query/requestUrl';
 import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
@@ -313,7 +314,7 @@ function ItemField({ itemType, itemId, setItemId }: { itemType?: string; itemId:
 }
 
 const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collection, queryState }) => {
-  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters, itemId, setItemId } = queryState;
+  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters, itemId, setItemId, styleId, styleByLink, selectStyle, mapStyles } = queryState;
   const { showMap, isMobile } = usePanes();
   const { leaveQuery } = useOpenCollection();
   const { apiOperation } = useQueryValidation();
@@ -329,7 +330,8 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
     : [];
   const forLocations = !!target && queryTypeOf(target.collection, target.queryKey) === 'locations';
   const forItems = !!target && queryTypeOf(target.collection, target.queryKey) === 'items';
-  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...(forItems ? ['item'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
+  const forMap = !!target && queryTypeOf(target.collection, target.queryKey) === 'map';
+  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...(forItems ? ['item'] : []), ...(forMap ? ['style'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
 
   // A query's next step, drawing its geometry, is on the map: beside the form on a desktop. On a phone the coords
   // field's Map button goes there, rather than the pick itself
@@ -352,6 +354,7 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
       {instanceMode && <InstancePicker queryState={queryState} />}
       {forLocations && <LocationField />}
       {forItems && <ItemField itemType={target.collection.itemType} itemId={itemId} setItemId={setItemId} />}
+      {forMap && <StyleField state={mapStyles} styleId={styleId} byLink={styleByLink} onChange={selectStyle} />}
       {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} specs={specs} />}
     </>
   );

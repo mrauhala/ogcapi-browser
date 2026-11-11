@@ -114,7 +114,7 @@ export function OpenCollectionProvider({ children }: { children: ReactNode }) {
   }, [setSelectedCollection, setSelectedFeature, setGeoJsonLayers, setCollectionUrl, resetQueryState, setClickedCoords, setDataQuery, setSelectedCollectionExtents, clearLocations]);
 
   // The form has no URL of its own without a query, so the collection's goes in, as on opening it. The form's
-  // values stay for the next query. A collection with a map then has the map panel's, as on opening it.
+  // values stay for the next query.
   const leaveQuery = useCallback(() => {
     if (!selectedCollection) return;
     selectDataQuery(selectedCollection, '');
