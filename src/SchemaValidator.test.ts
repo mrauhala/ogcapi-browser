@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import SchemaValidator from './SchemaValidator';
-import { EDR12 } from './standards';
+import { COMMON1, EDR12, FEATURES1, FEATURES2, MAPS1, RECORDS1 } from './standards';
 import { isProblem } from './validation/severity';
 import meteocore from './query/__fixtures__/meteocore-fmi-obs.json';
 
@@ -123,5 +123,54 @@ describe('SchemaValidator: a schema the API doesn’t declare', () => {
     const result = await validator.validateCollections({ links: [] });
     expect(result.errors!.length).toBeGreaterThan(0);
     expect(result.errors!.every((error: Json) => error.severity === undefined && error.schema === 'OGC API EDR Part 1 v1.1')).toBe(true);
+  });
+});
+
+describe('SchemaValidator: the rules Features Part 2’s, Records’ and Maps’ schemas rest on', () => {
+  const rulesOf = (result: { errors: Json[] | null }) => [...new Set((result.errors ?? []).map(error => JSON.stringify(error.rule ?? null)))];
+  const cited = (rule: unknown) => JSON.stringify(rule);
+
+  // Its one statement: "Each CRS supported by a server SHALL be referenceable by a uniform resource identifier"
+  it('cites Features Part 2’s crs-uri on its crs list', async () => {
+    await validator.loadSchemaBasedOnConformance(['http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs']);
+    const result = await validator.validateCollections({ links: [], collections: [], crs: ['not a uri'] });
+    expect(result.errors?.length).toBeGreaterThan(0);
+    expect(rulesOf(result)).toEqual([cited(FEATURES2.crsUri)]);
+  });
+
+  // The landing page is Features Part 1's, which records-api requires; a catalog has Table 11's properties, in the
+  // schema catalog-response defines
+  it('cites Records for its catalogs, and Features Part 1 through Records for its landing page', async () => {
+    await validator.loadSchemaBasedOnConformance(['http://www.opengis.net/spec/ogcapi-records-1/1.0/conf/core']);
+    const catalogs = await validator.validateCollections({ links: [], collections: [{ id: 'one', links: [] }] });
+    expect(catalogs.errors?.length).toBeGreaterThan(0);
+    expect(rulesOf(catalogs)).toEqual([cited([RECORDS1.catalogsResponseB, RECORDS1.catalogProperties])]);
+    const landing = await validator.validateLandingPage({});
+    expect(landing.errors?.length).toBeGreaterThan(0);
+    expect(rulesOf(landing)).toEqual([cited([RECORDS1.featuresApi, FEATURES1.rootSuccessB])]);
+  });
+
+  // Maps names no schema of its own but the extent's for a dimension beyond space and time: the landing page and
+  // conformance are Common Part 1's shapes, and the rest of the collections Common Part 2's, a draft, cited nowhere yet
+  it('cites Common Part 1 for Maps’ landing page and conformance, and Maps for a dimension’s extent only', async () => {
+    await validator.loadSchemaBasedOnConformance(['https://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core']);
+    expect(rulesOf(await validator.validateLandingPage({}))).toEqual([cited(COMMON1.rootSuccessB)]);
+    expect(rulesOf(await validator.validateConformance({}))).toEqual([cited(COMMON1.conformanceSuccessB)]);
+    // EDR's custom dimensions, an array, where Maps' extent has an object per dimension; a box that isn't one; no id.
+    // Then, in a second collection, a time that isn't one, and a dimension whose name only begins as time's does
+    const result = await validator.validateCollections({ links: [], collections: [
+      { links: [], extent: { custom: [], spatial: { bbox: 'nope' } } },
+      { id: 'two', links: [], extent: { temporal: { interval: 'nope' }, temporalResolution: [] } },
+    ] });
+    const byPath = (pattern: RegExp) => (result.errors ?? []).filter((error: Json) => pattern.test(error.path));
+    const citing = (pattern: RegExp, rule: unknown) => {
+      expect(byPath(pattern).length, String(pattern)).toBeGreaterThan(0);
+      expect(byPath(pattern).every((error: Json) => error.rule === rule), String(pattern)).toBe(true);
+    };
+    citing(/^\/collections\/0\/extent\/custom/, MAPS1.additionalDimensions);
+    citing(/^\/collections\/0\/extent\/spatial/, undefined);
+    expect(byPath(/^\/collections\/0$/).every((error: Json) => error.rule === undefined)).toBe(true);
+    citing(/^\/collections\/1\/extent\/temporal(?:\/|$)/, undefined);
+    citing(/^\/collections\/1\/extent\/temporalResolution/, MAPS1.additionalDimensions);
   });
 });

@@ -5,7 +5,7 @@ import { ajvErrorToValidationError, condenseAjvErrors } from '../ajvErrors';
 import { appFault } from '../severity';
 import { publicUrl } from '../../utils/publicUrl';
 import { resolvePointer, unescapePointerSegment } from './refs';
-import { COMMON1, EDR } from '../../standards';
+import { COMMON1, EDR, FEATURES1 } from '../../standards';
 
 export type OasVersion = '3.0' | '3.1';
 
@@ -47,7 +47,7 @@ export function oasVersionOf(doc: Record<string, unknown>): OasVersion | null {
 // to the OpenAPI Specification, version 3.0", and EDR 1.2's 3.1 class, "… SHALL conform to the OpenAPI Specification
 // 3.1." EDR 1.1 has no 3.1 class, so it cites none for 3.1
 const RULES: Record<OasVersion, ValidationError['rule']> = {
-  '3.0': [EDR.oas30Definition, COMMON1.oas30Definition],
+  '3.0': [EDR.oas30Definition, COMMON1.oas30Definition, FEATURES1.oas30Definition],
   '3.1': EDR.oas31Definition,
 };
 

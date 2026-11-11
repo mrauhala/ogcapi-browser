@@ -195,9 +195,12 @@ describe('CollectionChecks', () => {
       expect(html).not.toContain('MUST have');
     });
 
-    it('cites the schema for a flat bounding box', () => {
+    // EDR's collections.yaml and Features Part 1's alike have the box as an array of boxes
+    it('cites the schema for a flat bounding box, EDR’s and Features’', () => {
       const html = render({ ...full, extent: { spatial: { bbox: [20, 55, 30, 65], crs: 'CRS84' } } });
       expect(titled(html, 'Legacy bbox format')).toContain('>EDR 1.1 /req/collections/rc-md-success B, test B.10</a>');
+      expect(titled(html, 'Legacy bbox format')).toContain('href="https://docs.ogc.org/is/17-069r4/17-069r4.html#req_core_fc-md-success"');
+      expect(titled(html, 'Legacy bbox format')).toContain('>Features 1 /req/core/fc-md-success B</a>');
     });
 
     it('cites nothing for what Maps isn’t asked for', () => {

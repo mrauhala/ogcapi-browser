@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { capturedGet, type CapturedResponse } from '../../api/capture';
-import { EDR } from '../../standards';
+import { EDR, FEATURES1 } from '../../standards';
 import type { AuthCredentials, Link, ValidationError } from '../../types/api';
 
 // The server's API definition (service-desc), parsed
@@ -62,7 +62,7 @@ export function unavailable(error: unknown): ValidationError {
     keyword: 'unavailable',
     severity: status === 404 ? 'error' : notADocument ? 'warning' : 'info',
     type: status || notADocument ? 'unknown' : 'network',
-    ...(status === 404 ? { rule: EDR.apiDefinitionSuccessA } : notADocument ? { rule: EDR.apiDefinitionSuccessB } : {}),
+    ...(status === 404 ? { rule: [EDR.apiDefinitionSuccessA, FEATURES1.apiDefinitionOp] } : notADocument ? { rule: EDR.apiDefinitionSuccessB } : {}),
   };
 }
 

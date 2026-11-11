@@ -500,6 +500,8 @@ const features1 = (requirement: string, anchor: string): Rule => ({ label: `Feat
 export const FEATURES1 = {
   // A: "The server SHALL support the HTTP GET operation at the path /."
   rootOpA: features1('/req/core/root-op A', 'req_core_root-op'),
+  // A: "A successful execution of the operation SHALL be reported as a response with a HTTP status code 200."
+  rootSuccessA: features1('/req/core/root-success A', 'req_core_root-success'),
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema landingPage.yaml and include at least
   // links to the following resources: the API definition (relation type service-desc or service-doc) · /conformance
   // (relation type conformance) · /collections (relation type data)"
@@ -507,8 +509,19 @@ export const FEATURES1 = {
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema confClasses.yaml and list all OGC API
   // conformance classes that the server conforms to."
   conformanceSuccessB: features1('/req/core/conformance-success B', 'req_core_conformance-success'),
+  // A: "A successful execution of the operation SHALL be reported as a response with a HTTP status code 200."
+  conformanceSuccessA: features1('/req/core/conformance-success A', 'req_core_conformance-success'),
   // B: "The content of that response SHALL be based upon the OpenAPI 3.0 schema collections.yaml."
   collectionsSuccessB: features1('/req/core/fc-md-success B', 'req_core_fc-md-success'),
+  // A: "A successful execution of the operation SHALL be reported as a response with a HTTP status code 200."
+  collectionsSuccessA: features1('/req/core/fc-md-success A', 'req_core_fc-md-success'),
+  // A: "If the server is intended to be accessed from the browser, cross-origin requests SHOULD be supported. Note that
+  // support can also be added in a proxy layer on top of the server."
+  crossOrigin: features1('/rec/core/cross-origin A', 'rec_core_cross-origin'),
+  // A: "The URIs of all API definitions referenced from the landing page SHALL support the HTTP GET method."
+  apiDefinitionOp: features1('/req/core/api-definition-op A', 'req_core_api-definition-op'),
+  // A, in the OpenAPI 3.0 class: "The JSON representation SHALL conform to the OpenAPI Specification, version 3.0."
+  oas30Definition: features1('/req/oas30/oas-definition-2 A', 'req_oas30_oas-definition-2'),
   // The informative text after the requirement: "In case of a degenerated bounding box, the resulting geometry is used.
   // For example, if the lower left corner is the same as the upper right corner, all features match where the geometry
   // intersects with this point." and "in cases where the box spans the anti-meridian the first value (west-most box
@@ -520,16 +533,188 @@ export const FEATURES1 = {
   timeDefinition: features1('/req/core/fc-time-definition A', 'req_core_fc-time-definition'),
 };
 
+// ---- OGC API – Features Part 2: CRS by reference (OGC 18-058r1, the corrigendum), published ----
+// As Part 1's, its HTML has ids only on requirements
+const FEATURES_2 = 'https://docs.ogc.org/is/18-058r1/18-058r1.html';
+const features2 = (requirement: string, anchor: string): Rule => ({ label: `Features 2 ${requirement}`, url: `${FEATURES_2}#${anchor}` });
+
+export const FEATURES2 = {
+  // Its one statement, with no letter: "Each CRS supported by a server SHALL be referenceable by a uniform resource
+  // identifier (i.e. a URI)."
+  crsUri: features2('/req/crs/crs-uri', 'req_crs_crs-uri'),
+};
+
+// ---- OGC API – Features Part 3: Filtering (OGC 19-079r2), published ----
+// As Part 1's, its HTML has ids only on requirements. The queryables, which nothing checks yet
+const FEATURES_3 = 'https://docs.ogc.org/is/19-079r2/19-079r2.html';
+const features3 = (requirement: string, anchor: string): Rule => ({ label: `Features 3 ${requirement}`, url: `${FEATURES_3}#${anchor}` });
+
+export const FEATURES3 = {
+  // A: "The Queryables resource SHALL support the HTTP GET operation and the media type application/schema+json."
+  queryablesOp: features3('/req/queryables/get-queryables-op A', 'req_queryables_get-queryables-op'),
+  // A: "A successful execution of the operation SHALL be reported as a response with an HTTP status code of 200."
+  queryablesSuccess: features3('/req/queryables/get-queryables-response A', 'req_queryables_get-queryables-response'),
+};
+
 // ---- OGC API – Records Part 1 (OGC 20-004r1), published ----
-// A requirement's statements have ids of their own
+// A requirement's statements have ids of their own, each cited by its requirement and letter as EDR's are
 const RECORDS_1 = 'https://docs.ogc.org/is/20-004r1/20-004r1.html';
-const records1 = (requirement: string, anchor: string): Rule => ({ label: `Records 1 ${requirement}`, url: `${RECORDS_1}#${anchor}` });
+const records1 = (requirement: string, anchor: string): Rule => ({ label: `Records 1 ${requirement}`, url: `${RECORDS_1}#${anchor}`, ...statementOf(requirement) });
 
 export const RECORDS1 = {
+  // A: "Implementations of this requirements class SHALL implement the Core requirements class of OGC API — Features —
+  // Part 1: Core." In the records-api class, whose landing page is Features' then
+  featuresApi: records1('/req/records-api/features-api A', '_dddadcd4-b61a-caab-cd17-98de02ea8e03'),
+  // A: "A catalog SHALL include all the mandatory properties listed in Table 11.": id, type ("Fixed value of
+  // “Collection”") and links
+  catalogProperties: records1('/req/record-collection/mandatory-properties-collection A', '_533a148f-c263-499d-840a-1917d0bacbac'),
+  // B: "The schema of each catalog in the response SHALL be based upon the schema defined in the
+  // /req/records-api/catalog-response requirement."
+  catalogsResponseB: records1('/req/records-api/catalogs-response B', '_44df133b-a83d-5dff-4cff-97f094da86ad'),
   // A: "A searchable endpoint SHALL support a Temporal Searching (datetime) parameter as defined in the OGC API — Features
   // — Part 1: Core Standard." B: "All references to the term "features" in the OGC API — Features — Part 1: Core Standard
   // SHALL be replaced by the term "records" or "local resources" as the context may indicate."
   datetime: records1('/req/record-core-query-parameters/datetime A', '_6b8fcab1-1090-e860-2ade-4cd7856bcfd4'),
+};
+
+// ---- OGC API – Maps Part 1: Core (OGC 20-058), published ----
+// A requirement's statements have ids of their own, each cited by its requirement and letter
+const MAPS_1 = 'https://docs.ogc.org/is/20-058/20-058.html';
+const maps1 = (requirement: string, anchor: string): Rule => ({ label: `Maps 1 ${requirement}`, url: `${MAPS_1}#${anchor}`, ...statementOf(requirement) });
+
+export const MAPS1 = {
+  // ---- What a map response's checks rest on: its status, headers and body, and the size, box, time and CRS asked ----
+  // A: "A successful execution of a map operation SHALL be a response with an HTTP status code 200."
+  mapResponseA: maps1('/req/core/map-response A', '_8f6c32c0-7744-dbf3-06a9-7d7699eb5d74'),
+  // B: "The map response SHALL be in the storage CRS specified in the description of the geospatial resource (such as
+  // the associated collection or dataset), or https://www.opengis.net/def/crs/OGC/1.3/CRS84 if none is specified,
+  // unless overridden by a specific query parameter (see Requirements Class “Coordinate Reference System”)."
+  mapResponseB: maps1('/req/core/map-response B', '_d3716672-08ce-c67c-f7d7-4f70b7f892ac'),
+  // C: "The headers of the response SHALL include the Content-Crs: header with the URI or the safe CURIEs of the CRS
+  // used to render the map, except if the content is in the https://www.opengis.net/def/crs/OGC/1.3/CRS84 CRS."
+  mapResponseC: maps1('/req/core/map-response C', '_6eaa2a14-ce44-a25d-9b06-25352cf621f8'),
+  // D: "The headers of the response SHALL include a Content-Bbox: header with the actual geospatial boundary of the
+  // rendered map."
+  mapResponseD: maps1('/req/core/map-response D', '_83ecd147-d476-5e94-9959-fcb85742f869'),
+  // E: "The Content-Bbox: coordinates SHALL be in the response CRS (indicated in the Content-Crs: or
+  // https://www.opengis.net/def/crs/OGC/1.3/CRS84 if it is not present) and SHALL contain four comma-separated
+  // numbers representing the lower-left and upper-right corners of the response honoring the CRS coordinates order."
+  mapResponseE: maps1('/req/core/map-response E', '_46120281-2ce5-90d7-a620-b04712cca2df'),
+  // F: "If the geospatial resource has a temporal aspect (e.g., if a temporal extent is defined in the collection
+  // description or in the dataset landing page), the headers of the response SHALL include a Content-Datetime: header
+  // with the actual datetime instant or datetime interval of the rendered map."
+  mapResponseF: maps1('/req/core/map-response F', '_cecf8a6c-70da-76ba-dcc1-9be90f78bb59'),
+  // G: "In the Content-Datetime: response header, a datetime interval SHALL be expressed using the notation
+  // time-instant / time-instant."
+  mapResponseG: maps1('/req/core/map-response G', '_3741a1cd-d9f4-5b80-48cd-ea0846d8529f'),
+  // H: "In the Content-Datetime: response header, a time instant, whether a single value or the time-instant of an
+  // interval, SHALL be expressed as defined in RFC 3339, section 5.6, using either UTC time or local time offsets,
+  // with the additional options of: - only a year: yyyy - a year and a month: yyyy-mm - a year, a month and a day:
+  // yyyy-mm-dd - a year, a month, a day and an hour: yyyy-mm-ddThhZ (or e.g., yyyy-mm-ddThh-04:00) - a year, a month,
+  // a day, an hour and a minute: yyyy-mm-ddThh:mmZ (or e.g., yyyy-mm-ddThh-04:00)"
+  mapResponseH: maps1('/req/core/map-response H', '_e7950323-2ddd-799e-afe6-02f412e2cfb4'),
+  // I: "The body of a response of a successful operation SHALL contain a map encoded in the negotiated format."
+  mapResponseI: maps1('/req/core/map-response I', '_c504506e-53eb-c109-527d-a57be05be357'),
+  // A: "Even if the content is in the https://www.opengis.net/def/crs/OGC/1.3/CRS84 CRS the headers SHOULD still
+  // include a “Content-Crs” header to state the CRS."
+  contentCrs: maps1('/rec/core/content-crs A', '_5972794a-f020-79c3-f86d-e889a6d3e4c2'),
+  // B: "In absence of the scaling parameter, a reasonable width and height SHOULD be selected that preserves the
+  // aspect ratio."
+  mapOp: maps1('/rec/core/map-op B', '_150b09ae-e5a1-1f68-24bf-6a42b73bfb86'),
+  // B: "The width value SHALL be interpreted as the horizontal size (columns) of the viewport where the response will
+  // be presented in pixel units (number of pixels)."
+  widthDefinitionB: maps1('/req/scaling/width-definition B', '_9997acfa-497e-154c-bcde-66f186a6f5b3'),
+  // C: "An HTTP 4xx error SHALL be returned if the width number is not a positive integer number."
+  widthDefinitionC: maps1('/req/scaling/width-definition C', '_40e910e9-a84b-91fa-c7b1-9692ff235b12'),
+  // D: "An HTTP 4xx error SHALL be returned (preferably a 413) if the value of the width exceeds the maxWidth
+  // property specified in the x-OGC-limits.maps object included in the service metadata1."
+  widthDefinitionD: maps1('/req/scaling/width-definition D', '_787cf543-d0a7-de3f-44d2-0232ea5fe147'),
+  // E: "An HTTP 4xx error SHALL be returned (preferably a 413) if the value of the width (specified or calculated)
+  // times height (specified or calculated) exceeds a maxPixels property from an x-OGC-limits.maps object included in
+  // the service metadata1."
+  widthDefinitionE: maps1('/req/scaling/width-definition E', '_dabe363f-d0a0-5584-5ae7-160825fc4066'),
+  // F: "An HTTP 4xx error SHALL be returned if the width parameter is used together with the bbox (or subset for
+  // spatial dimensions) as well as the scale-denominator parameter."
+  widthDefinitionF: maps1('/req/scaling/width-definition F', '_c8b703c2-77d9-28dd-0eb9-fa24f89eda7e'),
+  // B: "The height value SHALL be interpreted as the vertical size (rows) of the viewport where the response will be
+  // presented in pixel units (number of pixels)."
+  heightDefinitionB: maps1('/req/scaling/height-definition B', '_5b4c5144-e0ba-fdb7-862b-9dc795d19cc0'),
+  // C: "An HTTP 4xx error SHALL be returned if the height value is not a positive integer number."
+  heightDefinitionC: maps1('/req/scaling/height-definition C', '_35ec26ab-2e34-4c64-dd64-5cc8a3b14995'),
+  // D: "An HTTP 4xx error SHALL be returned (preferably a 413) if the value of the height exceeds the maxHeight
+  // property specified in the x-OGC-limits.maps object included in the service metadata1."
+  heightDefinitionD: maps1('/req/scaling/height-definition D', '_7ed970c0-de9a-122c-e0ba-ddad42cc788e'),
+  // E: "An HTTP 4xx error SHALL be returned (preferably a 413) if the value of the width (specified or calculated)
+  // times height (specified or calculated) exceeds a maxPixels property from a x-OGC-limits.maps object included in
+  // the service metadata1."
+  heightDefinitionE: maps1('/req/scaling/height-definition E', '_568e079e-7ce1-30c9-60b4-4ec68333ccf3'),
+  // F: "An HTTP 4xx error SHALL be returned if the height parameter is used together with the bbox (or subset for
+  // spatial dimensions) as well as the scale-denominator parameter."
+  heightDefinitionF: maps1('/req/scaling/height-definition F', '_b3eb32ab-ecd7-72a8-1928-821f288545aa'),
+  // B: "If the bbox parameter is used together with the center and/or with a subset parameter including any of the
+  // dimensions corresponding to those of the map bounding box, the server SHALL return a 4xx client error."
+  bboxDefinition: maps1('/req/spatial-subsetting/bbox-definition B', '_d1afa42a-ef37-c60c-a5c9-788f5185ea3b'),
+  // D: "A 4xx error status code SHALL be returned if an axis name in the subset parameter value does not correspond
+  // to one of the axes of the subsetting CRS 2."
+  subsetDefinition: maps1('/req/spatial-subsetting/subset-definition D', '_b1081210-6da4-4bf7-52d5-7c3b46602866'),
+  // A: "The content of the response SHALL represent elements inside or intersecting with the spatial extent of the
+  // geographical area of the map identified with the subsetting coordinates."
+  spatialMapSuccess: maps1('/req/spatial-subsetting/map-success A', '_8bf75214-0d0c-e27e-0f3b-e9d4c47a047d'),
+  // C: "The implementation SHALL return a 4xx status code if the axis name is not time, is not a recommended alias
+  // for time (Time, t and T), and is not recognized in the context of another requirements class, such as spatial and
+  // general subsetting."
+  datetimeSubsetDefinition: maps1('/req/datetime/subset-definition C', '_5a37f7c9-1788-30f4-ba32-d23dd2f6cce1'),
+  // A: "If the datetime parameter is provided by the client and supported by the server, then only resources that
+  // have a temporal geometry that intersects the temporal information in the datetime parameter SHALL be part of the
+  // result set. If a resource has multiple temporal properties, it is the decision of the server whether only a
+  // single temporal property is used to determine the extent or all relevant temporal properties."
+  datetimeResponse: maps1('/req/datetime/datetime-response A', '_d1e9a88a-5a30-ae9e-31e8-57d8b7bc548c'),
+  // A: "The content of that response SHALL be consistent with the requested datetime."
+  datetimeMapSuccess: maps1('/req/datetime/map-success A', '_083a9e68-692f-5bda-aec6-5d609fd2f978'),
+  // A: "In case the requested map is not available in the exact requested datetime the closest or last previous time
+  // for which data is available MAY be returned by the server."
+  datetimeClosest: maps1('/per/datetime/closest A', '_07d62e65-5242-5c18-330c-4868db760188'),
+  // D: "CRS expressed as URIs or as safe CURIEs SHALL be supported."
+  crsDefinition: maps1('/req/crs/crs-definition D', '_549be2ff-66e4-fde3-fd9b-c5acd7451c75'),
+  // A: "For the crs parameter, unsafe CURIE without square brackets MAY be supported by the implementation."
+  crsCurie: maps1('/per/crs/crs-curie A', '_07f11e62-30f5-d20e-5b9e-e4950f827162'),
+  // A: "The content of the map response SHALL be consistent with the requested CRS."
+  crsMapSuccess: maps1('/req/crs/map-success A', '_2154f3b4-539b-e999-84c6-8ee7589e840a'),
+  // A: "Every 200-response of the server with the media type image/png SHALL be a PNG document representing only one
+  // map."
+  pngContent: maps1('/req/png/content A', '_db1cf4a2-99c7-fe69-8386-b84a636a5f7d'),
+  // A: "Every 200-response of the server with the media type image/jpeg SHALL be a JPEG document representing only
+  // one map."
+  jpegContent: maps1('/req/jpeg/content A', '_73821492-5c8e-c96a-6212-3f14df76b289'),
+  // A: "Every 200-response of the server with the media type image/jxl SHALL be a JPEG XL file representing only one
+  // map."
+  jpegxlContent: maps1('/req/jpegxl/content A', '_1bcee57a-1072-7bbb-7d00-0515b2aea951'),
+  // A: "Every 200-response of the server with the media type image/tiff SHALL be a TIFF document representing only
+  // one map."
+  tiffContent: maps1('/req/tiff/content A', '_e7b294ca-7533-fa03-7b61-935faba51964'),
+  // A: "Every 200-response of the server with the media type image/svg+xml SHALL be an SVG document representing only
+  // a map."
+  svgContent: maps1('/req/svg/content A', '_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a'),
+  // ---- The collection's description ----
+  // A, in the general-subsetting class: "Wherever applicable (e.g., the collection or dataset description), the extent
+  // of any additional dimension(s) beyond temporal and spatial SHALL be described in a way similar to the temporal
+  // dimension, using the name of the dimension as a key and an object as value, with that object containing an interval
+  // property, a URI for the semantic definition, a unit of measure if applicable, and a grid definition if applicable,
+  // as specified in extent-uad.yaml."
+  additionalDimensions: maps1('/req/general-subsetting/uniform-additional-dimensions A', '_96523345-0077-9c2e-e905-1b78aae58e4d'),
+  // ---- Any request a browser makes ----
+  // A, in the cors class: "The implementation SHALL support CORS as defined by W3C
+  // (https://www.w3.org/TR/2020/SPSD-cors-20200602/)."
+  cors: maps1('/req/cors/cors A', '_91402b86-f309-ced6-6c70-119bcb71060b'),
+};
+
+// ---- OGC API – Common Part 2: Geospatial Data (OGC 20-024), a draft: cited only in notes ----
+const COMMON_2_DRAFT = 'https://docs.ogc.org/DRAFTS/20-024.html';
+const common2Draft = (requirement: string, anchor: string): Rule => ({ label: `Common 2 (draft) ${requirement}`, url: `${COMMON_2_DRAFT}#${anchor}`, ...statementOf(requirement) });
+
+export const COMMON2_DRAFT = {
+  // B: "The content of the response SHALL validate against the JSON schema collections.yaml."
+  collectionsListSuccessB: common2Draft('/req/collections/collections-list-success B', '_3572a54e-a65e-18bf-1aa0-63ce7c1b70f9'),
 };
 
 // ---- OpenAPI 3.0.3 and BCP 47 ----
