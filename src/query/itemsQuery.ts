@@ -4,11 +4,15 @@ import type { Collection } from '../types/api';
 import { normalizeHref, pathSegment } from '../utils/href';
 
 const views = new WeakMap<Collection, Collection>();
-// The views made, to tell a Features or Records collection's items from EDR's own items query
-const made = new WeakSet<Collection>();
+// The queries made, to tell a Features or Records collection's items from EDR's own items query. The query rather than
+// the view, so that it's still told when another view, as the map's, is made of this one
+const made = new WeakSet<object>();
 
 // Whether a collection's items query is the one made from its items link, rather than one EDR's data_queries name
-export const fromItemsLink = (collection: Collection): boolean => made.has(collection);
+export const fromItemsLink = (collection: Collection): boolean => {
+  const query = collection.data_queries?.items;
+  return !!query && made.has(query);
+};
 
 const withoutQuery = (href: string) => {
   const url = new URL(href);
@@ -52,7 +56,7 @@ export function withItemsQuery<C extends Collection | null>(collection: C): C {
     },
   } as Collection;
   views.set(collection, view);
-  made.add(view);
+  made.add(view.data_queries.items);
   return view as C;
 }
 

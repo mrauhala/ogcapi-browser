@@ -24,7 +24,7 @@ import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryBuilder } from './contexts/QueryBuilderContext';
 import { useValidation } from './contexts/ValidationContext';
-import { withItemsQuery } from './query/itemsQuery';
+import { withLinkQueries } from './query/mapQuery';
 
 function StepButton({ label, keyName, hint, Icon, target }: {
   label: string;
@@ -138,8 +138,8 @@ function OpenCollection({ collection }: { collection: Collection }) {
   const about = aboutCollection(collection, license);
   const summary = aboutSummary(about);
   const issues = validationResult.collectionErrors?.[collection.id];
-  // A Features or Records collection's items link is its items query
-  const queried = withItemsQuery(collection);
+  // A Features or Records collection's items link is its items query, and a Maps collection's map link its map query
+  const queried = withLinkQueries(collection);
 
   return (
     // Its own stacking context, so that nothing in it, like the time slider's label, can draw over the row pinned above
@@ -182,12 +182,12 @@ function OpenCollection({ collection }: { collection: Collection }) {
         )}
 
         <Box sx={{ mt: 2 }}>
-          {/* A collection served some other way, with neither EDR's queries nor items, has no queries to choose from */}
+          {/* A collection served some other way, with neither EDR's queries, items nor a map, has no queries to choose from */}
           {Object.keys(queried.data_queries ?? {}).length > 0 && (
             <CollectionQueryBuilder collection={queried} queryState={queryState} />
           )}
 
-          {/* Mounted whether or not it's showing, since it writes the request line */}
+          {/* Layers on the map, not a request: the map query is the request */}
           {hasMapsSupport(collection) && (
             <MapsPanel collection={collection} apiUrl={apiUrl} queryState={queryState} />
           )}

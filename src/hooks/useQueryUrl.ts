@@ -17,7 +17,9 @@ import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl
 import { useInstances, type InstancesState } from './useInstances';
 import { instanceStep, type Instance } from '../query/instances';
 import { normalizeHref } from '../utils/href';
-import { withItemsQuery } from '../query/itemsQuery';
+import { withLinkQueries } from '../query/mapQuery';
+import { getMapsLinks } from '../api/maps';
+import { useMapStyles, type MapStylesState } from './useMapStyles';
 import type { QueryIssue } from '../query/types';
 
 // A time range's end as the time control has it: '' where it's open or still to pick
@@ -68,6 +70,12 @@ export interface UseQueryUrlReturn {
   // One item of an items query, a part of its path: '' for the list
   itemId: string;
   setItemId: (item: string) => void;
+  // A map query's style, a part of its path ('' for the collection's own map), and the styles to pick from, loaded
+  // when the map query is picked
+  styleId: string;
+  styleByLink: boolean; // asked for by its own map link, as when picked, rather than by the path a typed URL gave
+  selectStyle: (styleId: string) => void;
+  mapStyles: MapStylesState;
   selectInstanceQuery: (queryKey: string) => void;
   // What is queried: the collection and its query, or the picked instance and the query on it. Null until both are
   queryTarget: { collection: Collection; queryKey: string } | null;
@@ -83,8 +91,9 @@ export interface UseQueryUrlReturn {
 export function useQueryUrl(): UseQueryUrlReturn {
   const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery } = useMapInteraction();
   const { selectedCollection: openCollection, selectedFeature, setSelectedFeature, locationFeatures, setCollectionUrl } = useCollection();
-  // The open collection as the form sees it: a Features or Records collection's items link as an items query
-  const selectedCollection = withItemsQuery(openCollection);
+  // The open collection as the form sees it: a Features or Records collection's items link as an items query, and a
+  // Maps collection's map link as a map query
+  const selectedCollection = withLinkQueries(openCollection);
   const { editUrl } = useRequestUrl();
   const { setQueryValidation } = useQueryValidationContext();
   const { index: apiIndex } = useOpenApi();
@@ -102,6 +111,8 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
   const [itemId, setItemId] = useState('');
+  // The style picked, and its own map link: '' to go by the path Maps gives a style, as for one from a typed URL
+  const [style, setStyle] = useState<{ id: string; href: string }>({ id: '', href: '' });
   const setQueryParam = useCallback((name: string, value: string) => setQueryParams(params => ({ ...params, [name]: value })), []);
 
   // A mode switched keeps the text, as far as the other control can hold it
@@ -134,6 +145,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setSelectedInstanceId('');
     setInstanceQueryKey('');
     setItemId('');
+    setStyle({ id: '', href: '' });
   }, []);
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
@@ -155,6 +167,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const selectDataQuery = useCallback((collection: Collection, queryKey: string) => {
     setSelectedDataQuery(queryKey);
     setItemId('');
+    setStyle({ id: '', href: '' });
     setSelectedInstanceId('');
     setInstanceQueryKey('');
     applyQueryDefaults(collection, queryKey);
@@ -166,6 +179,16 @@ export function useQueryUrl(): UseQueryUrlReturn {
     : null;
   const instances = useInstances(instancesHref);
   const selectedInstance = instances.instances.find(instance => String(instance.id) === selectedInstanceId) ?? null;
+
+  // A map query loads the collection's styles, to pick one for the path
+  const forMap = !!selectedCollection && !!selectedDataQuery && queryTypeOf(selectedCollection, selectedDataQuery) === 'map';
+  const stylesHref = selectedCollection ? normalizeHref(getMapsLinks(selectedCollection).stylesLink?.href) : null;
+  const mapStyles = useMapStyles(stylesHref, (openCollection as { styles?: unknown } | null)?.styles, forMap);
+  // A style picked is asked for by its own map link, as the server gives it: MeteoCore's carries the parameter the style
+  // is for. Without one, by the path Maps gives a style
+  const selectStyle = useCallback((styleId: string) => {
+    setStyle({ id: styleId, href: mapStyles.styles.find(each => each.id === styleId)?.href ?? '' });
+  }, [mapStyles.styles]);
 
   // Pick an instance, keeping the query if it has one too. A time from another run may lie outside
   // this one, so it goes.
@@ -280,6 +303,8 @@ export function useQueryUrl(): UseQueryUrlReturn {
     if (target.queryKey !== selectedDataQuery || selectedInstanceId) selectDataQuery(selectedCollection, target.queryKey);
     if (feature !== selectedFeature) setSelectedFeature(feature);
     setItemId(target.itemId ?? '');
+    // By its path: what a typed URL asks for besides is in the line already
+    setStyle({ id: target.styleId ?? '', href: '' });
     applySelections(readQuerySelections(url, selectedCollection, target.queryKey), queryTypeOf(selectedCollection, target.queryKey), !!feature);
     setApplied({ onResult, followed: true });
   }, [selectedCollection, selectedDataQuery, selectedInstanceId, selectedFeature, instances.status, featureFor, selectDataQuery, setSelectedFeature, applyInstanceUrl, applySelections]);
@@ -334,11 +359,13 @@ export function useQueryUrl(): UseQueryUrlReturn {
       queryParams,
       locationFeature,
       itemId,
+      styleId: style.id,
+      styleHref: style.href,
     });
   }, [
     target, instancesHref, selectedFormat, selectedParameters,
     datetime, filterByTime, vertical,
-    dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature, itemId,
+    dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature, itemId, style,
   ]);
 
   // Publish the request URL and what the query is still missing, adding the API docs' view once
@@ -395,6 +422,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     instances, selectedInstance, selectInstance,
     instanceQueryKey, selectInstanceQuery,
     itemId, setItemId,
+    styleId: style.id, styleByLink: !!style.href, selectStyle, mapStyles,
     queryTarget: target,
     resetQueryState,
     getEffectiveOutputFormats,

@@ -2,10 +2,13 @@ import type { CapturedLoad } from '../api/capture';
 
 // OGC API link relation values. A server can use the full URI, the CURIE form, or — in practice
 // for OGC API Maps/Tiles/Styles servers like pygeoapi and MeteoCore — the unqualified short name.
+// Each as OGC-NA names it (http), as Maps 1.0 writes it (https), and as a safe CURIE: "rel=https://www.opengis.net/def/
+// rel/ogc/1.0/map (or [ogc-rel:map])". And the bare name some servers use
+const ogcRel = (name: string) => [`http://www.opengis.net/def/rel/ogc/1.0/${name}`, `https://www.opengis.net/def/rel/ogc/1.0/${name}`, `[ogc-rel:${name}]`, name];
 export const OGC_REL = {
-    map: ['http://www.opengis.net/def/rel/ogc/1.0/map', '[ogc-rel:map]', 'map'],
-    tilesetsMap: ['http://www.opengis.net/def/rel/ogc/1.0/tilesets-map', '[ogc-rel:tilesets-map]', 'tilesets-map'],
-    styles: ['http://www.opengis.net/def/rel/ogc/1.0/styles', '[ogc-rel:styles]', 'styles'],
+    map: ogcRel('map'),
+    tilesetsMap: ogcRel('tilesets-map'),
+    styles: ogcRel('styles'),
 } as const;
 
 export interface AuthCredentials {

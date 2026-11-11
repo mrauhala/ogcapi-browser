@@ -3,6 +3,7 @@ import { normalizeHref } from '../utils/href';
 import { TYPE_PARAMS } from './buildQueryUrl';
 import { EDR_QUERY_RULES, type EdrQueryRule } from './edrRules';
 import { itemHref } from './itemsQuery';
+import { styleMapHref } from './mapQuery';
 import { queryTypeOf } from './queryTypes';
 import type { BBox } from './types';
 
@@ -31,6 +32,8 @@ export interface QueryModelInput {
   queryParams: Record<string, string>; // parameters of the query type, e.g. corridor-width; empty ones aren't sent
   locationFeature: LocationFeature | null; // selected location feature, for locations queries
   itemId?: string; // one item of an items query, a part of its path: '' or left out for the list
+  styleId?: string; // a map query's style, a part of its path: '' or left out for the collection's own map
+  styleHref?: string; // the style's own map link, as the server gives it: '' to go by the path Maps gives a style
 }
 
 export interface QueryModel extends QueryModelInput {
@@ -52,6 +55,8 @@ export function buildQueryModel(input: QueryModelInput): QueryModel | null {
     variables: query.link?.variables,
     baseHref,
   };
+  // A styled map: the style's own link, or Maps' path for one
+  if (queryType === 'map' && input.styleId && baseHref) return { ...model, baseHref: input.styleHref || styleMapHref(baseHref, input.styleId) };
   if (queryType !== 'items' || !input.itemId || !baseHref) return model;
   // One item: its path, and of the list's choices only f. The form keeps the rest for going back to the list
   const listOnly = new Set(TYPE_PARAMS.items);

@@ -28,6 +28,9 @@ export function buildQueryUrl(model: QueryModel): string | null {
   try {
     let url = new URL(model.baseHref);
     const { queryType } = model;
+    // A map is its link, styled or not, with what that link asks for. Maps requires nothing more, and the form has no
+    // field for any other parameter yet: those typed in the line stay there, and are sent
+    if (queryType === 'map') return url.toString();
 
     if (queryType === 'locations' && model.locationFeature) {
       if (model.locationFeature.properties?.href) {

@@ -353,6 +353,8 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   const add: Add = (severity, source, field, key, message, input, rule) =>
     issues.push({ id: `${source}:${field}:${key}`, severity, source, field, message, input, ...(rule ? { rule } : {}) });
 
+  // Maps requires no parameter, and the form doesn't hold a map's yet: a bare map is complete
+  if (model.queryType === 'map') return issues;
   checkGeometry(model, add);
   checkFormat(model, add);
   if (model.rule?.featureList) {

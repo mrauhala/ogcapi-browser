@@ -152,6 +152,8 @@ function itemsTime(collection: Collection): Hint {
 // custom dimensions and f
 export function fieldSpecs(collection: Collection, queryKey: string, chosen: { parameters: number }, context: FieldContext = {}): FieldSpec[] {
   const queryType = queryTypeOf(collection, queryKey);
+  // A map's parameters have no fields of their own yet: its style is a part of the path, and the rest is under More
+  if (queryType === 'map') return [];
   const rule = EDR_QUERY_RULES[queryType];
   const variables = queryVariables(collection, queryKey);
   const apiRequired = context.apiRequired ?? [];

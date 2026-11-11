@@ -252,11 +252,22 @@ describe('CollectionPane', () => {
     expect(render(nowhere)).not.toContain('the query builder');
   });
 
-  it('keeps the maps panel mounted for a Maps collection, which writes the request line', () => {
+  it('makes a Maps collection\'s map link its map query, and keeps the maps panel for its layers', () => {
     const maps = { ...edr, data_queries: undefined, links: [{ href: 'https://a.example/collections/one/map', rel: 'http://www.opengis.net/def/rel/ogc/1.0/map', type: 'image/png' }] };
     const html = render(maps);
+    expect(html).toContain('the query builder (map)');
     expect(html).toContain('the maps panel');
-    expect(html).not.toContain('the query builder');
+  });
+
+  it('gives a collection with items and a map both queries, beside any EDR names', () => {
+    const both = {
+      ...edr,
+      links: [
+        { href: 'https://a.example/collections/one/items', rel: 'items', type: 'application/geo+json' },
+        { href: 'https://a.example/collections/one/map', rel: '[ogc-rel:map]', type: 'image/png' },
+      ],
+    };
+    expect(render(both)).toContain('the query builder (position items map)');
   });
 
   it('lists the locations once they are in', () => {
