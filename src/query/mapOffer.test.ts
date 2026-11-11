@@ -35,6 +35,17 @@ describe('the Maps classes', () => {
     const CLASSES = ['background', 'collections-selection', 'scaling', 'display-resolution', 'spatial-subsetting', 'datetime', 'general-subsetting', 'crs', 'orientation', 'projection'];
     expect(Object.keys(MAPS_PARAMETER_CLASSES)).toHaveLength(22);
     expect(new Set(Object.values(MAPS_PARAMETER_CLASSES).flat())).toEqual(new Set(CLASSES));
+    // Each as the requirement defining it is in its class (Requirements 6 to 42 of OGC 20-058)
+    expect(MAPS_PARAMETER_CLASSES).toEqual({
+      bgcolor: ['background'], transparent: ['background'], 'void-color': ['background'], 'void-transparent': ['background'],
+      collections: ['collections-selection'],
+      width: ['scaling', 'spatial-subsetting'], height: ['scaling', 'spatial-subsetting'], 'scale-denominator': ['scaling'],
+      'mm-per-pixel': ['display-resolution'],
+      bbox: ['spatial-subsetting'], 'bbox-crs': ['spatial-subsetting'], 'subset-crs': ['spatial-subsetting'], center: ['spatial-subsetting'], 'center-crs': ['spatial-subsetting'],
+      subset: ['spatial-subsetting', 'datetime', 'general-subsetting'],
+      datetime: ['datetime'], crs: ['crs'], orientation: ['orientation'],
+      'crs-proj-method': ['projection'], 'crs-proj-params': ['projection'], 'crs-proj-center': ['projection'], 'crs-datum': ['projection'],
+    });
     // Nothing of MeteoCore's own, and no style: that's in the path
     for (const name of ['f', 'parameter-name', 'elevation', 'quality', 'style', 'styles']) expect(MAPS_PARAMETER_CLASSES[name]).toBeUndefined();
   });
@@ -67,6 +78,11 @@ describe('a map’s fields', () => {
       "From the API docs' `enum`, the default marked",
     ]);
     expect(format.leftOut).toBe("by `Accept`, which the app sends as `*/*`: the server's default, `image/png` by the API docs");
+    // A default the values don't have is said, not marked
+    const odd = one(specs(aifs(), AIFS_DOCS.map(param => (param.name === 'f' ? { ...param, defaultValue: 'image/gif' } : param))), 'f');
+    expect(odd.marked).toBeUndefined();
+    expect(odd.hints[1]).toBe("From the API docs' `enum`");
+    expect(odd.leftOut).toBe("by `Accept`, which the app sends as `*/*`: the server's default, `image/gif` by the API docs");
   });
 
   it('take several parameters where the API docs’ schema is an array', () => {

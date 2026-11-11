@@ -104,6 +104,8 @@ describe('StyleField, for the parameters chosen', () => {
     expect(cssBefore(html, 'value="default"')).not.toContain(WARNING);
     // A possible one isn't
     expect(cssBefore(renderFor(AIFS, aifsStyles, ['2t'], { styleId: 'fmi-hires' }), 'value="fmi-hires"')).not.toContain(WARNING);
+    // In its place, not after those possible: default, first, isn't for msl in the draft's metocean:styles
+    expect(toggles(renderFor(DRAFT, draftStyles, ['msl'], { styleId: 'default' }))).toEqual(['default', 'contours', 'isobars']);
   });
 
   it('says so where none is possible', () => {
