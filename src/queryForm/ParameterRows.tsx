@@ -14,13 +14,30 @@ import { nextChosen } from './rowChoice';
 export const FILTER_FROM = 12;
 
 const MONO = { fontFamily: 'monospace', fontSize: 13, lineHeight: '18px' };
+// The rows share one grid, so that its columns line up: the mark, the id as wide as the longest one up to 40% of the
+// row, so that the label keeps room on a phone, the label with the rest, and the unit. Each row spans it as a subgrid
+const ROWS_SX = { display: 'grid', gridTemplateColumns: 'auto fit-content(40%) minmax(0, 1fr) auto', columnGap: 1, mx: -0.5 } as const;
 const ROW_SX = {
-  display: 'grid', columnGap: 1, alignItems: 'start', width: '100%', textAlign: 'left',
+  gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', textAlign: 'left',
   // Taller where fingers tap them
   px: 0.5, py: { xs: 0.875, sm: 0.375 }, borderRadius: 1, fontSize: 13, lineHeight: '18px',
   '&:hover': { bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.05) },
   '&.Mui-focusVisible': { outline: 2, outlineColor: 'primary.main', outlineStyle: 'solid' },
 } as const;
+
+// An id with a chance to wrap after each _ - . or /, before it wraps anywhere: pressure_reduced_to_mean_sea_level
+function breakable(id: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let text = '';
+  id.split(/([_./-])/).forEach((part, index) => {
+    text += part;
+    if (index % 2 === 1) {
+      parts.push(text, <wbr key={index} />);
+      text = '';
+    }
+  });
+  return text ? [...parts, text] : parts;
+}
 
 // parameter-name as rows of the collection's parameter_names: the id as sent, its label, the styles for it and its unit.
 // One at a time, as radios, or several, as checkboxes; a pick taken back by tapping it again, since none is a request
@@ -38,16 +55,15 @@ const ParameterRows: React.FC<{
   const shown = typed
     ? rows.filter(row => chosen.includes(row.id) || row.id.toLowerCase().includes(typed) || !!row.label?.toLowerCase().includes(typed))
     : rows;
-  const idWidth = `${Math.min(12, Math.max(2, ...rows.map(row => row.id.length), ...unlisted.map(id => id.length))) + 1}ch`;
 
   const row = (id: string, body: React.ReactNode, unit: string, warning = false) => {
     const on = chosen.includes(id);
     const Icon = several ? (on ? CheckBox : CheckBoxOutlineBlank) : (on ? RadioButtonChecked : RadioButtonUnchecked);
     return (
       <ButtonBase key={id} role={several ? 'checkbox' : 'radio'} aria-checked={on} onClick={() => onChange(nextChosen(rows, chosen, id, several))}
-        sx={{ ...ROW_SX, gridTemplateColumns: `18px ${idWidth} minmax(0, 1fr) auto`, color: warning ? 'warning.main' : 'text.primary' }}>
+        sx={{ ...ROW_SX, color: warning ? 'warning.main' : 'text.primary' }}>
         <Icon sx={{ fontSize: 18, color: on ? (warning ? 'warning.main' : 'primary.main') : 'text.secondary' }} />
-        <Box component="span" sx={{ ...MONO, overflowWrap: 'anywhere' }}>{id}</Box>
+        <Box component="span" sx={{ ...MONO, overflowWrap: 'anywhere' }}>{breakable(id)}</Box>
         <Box component="span" sx={{ minWidth: 0 }}>{body}</Box>
         <Box component="span" sx={{ ...MONO, fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{unit}</Box>
       </ButtonBase>
@@ -61,7 +77,7 @@ const ParameterRows: React.FC<{
           placeholder={`Filter the ${rows.length} by id or label`} sx={{ mb: 0.5 }}
           slotProps={{ htmlInput: { 'aria-label': 'Filter the parameters', spellCheck: false, autoComplete: 'off' } }} />
       )}
-      <Box role={several ? 'group' : 'radiogroup'} aria-label="parameter-name" sx={{ mx: -0.5 }}>
+      <Box role={several ? 'group' : 'radiogroup'} aria-label="parameter-name" sx={ROWS_SX}>
         {unlisted.map(id => row(id, <Box component="span" sx={{ fontSize: 12 }}>Not among <code>parameter_names</code></Box>, '', true))}
         {shown.map(each => row(each.id, (
           <>
@@ -74,7 +90,7 @@ const ParameterRows: React.FC<{
           </>
         ), each.unit))}
         {typed && shown.length === 0 && (
-          <Box sx={{ px: 0.5, py: 0.5, fontSize: 12, color: 'text.secondary' }}>No parameter has that in its id or label</Box>
+          <Box sx={{ gridColumn: '1 / -1', px: 0.5, py: 0.5, fontSize: 12, color: 'text.secondary' }}>No parameter has that in its id or label</Box>
         )}
       </Box>
     </>

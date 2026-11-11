@@ -5,7 +5,7 @@ import { fieldSpecs, type FieldSpec } from './fieldSpecs';
 import { mapStylesOf, withLinkQueries } from './mapQuery';
 import {
   MAPS_PARAMETER_CLASSES, METOCEAN_MAPS_DRAFT, mapApiDocsIssues, mapOffer, mapQueryIssues, pairSays, parameterRows, parameterStyles,
-  styleDeclarers, styleMarks,
+  possibleStyles, styleDeclarers, stylePossible,
 } from './mapOffer';
 import { buildOperationIndex, matchOperation } from '../validation/openapi/operationIndex';
 import { MAPS1 } from '../standards';
@@ -153,11 +153,31 @@ describe('styles for a parameter, read both ways', () => {
     expect(pairSays(DRAFT, draftStyles, 'msl', 'isobars')).toEqual({ yes: ['parameter'], no: [] });
   });
 
-  it('mark the styles for the parameters chosen, first, the default one as such, the rest after in their order', () => {
-    expect(styleMarks(aifs(), aifsStyles, [])).toEqual({ order: ['default', 'contours', 'fmi-hires'], tags: {} });
-    expect(styleMarks(aifs(), aifsStyles, ['2d'])).toEqual({ order: ['contours', 'fmi-hires', 'default'], tags: { contours: 'for 2d', 'fmi-hires': 'for 2d' } });
-    expect(styleMarks(aifs(), aifsStyles, ['msl', 'tp']).tags).toEqual({ contours: 'for msl' });
-    expect(styleMarks(DRAFT, draftStyles, ['msl'])).toEqual({ order: ['contours', 'isobars', 'default', 'fmi-hires'], tags: { contours: 'for msl', isobars: 'default for msl' } });
+  it('take a style as possible for a parameter where a side says so, or neither says anything, and a yes over a no', () => {
+    expect(stylePossible(aifs(), aifsStyles, '2t', 'fmi-hires')).toBe(true);
+    expect(stylePossible(aifs(), aifsStyles, 'tp', 'fmi-hires')).toBe(false);
+    // default lists no parameters: it draws them all
+    expect(stylePossible(aifs(), aifsStyles, 'tp', 'default')).toBe(true);
+    expect(stylePossible(DRAFT, draftStyles, '2d', 'contours')).toBe(true);
+    expect(stylePossible(DRAFT, draftStyles, 'tp', 'contours')).toBe(false);
+    expect(stylePossible(DRAFT, draftStyles, '2t', 'isobars')).toBe(false);
+    expect(stylePossible(DRAFT, draftStyles, 'msl', 'isobars')).toBe(true);
+  });
+
+  it('offer the styles possible for each parameter chosen, in the order listed, and all with none chosen', () => {
+    expect(possibleStyles(aifs(), aifsStyles, [])).toBeNull();
+    expect(possibleStyles(aifs(), aifsStyles, ['2t'])).toEqual({ styles: ['default', 'contours', 'fmi-hires'], parameters: ['2t'] });
+    expect(possibleStyles(aifs(), aifsStyles, ['tp'])).toEqual({ styles: ['default'], parameters: ['tp'] });
+    expect(possibleStyles(aifs(), aifsStyles, ['msl', '2t'])).toEqual({ styles: ['default', 'contours'], parameters: ['msl', '2t'] });
+    // A parameter parameter_names doesn't list isn't asked about
+    expect(possibleStyles(aifs(), aifsStyles, ['nope'])).toBeNull();
+    expect(possibleStyles(aifs(), aifsStyles, ['nope', 'tp'])).toEqual({ styles: ['default'], parameters: ['tp'] });
+    // msl's metocean:styles name contours and isobars, so not default, which lists no parameters
+    expect(possibleStyles(DRAFT, draftStyles, ['msl'])).toEqual({ styles: ['contours', 'isobars'], parameters: ['msl'] });
+    expect(possibleStyles(DRAFT, draftStyles, ['tp'])).toEqual({ styles: ['default'], parameters: ['tp'] });
+    // Where nothing says which styles fit which parameters, every one
+    const plain = mapStylesOf(meteocore.styles['ecmwf-aifs-single'].styles.map(({ parameters: _gone, ...style }) => style));
+    expect(possibleStyles(aifs(), plain, ['tp'])!.styles).toEqual(['default', 'contours', 'fmi-hires']);
   });
 });
 

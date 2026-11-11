@@ -124,17 +124,23 @@ export function pairSays(collection: Collection, styles: readonly MapStyle[], pa
   return says;
 }
 
-// The styles marked for the parameters chosen, first, then the rest, each in the order listed; and each marked one's tag
-export function styleMarks(collection: Collection, styles: readonly MapStyle[], chosen: readonly string[]): { order: string[]; tags: Record<string, string> } {
-  const tags: Record<string, string> = {};
-  for (const style of styles) {
-    const defaultFor = chosen.filter(parameter => parameterStyles(collection, parameter).defaultStyle === style.id);
-    const listedFor = chosen.filter(parameter => pairSays(collection, styles, parameter, style.id).yes.length > 0);
-    if (defaultFor.length) tags[style.id] = `default for ${defaultFor.join(', ')}`;
-    else if (listedFor.length) tags[style.id] = `for ${listedFor.join(', ')}`;
-  }
-  const ids = styles.map(style => style.id);
-  return { order: [...ids.filter(id => tags[id]), ...ids.filter(id => !tags[id])], tags };
+// Whether a style can draw a parameter: a side says it can, or neither says anything of the pair. A yes from either side
+// outweighs a no from the other
+export function stylePossible(collection: Collection, styles: readonly MapStyle[], parameter: string, styleId: string): boolean {
+  const says = pairSays(collection, styles, parameter, styleId);
+  return says.yes.length > 0 || says.no.length === 0;
+}
+
+// The styles possible for each parameter chosen that parameter_names lists, in the order the styles are listed, and those
+// parameters. Null with none chosen: then every style is offered
+export function possibleStyles(collection: Collection, styles: readonly MapStyle[], chosen: readonly string[]): { styles: string[]; parameters: string[] } | null {
+  const ids = parameterIdsOf(collection);
+  const parameters = chosen.filter(parameter => ids.includes(parameter));
+  if (!parameters.length) return null;
+  return {
+    styles: styles.filter(style => parameters.every(parameter => stylePossible(collection, styles, parameter, style.id))).map(style => style.id),
+    parameters,
+  };
 }
 
 // ---- The parameter-name field ----
@@ -246,8 +252,8 @@ export function mapQueryIssues(collection: Collection, parameters: readonly stri
   }
   if (styleId) {
     for (const parameter of parameters.filter(each => ids.includes(each))) {
-      const says = pairSays(collection, styles, parameter, styleId);
-      if (says.no.length && !says.yes.length) {
+      if (!stylePossible(collection, styles, parameter, styleId)) {
+        const says = pairSays(collection, styles, parameter, styleId);
         issues.push({
           id: `metadata:style:unlisted-${parameter}`, severity: 'warning', source: 'metadata', field: 'style', input: 'form',
           message: `${styleId} isn't listed for ${parameter} (${says.no.map(side => sideSays(collection, styles, side, parameter, styleId)).join('; ')}): expect a 4xx`,

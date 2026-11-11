@@ -429,7 +429,8 @@ describe('a map’s form', () => {
     expect(count(parameter, 'aria-checked="true"')).toBe(1);
     expect(shown(parameter)).toContain('Parameter parameter-name 1 of 18 · optional');
     expect(shown(parameter)).not.toContain('Left out');
-    expect(shown(field(html, 'style'))).toContain('contours for 2t fmi-hires for 2t default');
+    // Every style is for 2t: all offered, in the order listed
+    expect(shown(field(html, 'style'))).toContain('Style style (path) 3 listed · optional styled-map default contours fmi-hires');
     const format = field(html, 'f');
     expect(shown(format)).toContain('image/png default image/jpeg image/webp');
     expect(shown(format)).toContain("Left out: by Accept , which the app sends as */* : the server's default, image/png by the API docs");

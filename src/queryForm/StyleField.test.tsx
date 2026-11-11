@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createTheme } from '@mui/material/styles';
 import StyleField from './StyleField';
 import { words } from '../coverage/cellsTestData';
 import { mapStylesOf } from '../query/mapQuery';
@@ -62,6 +63,13 @@ describe('StyleField', () => {
 const AIFS = params.collections.find(each => each.id === 'ecmwf-aifs-single') as unknown as Collection;
 const aifsStyles = mapStylesOf(params.styles['ecmwf-aifs-single'].styles);
 const DRAFT = draft.collection as unknown as Collection;
+const WARNING = createTheme().palette.warning.main;
+// The CSS written for the element a text is in: the last style block before it
+const cssBefore = (html: string, text: string) => {
+  const at = html.indexOf(text);
+  const from = html.lastIndexOf('<style', at);
+  return html.slice(from, html.indexOf('</style>', from));
+};
 const draftStyles = mapStylesOf(draft.styles);
 // The toggles' text, in order: each value, and its tag after it
 const toggles = (html: string) => html.split('<button').slice(1).map(button => words(`<button${button.slice(0, button.indexOf('</button>'))}`));
@@ -70,18 +78,46 @@ const renderFor = (collection: Collection, styles: typeof aifsStyles, chosen: st
 );
 
 describe('StyleField, for the parameters chosen', () => {
-  it('puts the styles for them first, marked, and says on whose word', () => {
-    expect(toggles(renderFor(AIFS, aifsStyles, []))).toEqual(['default', 'contours', 'fmi-hires']);
-    const html = renderFor(AIFS, aifsStyles, ['2t']);
-    expect(toggles(html)).toEqual(['contours for 2t', 'fmi-hires for 2t', 'default']);
-    expect(words(html)).toContain("Marked first: the styles for 2t , as the styles' parameters say. The others can be sent too");
-    expect(words(renderFor(AIFS, aifsStyles, ['tp']))).not.toContain('Marked');
+  it('offers only the styles possible for them, in the order listed, and says how many of how many', () => {
+    const all = renderFor(AIFS, aifsStyles, []);
+    expect(toggles(all)).toEqual(['default', 'contours', 'fmi-hires']);
+    expect(words(all)).toContain('Style style (path) 3 listed · optional');
+    // Every one is for 2t: nothing left out, nothing said
+    const twoT = renderFor(AIFS, aifsStyles, ['2t']);
+    expect(toggles(twoT)).toEqual(['default', 'contours', 'fmi-hires']);
+    expect(words(twoT)).toContain('Style style (path) 3 listed · optional');
+    expect(words(twoT)).not.toContain('Only those');
+    const msl = renderFor(AIFS, aifsStyles, ['msl']);
+    expect(toggles(msl)).toEqual(['default', 'contours']);
+    expect(words(msl)).toContain('Style style (path) 2 for msl · 3 listed · optional');
+    expect(words(msl)).toContain("Only those for msl , as the styles' parameters say");
+    expect(toggles(renderFor(AIFS, aifsStyles, ['msl', 'tp']))).toEqual(['default']);
+    expect(words(renderFor(AIFS, aifsStyles, ['msl', 'tp']))).toContain('1 for msl, tp · 3 listed');
   });
 
-  it('marks the one a parameter’s metocean:defaultStyle names, and names it as what’s drawn without a style', () => {
+  it('keeps the style the request has though it isn’t possible, in its place, in orange', () => {
+    const html = renderFor(AIFS, aifsStyles, ['tp'], { styleId: 'fmi-hires' });
+    expect(toggles(html)).toEqual(['default', 'fmi-hires']);
+    expect(html).toContain('value="fmi-hires" aria-pressed="true"');
+    // The orange is in the CSS written for it, before it
+    expect(cssBefore(html, 'value="fmi-hires"')).toContain(WARNING);
+    expect(cssBefore(html, 'value="default"')).not.toContain(WARNING);
+    // A possible one isn't
+    expect(cssBefore(renderFor(AIFS, aifsStyles, ['2t'], { styleId: 'fmi-hires' }), 'value="fmi-hires"')).not.toContain(WARNING);
+  });
+
+  it('says so where none is possible', () => {
+    const none = mapStylesOf(params.styles['ecmwf-aifs-single'].styles.filter(style => style.id !== 'default'));
+    const html = renderFor(AIFS, none, ['tp']);
+    expect(toggles(html)).toEqual([]);
+    expect(words(html)).toContain("None of the 2 styles is for tp , as the styles' parameters say");
+    expect(words(html)).toContain('0 for tp · 2 listed');
+  });
+
+  it('reads the draft’s metocean:styles too, and names its metocean:defaultStyle as what’s drawn without a style', () => {
     const html = renderFor(DRAFT, draftStyles, ['msl']);
-    expect(toggles(html)).toEqual(['contours for msl', 'isobars default for msl', 'default', 'fmi-hires']);
-    expect(words(html)).toContain("Marked first: the styles for msl , as its metocean:styles and the styles' parameters say");
+    expect(toggles(html)).toEqual(['contours', 'isobars']);
+    expect(words(html)).toContain("Only those for msl , as its metocean:styles and the styles' parameters say");
     expect(words(html)).toContain("Left out: the collection's own …/map , in the style its parameters' metocean:defaultStyle names: isobars for msl");
     expect(words(renderFor(DRAFT, draftStyles, ['tp']))).toContain("Left out: the collection's own …/map , in the server's default style");
   });
@@ -90,7 +126,7 @@ describe('StyleField, for the parameters chosen', () => {
     const issues: QueryIssue[] = [{ id: 'metadata:style:unlisted-tp', severity: 'warning', source: 'metadata', field: 'style', message: "fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx" }];
     const html = renderFor(AIFS, aifsStyles, ['tp'], { issues, declaredBy: [{ kind: 'class', name: 'styled-map', uri: 'http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map' }] });
     expect(words(html)).toContain("fmi-hires isn't listed for tp (its parameters: 2t, 2d): expect a 4xx");
-    expect(words(html)).toContain('Style style (path) 3 listed · optional styled-map');
+    expect(words(html)).toContain('Style style (path) 1 for tp · 3 listed · optional styled-map');
   });
 
   it('says when the request has another value than the style’s link adds', () => {

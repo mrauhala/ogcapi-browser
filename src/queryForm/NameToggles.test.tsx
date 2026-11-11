@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createTheme } from '@mui/material/styles';
 import NameToggles from './NameToggles';
 import { words } from '../coverage/cellsTestData';
 
@@ -40,9 +41,14 @@ describe('NameToggles', () => {
     expect(render('')).not.toContain('height:40px');
   });
 
-  it('tags an option with what the metadata says of it, after its name', () => {
-    const html = renderToStaticMarkup(<NameToggles label="style" options={['contours', 'default']} value="" onChange={() => {}} tags={{ contours: 'for 2t' }} />);
-    expect(words(html)).toBe('contours for 2t default');
-    expect(pressed(html)).toEqual([false, false]);
+  it('shows in orange an option the request has though the metadata doesn’t back it, pressed as chosen', () => {
+    const html = renderToStaticMarkup(<NameToggles label="style" options={['default', 'fmi-hires']} value="fmi-hires" onChange={() => {}} warned="fmi-hires" />);
+    expect(words(html)).toBe('default fmi-hires');
+    expect(pressed(html)).toEqual([false, true]);
+    const plain = renderToStaticMarkup(<NameToggles label="style" options={['default', 'fmi-hires']} value="fmi-hires" onChange={() => {}} />);
+    // The orange of a value not listed, in the CSS written for the warned one
+    const orange = createTheme().palette.warning.main;
+    expect(count(html, orange)).toBeGreaterThan(0);
+    expect(count(plain, orange)).toBe(0);
   });
 });

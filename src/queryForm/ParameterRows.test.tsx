@@ -62,6 +62,26 @@ describe('ParameterRows', () => {
     expect(states(html)).toHaveLength(18);
   });
 
+  it('share one grid, the id column as wide as the longest id up to 40%, each row a subgrid of it', () => {
+    const html = render(IFS);
+    expect(html).toContain('grid-template-columns:auto fit-content(40%) minmax(0, 1fr) auto');
+    expect(count(html, 'grid-template-columns:subgrid')).toBeGreaterThan(0);
+  });
+
+  it('let a long id wrap after each _ - . or / before anywhere else, and leave a plain one whole', () => {
+    const html = render([
+      { id: 'pressure_reduced_to_mean_sea_level', label: 'Pressure reduced to MSL', unit: 'hPa', styles: [] },
+      { id: 'a-b.c/d', label: null, unit: '', styles: [] },
+      { id: 'Precipitation Intensity mm/h', label: null, unit: '', styles: [] },
+      { id: '2t', label: null, unit: '', styles: [] },
+    ]);
+    expect(html).toContain('>pressure_<wbr/>reduced_<wbr/>to_<wbr/>mean_<wbr/>sea_<wbr/>level</span>');
+    expect(html).toContain('>a-<wbr/>b.<wbr/>c/<wbr/>d</span>');
+    expect(html).toContain('>Precipitation Intensity mm/<wbr/>h</span>');
+    expect(html).toContain('>2t</span>');
+    expect(count(html, '<wbr/>')).toBe(9);
+  });
+
   it('show no label that only repeats the id, and no unit where there’s none', () => {
     expect(words(render([{ id: 'x', label: null, unit: '', styles: [] }]))).toBe('x');
   });
