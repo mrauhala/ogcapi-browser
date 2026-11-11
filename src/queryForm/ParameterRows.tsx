@@ -8,19 +8,20 @@ import CheckBox from '@mui/icons-material/CheckBox';
 import CheckBoxOutlineBlank from '@mui/icons-material/CheckBoxOutlineBlank';
 import { alpha, type Theme } from '@mui/material/styles';
 import type { ParameterRow } from '../query/mapOffer';
-import { nextChosen } from './rowChoice';
+import { nextChosen, rowColumns } from './rowChoice';
 
 // Past this many, a filter by id or label
 export const FILTER_FROM = 12;
 
-const MONO = { fontFamily: 'monospace', fontSize: 13, lineHeight: '18px' };
-// The rows share one grid, so that its columns line up: the mark, the id as wide as the longest one up to 40% of the
-// row, so that the label keeps room on a phone, the label with the rest, and the unit. Each row spans it as a subgrid
-const ROWS_SX = { display: 'grid', gridTemplateColumns: 'auto fit-content(40%) minmax(0, 1fr) auto', columnGap: 1, mx: -0.5 } as const;
+// Each row a grid of its own, with the same columns written out, so that every row lays out alike from the first paint
+// whatever the engine: the mark, the id as wide as the longest one up to 40% of the row, so that the label keeps room on
+// a phone, the label with the rest, and the unit as wide as the longest. The row is in mono, so that a ch is an id's
+// character; the label is in the UI's font
 const ROW_SX = {
-  gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: 'subgrid', alignItems: 'start', textAlign: 'left',
+  display: 'grid', columnGap: 1, alignItems: 'start', width: '100%', textAlign: 'left',
+  fontFamily: 'monospace', fontSize: 13, lineHeight: '18px',
   // Taller where fingers tap them
-  px: 0.5, py: { xs: 0.875, sm: 0.375 }, borderRadius: 1, fontSize: 13, lineHeight: '18px',
+  px: 0.5, py: { xs: 0.875, sm: 0.375 }, borderRadius: 1,
   '&:hover': { bgcolor: (theme: Theme) => alpha(theme.palette.text.primary, 0.05) },
   '&.Mui-focusVisible': { outline: 2, outlineColor: 'primary.main', outlineStyle: 'solid' },
 } as const;
@@ -56,16 +57,18 @@ const ParameterRows: React.FC<{
     ? rows.filter(row => chosen.includes(row.id) || row.id.toLowerCase().includes(typed) || !!row.label?.toLowerCase().includes(typed))
     : rows;
 
+  const columns = rowColumns([...unlisted, ...rows.map(row => row.id)], rows.map(row => row.unit));
+
   const row = (id: string, body: React.ReactNode, unit: string, warning = false) => {
     const on = chosen.includes(id);
     const Icon = several ? (on ? CheckBox : CheckBoxOutlineBlank) : (on ? RadioButtonChecked : RadioButtonUnchecked);
     return (
       <ButtonBase key={id} role={several ? 'checkbox' : 'radio'} aria-checked={on} onClick={() => onChange(nextChosen(rows, chosen, id, several))}
-        sx={{ ...ROW_SX, color: warning ? 'warning.main' : 'text.primary' }}>
+        sx={{ ...ROW_SX, gridTemplateColumns: columns, color: warning ? 'warning.main' : 'text.primary' }}>
         <Icon sx={{ fontSize: 18, color: on ? (warning ? 'warning.main' : 'primary.main') : 'text.secondary' }} />
-        <Box component="span" sx={{ ...MONO, overflowWrap: 'anywhere' }}>{breakable(id)}</Box>
-        <Box component="span" sx={{ minWidth: 0 }}>{body}</Box>
-        <Box component="span" sx={{ ...MONO, fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{unit}</Box>
+        <Box component="span" sx={{ overflowWrap: 'anywhere' }}>{breakable(id)}</Box>
+        <Box component="span" sx={{ minWidth: 0, fontFamily: (theme: Theme) => theme.typography.fontFamily }}>{body}</Box>
+        <Box component="span" sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>{unit}</Box>
       </ButtonBase>
     );
   };
@@ -77,7 +80,7 @@ const ParameterRows: React.FC<{
           placeholder={`Filter the ${rows.length} by id or label`} sx={{ mb: 0.5 }}
           slotProps={{ htmlInput: { 'aria-label': 'Filter the parameters', spellCheck: false, autoComplete: 'off' } }} />
       )}
-      <Box role={several ? 'group' : 'radiogroup'} aria-label="parameter-name" sx={ROWS_SX}>
+      <Box role={several ? 'group' : 'radiogroup'} aria-label="parameter-name" sx={{ mx: -0.5 }}>
         {unlisted.map(id => row(id, <Box component="span" sx={{ fontSize: 12 }}>Not among <code>parameter_names</code></Box>, '', true))}
         {shown.map(each => row(each.id, (
           <>
@@ -90,7 +93,7 @@ const ParameterRows: React.FC<{
           </>
         ), each.unit))}
         {typed && shown.length === 0 && (
-          <Box sx={{ gridColumn: '1 / -1', px: 0.5, py: 0.5, fontSize: 12, color: 'text.secondary' }}>No parameter has that in its id or label</Box>
+          <Box sx={{ px: 0.5, py: 0.5, fontSize: 12, color: 'text.secondary' }}>No parameter has that in its id or label</Box>
         )}
       </Box>
     </>

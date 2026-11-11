@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createTheme } from '@mui/material/styles';
 import ParameterRows, { FILTER_FROM } from './ParameterRows';
-import { nextChosen } from './rowChoice';
+import { nextChosen, rowColumns } from './rowChoice';
 import { words } from '../coverage/cellsTestData';
 import { mapStylesOf, withLinkQueries } from '../query/mapQuery';
 import { parameterRows, type ParameterRow } from '../query/mapOffer';
@@ -62,11 +63,19 @@ describe('ParameterRows', () => {
     expect(states(html)).toHaveLength(18);
   });
 
-  it('share one grid, the id column as wide as the longest id up to 40%, each row a subgrid of it', () => {
-    const html = render(IFS);
-    expect(html).toContain('grid-template-columns:auto fit-content(40%) minmax(0, 1fr) auto');
-    expect(count(html, 'grid-template-columns:subgrid')).toBeGreaterThan(0);
+  it('give every row the same columns, written out: the id as wide as the longest up to 40%, and the unit as the longest', () => {
+    const html = render(IFS, ['nope']);
+    // dpt, and nope from a link, are the longest ids; kg/kg and m²/s² the longest units
+    const columns = 'grid-template-columns:18px min(calc(4ch + 1px), 40%) minmax(0, 1fr) calc(5ch + 1px)';
+    expect(count(html, columns)).toBeGreaterThan(0);
+    expect(html).not.toContain('subgrid');
+    expect(html).not.toContain('fit-content');
+    // In mono, so that a ch is an id's character; the label in the UI's font
+    expect(html).toContain('font-family:monospace');
+    // As Emotion writes it, without the spaces
+    expect(html).toContain(`min-width:0;font-family:${createTheme().typography.fontFamily!.replace(/, /g, ',')}`);
   });
+
 
   it('let a long id wrap after each _ - . or / before anywhere else, and leave a plain one whole', () => {
     const html = render([
@@ -101,5 +110,12 @@ describe('nextChosen', () => {
     expect(nextChosen(IFS, ['gh', 't'], 'gh', true)).toEqual(['t']);
     expect(nextChosen(IFS, ['t', 'nope'], 'd', true)).toEqual(['nope', 'd', 't']);
     expect(nextChosen(IFS, ['t', 'nope'], 'nope', true)).toEqual(['t']);
+  });
+});
+
+describe('rowColumns', () => {
+  it('are the mark, the longest id in characters up to 40%, the label, and the longest unit, each with a pixel for rounding', () => {
+    expect(rowColumns(['pressure_reduced_to_mean_sea_level', '2t'], ['hPa', '°C', ''])).toBe('18px min(calc(34ch + 1px), 40%) minmax(0, 1fr) calc(3ch + 1px)');
+    expect(rowColumns(['a'], [])).toBe('18px min(calc(1ch + 1px), 40%) minmax(0, 1fr) calc(0ch + 1px)');
   });
 });
