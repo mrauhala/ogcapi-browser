@@ -20,6 +20,7 @@ import type { EndpointUrls, RawResponses } from './contexts/ValidationContext';
 import type { ValidationError } from './DataRetrievalAPI';
 import { isAppFault, isProblem, problemCount } from './validation/severity';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
+import PointerText from './validation/PointerText';
 
 // Rendering tens of thousands of errors froze the popover (a 10 MB locations response)
 const MAX_ITEMS_PER_GROUP = 100;
@@ -282,7 +283,7 @@ const ValidationPopover: React.FC = () => {
                     const shared = group.items.every(item => item.rule === group.items[0].rule) ? group.items[0].rule : undefined;
                     return (
                     <Box key={group.key}>
-                      <Typography variant="caption" sx={{ display: 'block', px: 1.5, pt: 0.75, pb: 0.25, fontWeight: 600, color: 'info.main' }}>
+                      <Typography variant="caption" sx={{ display: 'block', px: 1.5, pt: 0.75, pb: 0.25, fontWeight: 600, color: 'info.main', overflowWrap: 'anywhere' }}>
                         {group.label}
                         <RuleLinks rule={shared} />
                       </Typography>
@@ -310,16 +311,16 @@ const ValidationPopover: React.FC = () => {
                             }}
                           >
                             {error.path && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Typography
-                                  variant="caption"
-                                  sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.7rem' }}>
-                                  {error.path}
-                                </Typography>
-                                {hasUrl && <OpenInNewIcon sx={{ fontSize: 10, color: 'text.disabled' }} />}
-                              </Box>
+                              <Typography
+                                variant="caption"
+                                component="div"
+                                sx={{ color: 'text.secondary', fontFamily: 'monospace', fontSize: '0.7rem', overflowWrap: 'anywhere' }}>
+                                <PointerText path={error.path}
+                                  after={hasUrl ? <OpenInNewIcon sx={{ fontSize: 10, color: 'text.disabled', ml: 0.5, verticalAlign: 'middle' }} /> : undefined} />
+                              </Typography>
                             )}
-                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, flexWrap: 'wrap' }}>
+                            {/* Each part wraps inside the popover's width, a long token too */}
+                            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, flexWrap: 'wrap', '& > *': { minWidth: 0, overflowWrap: 'anywhere' } }}>
                               <FindingChip error={error} />
                               {error.keyword && (
                                 <Chip label={error.keyword} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 16 }} />

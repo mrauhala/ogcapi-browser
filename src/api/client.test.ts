@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import axios from 'axios';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getCollections, landingUrlOf } from './client';
-import { COMMON1, EDR, EDR11, EDR12, FEATURES1 } from '../standards';
+import { COMMON1, EDR, EDR11, EDR12, FEATURES1, MAPS1 } from '../standards';
 import meteogate from './__fixtures__/meteogate-climate.json';
 
 const MG = 'https://api.meteogate.eu/eu-eumetnet-climate-observations/v1';
@@ -51,7 +51,7 @@ describe('getCollections', () => {
   it('cites the rule a finding rests on: Meteogate’s conformance linked as data', async () => {
     serve(meteogate as Responses);
     const { validation } = await getCollections(MG);
-    expect(validation.errors?.find(error => error.title === 'Conformance Linked as Data')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink]);
+    expect(validation.errors?.find(error => error.title === 'Conformance Linked as Data')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink, FEATURES1.rootSuccessB]);
   });
 
   it('cites a schema’s findings by the requirement its schema is, in the version declared', async () => {
@@ -94,7 +94,7 @@ describe('getCollections', () => {
       .toBe(`${MG}/other answered without a "collections" array, so no collections can be listed.`);
     expect(result.validation.errors?.find(error => error.title === 'No Collections List')?.rule).toEqual([EDR.collectionsSuccessB, FEATURES1.collectionsSuccessB]);
     // No conformance link either: EDR's root-success B and Common's name it
-    expect(result.validation.errors?.find(error => error.title === 'Conformance Link Missing')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink]);
+    expect(result.validation.errors?.find(error => error.title === 'Conformance Link Missing')?.rule).toEqual([EDR.rootConformanceLink, COMMON1.rootConformanceLink, FEATURES1.rootSuccessB]);
   });
 
   it('cites the landing page’s /collections link where it has none', async () => {
@@ -110,7 +110,7 @@ describe('getCollections', () => {
     const landing = { links: [{ rel: 'data', href: `${MG}/collections` }, { rel: 'conformance', href: `${MG}/conformance` }] };
     serve({ [`${MG}?f=json`]: landing, [`${MG}/collections?f=json`]: meteogate[`${MG}/collections?f=json`] });
     const result = await getCollections(MG);
-    expect(result.validation.errors?.find(error => error.title === 'Conformance Not Found')?.rule).toBe(EDR.conformanceSuccessA);
+    expect(result.validation.errors?.find(error => error.title === 'Conformance Not Found')?.rule).toEqual([EDR.conformanceSuccessA, FEATURES1.conformanceSuccessA]);
   });
 
   it("asks for the landing page at {root}/, as OGC API Common has it, and from there on as before", async () => {
@@ -157,7 +157,7 @@ describe('getCollections', () => {
     expect(titles((await getCollections(MG)).validation.errors)).toEqual(['info: Connection Failed']);
     vi.restoreAllMocks();
     vi.spyOn(axios, 'get').mockRejectedValue(Object.assign(new Error('CORS: no Access-Control-Allow-Origin'), { config: { url: `${MG}/?f=json` } }));
-    expect((await getCollections(MG)).validation.errors?.[0]).toMatchObject({ title: 'CORS Error', severity: 'warning', rule: EDR.crossOrigin });
+    expect((await getCollections(MG)).validation.errors?.[0]).toMatchObject({ title: 'CORS Error', severity: 'warning', rule: [EDR.crossOrigin, FEATURES1.crossOrigin] });
   });
 
   it('asks once for a root that ends in a slash', async () => {
@@ -209,18 +209,45 @@ describe('getCollections when a request fails', () => {
     expect(await fatal()).toMatchObject({ title, type, message });
   });
 
-  // CORS is EDR's Recommendation 3, a SHOULD; a 404 breaks the 200 the landing page and the collections SHALL answer
-  // with; nothing is cited for a request that got no answer, or for authentication
+  // CORS is EDR's Recommendation 3 and Features Part 1's /rec/core/cross-origin A, SHOULDs; a 404 breaks the 200 the
+  // landing page and the collections SHALL answer with, in EDR and Features alike; nothing is cited for a request that
+  // got no answer, or for authentication
   it.each([
-    [COLLECTIONS, new Error('Blocked by CORS policy'), EDR.crossOrigin],
-    [COLLECTIONS, new Error('Request failed with status code 404'), EDR.collectionsSuccessA],
-    [LANDING, new Error('Request failed with status code 404'), EDR.rootSuccessA],
+    [COLLECTIONS, new Error('Blocked by CORS policy'), [EDR.crossOrigin, FEATURES1.crossOrigin]],
+    [COLLECTIONS, new Error('Request failed with status code 404'), [EDR.collectionsSuccessA, FEATURES1.collectionsSuccessA]],
+    [LANDING, new Error('Request failed with status code 404'), [EDR.rootSuccessA, FEATURES1.rootSuccessA]],
     [LANDING, new Error('Network Error'), undefined],
     [LANDING, new Error('Request failed with status code 401'), undefined],
   ])('%s: %s cites its rule', async (url, error, rule) => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     failAt(url, error);
-    expect((await fatal())?.rule).toBe(rule);
+    expect((await fatal())?.rule).toEqual(rule);
+  });
+
+  // Maps' cors class makes it a SHALL, where the API declares it: known once the conformance has answered, as it has
+  // beside a collections list that failed
+  it('cites Maps’ cors for a collections list blocked by CORS, where the API declares that class', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const CONFORMANCE = `${MG}/conformance?f=json`;
+    const declaring = (classes: string[]) => vi.spyOn(axios, 'get').mockImplementation(async (url: string) => {
+      if (url === COLLECTIONS) throw Object.assign(new Error('Blocked by CORS policy'), { config: { url } });
+      if (url === CONFORMANCE) return { data: { conformsTo: classes }, status: 200, headers: {}, request: { responseURL: url } };
+      if (url === LANDING) {
+        return { data: { links: [{ rel: 'data', href: `${MG}/collections` }, { rel: 'conformance', href: `${MG}/conformance` }] }, status: 200, headers: {}, request: { responseURL: url } };
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    declaring(['https://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core', 'https://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/cors']);
+    expect((await fatal())?.rule).toEqual([EDR.crossOrigin, FEATURES1.crossOrigin, MAPS1.cors]);
+    vi.restoreAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Either scheme, as the conformance is matched by its path
+    declaring(['http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/cors']);
+    expect((await fatal())?.rule).toEqual([EDR.crossOrigin, FEATURES1.crossOrigin, MAPS1.cors]);
+    vi.restoreAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    declaring(['https://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core']);
+    expect((await fatal())?.rule).toEqual([EDR.crossOrigin, FEATURES1.crossOrigin]);
   });
 
   it('treats an unclassified ERR_NETWORK as unreachable, without assuming CORS', async () => {

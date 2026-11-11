@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import axios from 'axios';
 import { capturedOfFailure, forgetServiceDescription, loadServiceDescription, NotADocumentError, parseServiceDescription, pickOpenApiLink, unavailable, WebPageError } from './loadServiceDescription';
-import { EDR } from '../../standards';
+import { EDR, FEATURES1 } from '../../standards';
 import { fixtureText } from './__fixtures__/servers';
 
 vi.mock('axios', () => ({ default: { get: vi.fn(), isAxiosError: (error: unknown) => typeof error === 'object' && error !== null && 'isAxiosError' in error } }));
@@ -62,8 +62,10 @@ describe('unavailable', () => {
   const answered = (status: number) => Object.assign(new Error(`Request failed with status code ${status}`), { isAxiosError: true, response: { status } });
 
   // The server SHALL support GET on its service-desc link, with a 200: a 404 is an error
-  it('makes an error of a 404, citing the 200 /req/core/api-definition-success asks for', () => {
-    expect(unavailable(answered(404))).toMatchObject({ severity: 'error', message: 'The API definition could not be loaded (HTTP 404)', rule: EDR.apiDefinitionSuccessA });
+  it('makes an error of a 404, citing the 200 EDR’s /req/core/api-definition-success asks for, and Features’ GET', () => {
+    expect(unavailable(answered(404))).toMatchObject({
+      severity: 'error', message: 'The API definition could not be loaded (HTTP 404)', rule: [EDR.apiDefinitionSuccessA, FEATURES1.apiDefinitionOp],
+    });
     expect(unavailable(answered(500)).rule).toBeUndefined();
     expect(unavailable(answered(401)).severity).toBe('info');
   });

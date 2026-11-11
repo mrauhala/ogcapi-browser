@@ -1,4 +1,7 @@
 {
+  "https://docs.ogc.org/DRAFTS/20-024.html": [
+    "_3572a54e-a65e-18bf-1aa0-63ce7c1b70f9"
+  ],
   "https://docs.ogc.org/cs/21-069r2/21-069r2.html": [
     "_047098cc-a6d3-197b-1520-b9677775cf47",
     "_05606d99-c8bf-852f-5468-4be41299e5e8",
@@ -29,12 +32,18 @@
     "_fb1dc8bf-3bff-1039-207e-fe958d4f63dd"
   ],
   "https://docs.ogc.org/is/17-069r4/17-069r4.html": [
+    "rec_core_cross-origin",
+    "req_core_api-definition-op",
     "req_core_conformance-success",
     "req_core_fc-bbox-response",
     "req_core_fc-md-success",
     "req_core_fc-time-definition",
     "req_core_root-op",
-    "req_core_root-success"
+    "req_core_root-success",
+    "req_oas30_oas-definition-2"
+  ],
+  "https://docs.ogc.org/is/18-058r1/18-058r1.html": [
+    "req_crs_crs-uri"
   ],
   "https://docs.ogc.org/is/19-072/19-072.html": [
     "_1419e71c-6dac-65d3-46f1-8caead08cafb",
@@ -45,6 +54,10 @@
     "_6fb8dd73-5b9d-ed6a-7d7f-69a66a8020aa",
     "_b08a7693-7aaf-7d12-0fae-fb28d38b7e17",
     "_e5765c7a-dfcd-59aa-9c61-ddb071d20944"
+  ],
+  "https://docs.ogc.org/is/19-079r2/19-079r2.html": [
+    "req_queryables_get-queryables-op",
+    "req_queryables_get-queryables-response"
   ],
   "https://docs.ogc.org/is/19-086r6/19-086r6.html": [
     "_00c6d33e-6242-24b8-5822-76f29fde1897",
@@ -204,7 +217,50 @@
     "_fdf8ce8b-2e96-d412-325e-360181ae5a2b"
   ],
   "https://docs.ogc.org/is/20-004r1/20-004r1.html": [
-    "_6b8fcab1-1090-e860-2ade-4cd7856bcfd4"
+    "_44df133b-a83d-5dff-4cff-97f094da86ad",
+    "_533a148f-c263-499d-840a-1917d0bacbac",
+    "_6b8fcab1-1090-e860-2ade-4cd7856bcfd4",
+    "_dddadcd4-b61a-caab-cd17-98de02ea8e03"
+  ],
+  "https://docs.ogc.org/is/20-058/20-058.html": [
+    "_07d62e65-5242-5c18-330c-4868db760188",
+    "_07f11e62-30f5-d20e-5b9e-e4950f827162",
+    "_083a9e68-692f-5bda-aec6-5d609fd2f978",
+    "_150b09ae-e5a1-1f68-24bf-6a42b73bfb86",
+    "_1bcee57a-1072-7bbb-7d00-0515b2aea951",
+    "_2154f3b4-539b-e999-84c6-8ee7589e840a",
+    "_35ec26ab-2e34-4c64-dd64-5cc8a3b14995",
+    "_3741a1cd-d9f4-5b80-48cd-ea0846d8529f",
+    "_40e910e9-a84b-91fa-c7b1-9692ff235b12",
+    "_46120281-2ce5-90d7-a620-b04712cca2df",
+    "_549be2ff-66e4-fde3-fd9b-c5acd7451c75",
+    "_568e079e-7ce1-30c9-60b4-4ec68333ccf3",
+    "_5972794a-f020-79c3-f86d-e889a6d3e4c2",
+    "_5a37f7c9-1788-30f4-ba32-d23dd2f6cce1",
+    "_5b4c5144-e0ba-fdb7-862b-9dc795d19cc0",
+    "_6eaa2a14-ce44-a25d-9b06-25352cf621f8",
+    "_73821492-5c8e-c96a-6212-3f14df76b289",
+    "_787cf543-d0a7-de3f-44d2-0232ea5fe147",
+    "_7ed970c0-de9a-122c-e0ba-ddad42cc788e",
+    "_83ecd147-d476-5e94-9959-fcb85742f869",
+    "_8bf75214-0d0c-e27e-0f3b-e9d4c47a047d",
+    "_8f6c32c0-7744-dbf3-06a9-7d7699eb5d74",
+    "_91402b86-f309-ced6-6c70-119bcb71060b",
+    "_96523345-0077-9c2e-e905-1b78aae58e4d",
+    "_9997acfa-497e-154c-bcde-66f186a6f5b3",
+    "_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a",
+    "_b1081210-6da4-4bf7-52d5-7c3b46602866",
+    "_b3eb32ab-ecd7-72a8-1928-821f288545aa",
+    "_c504506e-53eb-c109-527d-a57be05be357",
+    "_c8b703c2-77d9-28dd-0eb9-fa24f89eda7e",
+    "_cecf8a6c-70da-76ba-dcc1-9be90f78bb59",
+    "_d1afa42a-ef37-c60c-a5c9-788f5185ea3b",
+    "_d1e9a88a-5a30-ae9e-31e8-57d8b7bc548c",
+    "_d3716672-08ce-c67c-f7d7-4f70b7f892ac",
+    "_dabe363f-d0a0-5584-5ae7-160825fc4066",
+    "_db1cf4a2-99c7-fe69-8386-b84a636a5f7d",
+    "_e7950323-2ddd-799e-afe6-02f412e2cfb4",
+    "_e7b294ca-7533-fa03-7b61-935faba51964"
   ],
   "https://github.com/opengeospatial/metocean-common-profile-ogcapi/blob/026d0ba48542bf6dd6e7a7f74705d5a38e8de5c8/profile/requirements/collection-parameters/REQ_names.adoc?plain=1": [
     "L10",
