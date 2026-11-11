@@ -97,6 +97,8 @@ describe('styleMapHref and styleOfPath', () => {
   it('puts a style in the path Maps gives it, without what the map link asks for', () => {
     expect(styleMapHref(`${ROOT}/fmi-radar-composite-dbz/map`, 'radar_fmi')).toBe(`${ROOT}/fmi-radar-composite-dbz/styles/radar_fmi/map`);
     expect(styleMapHref(`${ROOT}/one/map/?f=image%2Fpng#x`, 'a b:c')).toBe(`${ROOT}/one/styles/a%20b:c/map`);
+    // One segment, whatever the id holds: a slash or a semicolon is encoded, not a path of its own
+    expect(styleMapHref(`${ROOT}/one/map`, 'night/v2;x')).toBe(`${ROOT}/one/styles/night%2Fv2%3Bx/map`);
     // A map link that doesn't end in /map has its styles beside it
     expect(styleMapHref(`${ROOT}/one/render`, 'night')).toBe(`${ROOT}/one/styles/night/map`);
     expect(styleMapHref('not a URL', 'night')).toBe('not a URL');
@@ -107,7 +109,8 @@ describe('styleMapHref and styleOfPath', () => {
     expect(styleOfPath(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map`, map)).toBe('contours');
     expect(styleOfPath(`${ROOT}/ecmwf-ifs-pressure/styles/a:b c/map`, map)).toBe('a:b c');
     for (const other of [`${ROOT}/ecmwf-ifs-pressure/styles/contours/legend`, `${ROOT}/ecmwf-ifs-pressure/styles/a/b/map`,
-      `${ROOT}/ecmwf-ifs-pressure/styles//map`, `${ROOT}/ecmwf-ifs-pressure/map`, `${ROOT}/fmi-radar-composite-dbz/styles/contours/map`]) {
+      `${ROOT}/ecmwf-ifs-pressure/styles//map`, `${ROOT}/ecmwf-ifs-pressure/map`, `${ROOT}/fmi-radar-composite-dbz/styles/contours/map`,
+      `${ROOT}/ecmwf-ifs-pressure/styles/contours`, `${ROOT}/ecmwf-ifs-pressure/styles/contours/mapx`]) {
       expect(styleOfPath(other, map)).toBeNull();
     }
   });
@@ -131,6 +134,9 @@ describe('mapStylesOf and linkQuery', () => {
     expect(styles.map(style => style.id)).toEqual(['default', 'radar_dbz', 'radar_fmi', '7']);
     expect(styles[3]).toEqual({ id: '7', title: undefined, href: null, parameters: [] });
     expect(mapStylesOf(undefined)).toEqual([]);
+    // Of the parameters a style is for, only names
+    expect(mapStylesOf([{ id: 'p', parameters: ['gh', 7, null, { id: 't' }] }, { id: 'q', parameters: 'gh' }]).map(style => style.parameters))
+      .toEqual([['gh'], []]);
     expect(mapStylesOf({ styles: [] })).toEqual([]);
   });
 
@@ -186,6 +192,11 @@ describe('a map URL, read back', () => {
     expect(matchDataQuery(`${ROOT}/ecmwf-ifs-pressure/styles/fmi%2Dhires/map`, view())).toEqual({ queryKey: 'map', styleId: 'fmi-hires' });
     expect(matchDataQuery(`${ROOT}/ecmwf-ifs-pressure/styles/contours/legend`, view())).toBeNull();
     expect(matchDataQuery(`${ROOT}/ecmwf-ifs-pressure/map/tiles`, view())).toBeNull();
+  });
+
+  it('takes a style from the map query’s path only, not from another query’s beside it', () => {
+    const edr = { ...withRel('[ogc-rel:map]'), data_queries: { position: { link: { href: `${ROOT}/one/position`, rel: 'data' } } } } as unknown as Collection;
+    expect(matchDataQuery(`${ROOT}/one/styles/night/map`, withLinkQueries(edr))).toEqual({ queryKey: 'map', styleId: 'night' });
   });
 
   it('is followed for a Maps collection as served', () => {
