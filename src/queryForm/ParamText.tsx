@@ -1,18 +1,11 @@
 import React, { useRef, useState } from 'react';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import type { Theme } from '@mui/material/styles';
 import { useCollection } from '../contexts/CollectionContext';
 import { useOpenRequest } from '../contexts/OpenRequestContext';
 import { useRequestUrl } from '../contexts/RequestUrlContext';
 import { paramOf, withParam } from '../query/requestUrl';
-
-// As sent, in mono; 16 px on a touch screen, which iOS would otherwise zoom in on
-const VALUE_SX = {
-  fontFamily: 'monospace', fontSize: 13.5, height: 20, '@media (pointer: coarse)': { fontSize: 16 },
-  // What to type, in words: in the UI's font, so that it fits
-  '&::placeholder': { fontFamily: (theme: Theme) => theme.typography.fontFamily },
-};
+import { VALUE_SX } from './valueSx';
 
 // One parameter of the request line, as it's sent, to read and type: a view of the line, not a copy. Typing edits the
 // line at once, as typing in the line does; the form and the map catch up on Enter or on leaving the field, and what

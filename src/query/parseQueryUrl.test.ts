@@ -64,6 +64,32 @@ describe('matchDataQuery', () => {
   it('copes with a collection without queries', () => {
     expect(matchDataQuery(hrefOf(FMI, 'position'), { ...FMI, data_queries: undefined } as unknown as Collection)).toBeNull();
   });
+
+  it('finds one item of an items query by its path, decoded, and the list without one', () => {
+    const items = hrefOf(METEOCORE, 'items');
+    expect(matchDataQuery(`${items}?limit=3`, METEOCORE)).toEqual({ queryKey: 'items' });
+    expect(matchDataQuery(`${items}/0-148-0-CHD64901?f=GeoJSON`, METEOCORE)).toEqual({ queryKey: 'items', itemId: '0-148-0-CHD64901' });
+    expect(matchDataQuery(`${items}/a%20b`, METEOCORE)).toEqual({ queryKey: 'items', itemId: 'a b' });
+    expect(matchDataQuery(`${items}/urn:wmo:md:x/`, METEOCORE)).toEqual({ queryKey: 'items', itemId: 'urn:wmo:md:x' });
+    expect(matchDataQuery(`${items}/a/b`, METEOCORE)).toBeNull();
+  });
+});
+
+describe('isForCollection', () => {
+  // MSC GeoMet's hydrometric-stations has no data queries: its items link is its items query
+  const FEATURES = { id: 'hydrometric-stations', links: [
+    { href: 'https://api.weather.gc.ca/collections/hydrometric-stations/items?f=json', rel: 'items', type: 'application/geo+json' },
+  ] } as unknown as Collection;
+
+  it('follows a Features collection’s items, and one item, by its items link', () => {
+    expect(isForCollection('https://api.weather.gc.ca/collections/hydrometric-stations/items?f=json&limit=2&PROV_TERR_STATE_LOC=NU', FEATURES)).toBe(true);
+    expect(isForCollection('https://api.weather.gc.ca/collections/hydrometric-stations/items/01AD001', FEATURES)).toBe(true);
+  });
+
+  it('doesn’t follow the collection itself, or another', () => {
+    expect(isForCollection('https://api.weather.gc.ca/collections/hydrometric-stations', FEATURES)).toBe(false);
+    expect(isForCollection('https://api.weather.gc.ca/collections/swob-realtime/items', FEATURES)).toBe(false);
+  });
 });
 
 describe('matchInstance', () => {

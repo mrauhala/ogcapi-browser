@@ -14,18 +14,17 @@ import { adjacentCollection } from './collections/openingCollection';
 import CollectionChecks from './CollectionChecks';
 import { CollectionAbout, CollectionDescription, aboutCollection, aboutSummary } from './CollectionInfo';
 import CollectionQueryBuilder from './CollectionQueryBuilder';
-import ItemsTable from './ItemsTable';
 import LocationFeatureList from './LocationFeatureList';
 import MapsPanel from './MapsPanel';
-import { Collection, hasLocationQuery, normalizeHref } from './DataRetrievalAPI';
+import { Collection, hasLocationQuery } from './DataRetrievalAPI';
 import { hasMapsSupport } from './api/maps';
 import { useApi } from './contexts/ApiContext';
 import { useCollection } from './contexts/CollectionContext';
-import { useGeoJsonLayers } from './contexts/GeoJsonLayerContext';
 import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryBuilder } from './contexts/QueryBuilderContext';
 import { useValidation } from './contexts/ValidationContext';
+import { withItemsQuery } from './query/itemsQuery';
 
 function StepButton({ label, keyName, hint, Icon, target }: {
   label: string;
@@ -130,7 +129,6 @@ function CollectionNav({ collection }: { collection: Collection }) {
 function OpenCollection({ collection }: { collection: Collection }) {
   const { apiUrl, license } = useApi();
   const { locationFeatures, setSelectedFeature } = useCollection();
-  const { geoJsonLayers, setGeoJsonLayers } = useGeoJsonLayers();
   const { showMap } = usePanes();
   const { validationResult } = useValidation();
   const queryState = useQueryBuilder();
@@ -140,23 +138,8 @@ function OpenCollection({ collection }: { collection: Collection }) {
   const about = aboutCollection(collection, license);
   const summary = aboutSummary(about);
   const issues = validationResult.collectionErrors?.[collection.id];
-  const itemLinks = (collection.links ?? []).filter(link => link.rel === 'items' && link.type?.includes('geo+json'));
-
-  const showItemOnMap = (feature: any) => {
-    const featureName = feature.properties?.name || feature.properties?.title || `Feature ${feature.id || ''}`;
-    const featureLayer = {
-      url: `selected-item-${Date.now()}`,
-      title: `Selected: ${featureName}`,
-      visible: true,
-      data: {
-        type: 'FeatureCollection',
-        features: [feature],
-      },
-    };
-    setGeoJsonLayers([...geoJsonLayers.filter(layer => !layer.title.startsWith('Selected: ')), featureLayer]);
-    // Where it's shown
-    showMap();
-  };
+  // A Features or Records collection's items link is its items query
+  const queried = withItemsQuery(collection);
 
   return (
     // Its own stacking context, so that nothing in it, like the time slider's label, can draw over the row pinned above
@@ -199,25 +182,14 @@ function OpenCollection({ collection }: { collection: Collection }) {
         )}
 
         <Box sx={{ mt: 2 }}>
-          {/* A collection served some other way than EDR has no queries to choose from */}
-          {Object.keys(collection.data_queries ?? {}).length > 0 && (
-            <CollectionQueryBuilder collection={collection} queryState={queryState} />
+          {/* A collection served some other way, with neither EDR's queries nor items, has no queries to choose from */}
+          {Object.keys(queried.data_queries ?? {}).length > 0 && (
+            <CollectionQueryBuilder collection={queried} queryState={queryState} />
           )}
 
           {/* Mounted whether or not it's showing, since it writes the request line */}
           {hasMapsSupport(collection) && (
             <MapsPanel collection={collection} apiUrl={apiUrl} queryState={queryState} />
-          )}
-
-          {itemLinks.length > 0 && (
-            <Box sx={{ mb: 2 }}>
-              {itemLinks.map(link => {
-                const href = normalizeHref(link.href);
-                return href ? (
-                  <ItemsTable key={href} url={href} title={link.title || 'Items'} onFeatureClick={showItemOnMap} />
-                ) : null;
-              })}
-            </Box>
           )}
 
           {hasLocationQuery(collection) && locationFeatures && (
@@ -251,7 +223,7 @@ function OpenCollection({ collection }: { collection: Collection }) {
   );
 }
 
-// The request pane: what's open, starting afresh for each open. ItemsTable, for one, only fetches when mounted.
+// The request pane: what's open, starting afresh for each open
 export default function CollectionPane() {
   const { selectedCollection } = useCollection();
   const { openSerial } = useOpenCollection();

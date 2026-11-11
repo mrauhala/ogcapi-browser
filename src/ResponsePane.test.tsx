@@ -300,10 +300,57 @@ describe('ResponsePane', () => {
     });
 
     it('isn’t one from anywhere but /locations, nor anything but a FeatureCollection', () => {
-      expect(tabNames(list({ url: 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/items' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      // From /items it's the collection's items, with no locations' checks
+      const items = list({ url: 'https://geoservices.knmi.nl/edr/collections/Tg_1_oper/items', data: JSON.stringify({ ...knmi, features: knmi.features.map(({ id: _id, ...feature }) => feature) }) });
+      expect(words(items)).toContain('10 items');
+      expect(words(items)).not.toContain('locations');
+      expect(items).not.toContain('issue<');
       expect(tabNames(list({ url: `${LOCATIONS}/EDDK` }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
       expect(tabNames(list({ data: '{"type":"Feature"}' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
       expect(list({ url: `${LOCATIONS}/EDDK`, validationSchemaName: null })).not.toContain('issue<');
+    });
+  });
+
+  describe('a collection’s items', () => {
+    const ITEMS = 'https://api.weather.gc.ca/collections/hydrometric-stations/items';
+    const station = (id: string) => ({ type: 'Feature', id, geometry: { type: 'Point', coordinates: [-68.6, 47.5] }, properties: { STATION_NAME: id } });
+    const LIST = JSON.stringify({ type: 'FeatureCollection', features: [station('01AA002'), station('01AD001')], numberMatched: 8057, numberReturned: 2 });
+    const items = (url: string, data: string, props: Partial<ComponentProps<typeof ResponsePane>> = {}) =>
+      render({ url, data, contentType: 'application/geo+json', response: OK, ...props }, url);
+
+    it('opens a list on its Data tab, a table of the items with the counts the answer gives', () => {
+      open.collection = null;
+      const html = items(`${ITEMS}?f=json&limit=2`, LIST);
+      expect(tabNames(html)).toEqual(['Data', 'Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(selectedTab(html)).toBe('Data');
+      expect(words(html)).toContain('2 items numberMatched 8,057 numberReturned 2 Pick one to see it on the map');
+      expect(html).toContain('data-rows="2"');
+      expect(html).not.toContain('Transforming');
+    });
+
+    it('calls a Records collection’s items records', () => {
+      const GDC = 'https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items';
+      open.collection = { id: 'wis2-discovery-metadata', itemType: 'record' };
+      expect(words(items(GDC, LIST))).toContain('2 records numberMatched');
+      expect(words(items(`${GDC}/01AD001`, JSON.stringify(station('01AD001'))))).toContain('1 record See it on the map');
+      // Not another collection's
+      open.collection = { id: 'other', itemType: 'record' };
+      expect(words(items(GDC, LIST))).toContain('2 items');
+      open.collection = null;
+    });
+
+    it('lists one item’s properties', () => {
+      const html = items(`${ITEMS}/01AD001`, JSON.stringify(station('01AD001')), { contentType: 'application/json' });
+      expect(selectedTab(html)).toBe('Data');
+      expect(words(html)).toContain('1 item See it on the map id 01AD001 geometry Point -68.6, 47.5 properties.STATION_NAME 01AD001');
+      expect(html).not.toContain('data-rows');
+    });
+
+    it('has no Data tab for an HTML page, an error, or a query’s GeoJSON', () => {
+      expect(tabNames(items(`${ITEMS}?f=html`, '<html><body>Stations</body></html>', { contentType: 'text/html' }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(tabNames(items(ITEMS, '{"code":"InvalidParameterValue"}', { response: BAD_REQUEST }))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(tabNames(items('https://meteocore.app.meteo.fi/edr/collections/fmi-obs/position?coords=POINT(24 60)&f=GeoJSON', LIST)))
+        .toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
     });
   });
 
