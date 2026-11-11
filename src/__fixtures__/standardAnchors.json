@@ -32,6 +32,7 @@
     "req_core_conformance-success",
     "req_core_fc-bbox-response",
     "req_core_fc-md-success",
+    "req_core_fc-time-definition",
     "req_core_root-op",
     "req_core_root-success"
   ],
@@ -58,6 +59,7 @@
     "_24f95235-539d-85dc-dac2-eec77558a62f",
     "_25231992-983f-999a-e67a-6fe913290aba",
     "_257a3019-f56d-88a8-7456-9a7ff54b0a64",
+    "_26b0e263-d85c-2d79-0aeb-f0a33ec85841",
     "_29825e54-fc2c-6738-6879-3fb32ca8a2e2",
     "_2a5d88a1-9842-c517-77e5-500d4e61e35f",
     "_3f6fca65-ce13-3910-328a-13ff8fce1cc2",
@@ -128,6 +130,7 @@
     "_36756374-4167-aa52-7f49-8800c1f3aca2",
     "_36b7bfbd-6053-0457-391c-59e6b74d5012",
     "_36d917d1-0470-60d4-8ba1-ab0f0a8bb9df",
+    "_3c2581c9-194c-a22c-1898-4f2e87035833",
     "_3d8916ab-6378-1e70-dfee-c60a5c2799d7",
     "_3eddd8f1-3dca-37e2-ba38-e0ca281e6aa9",
     "_464d691f-2623-2061-b6b8-12f2cf5af1fc",
@@ -191,6 +194,9 @@
     "_fab3a148-185f-b720-f07c-2b384ea2ba73",
     "_fd7fd338-4045-0d52-4d1e-2b024d934796",
     "_fdf8ce8b-2e96-d412-325e-360181ae5a2b"
+  ],
+  "https://docs.ogc.org/is/20-004r1/20-004r1.html": [
+    "_6b8fcab1-1090-e860-2ade-4cd7856bcfd4"
   ],
   "https://github.com/opengeospatial/metocean-common-profile-ogcapi/blob/026d0ba48542bf6dd6e7a7f74705d5a38e8de5c8/profile/requirements/collection-parameters/REQ_names.adoc?plain=1": [
     "L10",

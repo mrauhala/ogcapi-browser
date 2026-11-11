@@ -273,6 +273,26 @@ describe('buildQueryUrl', () => {
     });
   });
 
+  it('sends one item by its path, with only f of the list’s choices', () => {
+    const item = (itemId: string | undefined, queryKey = 'items') => buildQueryUrl(buildQueryModel({
+      collection: COLLECTIONS.meteocoreObs, queryKey, format: 'GeoJSON', parameters: ['ta'],
+      datetime: '2026-10-06T06:00:00Z', vertical: '', customDims: {}, points: [[24.9384, 60.1699]], polygons: [],
+      bbox: [24, 60, 25, 61], bboxAsCoords: false, radius: { value: null, units: '' },
+      queryParams: { limit: '50', crs: 'CRS84' }, locationFeature: null, itemId,
+    })!);
+    const ITEMS = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items';
+    expect(item('0-148-0-CHD64901')).toBe(`${ITEMS}/0-148-0-CHD64901?f=GeoJSON`);
+    expect(item('urn:wmo:md:a b')).toBe(`${ITEMS}/urn:wmo:md:a%20b?f=GeoJSON`);
+    // None, or none given, is the list, with what the form holds for it
+    for (const none of ['', undefined]) {
+      expect(Object.fromEntries(new URL(item(none)!).searchParams)).toEqual({
+        f: 'GeoJSON', datetime: '2026-10-06T06:00:00Z', bbox: '24.000,60.000,25.000,61.000', limit: '50',
+      });
+    }
+    // Another query has no item
+    expect(new URL(item('0-148-0-CHD64901', 'position')!).pathname).toBe('/edr/collections/fmi-obs/position');
+  });
+
   it('lists locations with the time only; a picked location gets the data selection', () => {
     const locations = (locationFeature: QueryModelInput['locationFeature']) => buildQueryUrl(buildQueryModel({
       collection: COLLECTIONS.meteocoreObs, queryKey: 'locations', format: 'CoverageJSON', parameters: ['ta'],

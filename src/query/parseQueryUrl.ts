@@ -1,6 +1,7 @@
 import type { Collection } from '../types/api';
 import { normalizeHref } from '../utils/href';
 import { DATA_PARAMS, TYPE_PARAMS } from './buildQueryUrl';
+import { withItemsQuery } from './itemsQuery';
 import { geometryKindOf, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
 import type { BBox } from './types';
 
@@ -12,6 +13,7 @@ type LonLat = [number, number];
 export interface QueryTarget {
   queryKey: string;
   locationId?: string; // a locations query for one location
+  itemId?: string; // an items query for one item
 }
 
 export interface QuerySelections {
@@ -64,6 +66,9 @@ export function matchDataQuery(url: string, collection: Collection): QueryTarget
     if (query.queryType === 'locations' && below && !below.includes('/')) {
       return { queryKey: query.queryKey, locationId: below };
     }
+    if (query.queryType === 'items' && below && !below.includes('/')) {
+      return { queryKey: query.queryKey, itemId: below };
+    }
   }
   return null;
 }
@@ -82,9 +87,9 @@ export function matchInstance(url: string, collection: Collection): { queryKey: 
   return null;
 }
 
-// Whether the form can follow this URL at all: it's for the open collection
+// Whether the form can follow this URL at all: it's for the open collection, its items link among its queries
 export const isForCollection = (url: string, collection: Collection): boolean =>
-  !!matchDataQuery(url, collection) || !!matchInstance(url, collection);
+  !!matchDataQuery(url, withItemsQuery(collection)) || !!matchInstance(url, collection);
 
 const NUMBER = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?';
 const PAIR = new RegExp(`^\\s*(${NUMBER})\\s+(${NUMBER})\\s*$`);

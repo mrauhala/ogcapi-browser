@@ -4,7 +4,7 @@ import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
 import Typography from '@mui/material/Typography';
 import { alpha, type Theme } from '@mui/material/styles';
-import type { Requirement } from '../query/fieldSpecs';
+import type { Hint, Requirement } from '../query/fieldSpecs';
 import type { QueryIssue } from '../query/types';
 import RuleLinks from '../RuleLinks';
 
@@ -40,7 +40,7 @@ export interface ParamFieldProps {
   figure?: string; // what the metadata says, at the right
   requirement?: Requirement;
   missing?: boolean; // required and still empty: the requirement turns orange
-  hints?: string[];
+  hints?: Hint[];
   link?: { label: string; href: string };
   leftOut?: string; // said while empty
   empty?: boolean;
@@ -74,7 +74,10 @@ const ParamField: React.FC<ParamFieldProps> = ({
       <Box sx={BODY_SX}>
         {children}
         {hints.map(hint => (
-          <Typography key={hint} component="div" sx={{ ...SMALL, mt: 0.5, color: 'text.secondary' }}><Said text={hint} /></Typography>
+          <Typography key={typeof hint === 'string' ? hint : hint.text} component="div" sx={{ ...SMALL, mt: 0.5, color: 'text.secondary' }}>
+            {/* Why the field is there, and the rule it rests on, cited as an issue's is */}
+            {typeof hint === 'string' ? <Said text={hint} /> : <><Said text={hint.text} /><RuleLinks rule={hint.rule} /></>}
+          </Typography>
         ))}
         {link && (
           <Typography component="div" sx={{ ...SMALL, mt: 0.5 }}>

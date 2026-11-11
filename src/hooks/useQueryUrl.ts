@@ -17,6 +17,7 @@ import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl
 import { useInstances, type InstancesState } from './useInstances';
 import { instanceStep, type Instance } from '../query/instances';
 import { normalizeHref } from '../utils/href';
+import { withItemsQuery } from '../query/itemsQuery';
 import type { QueryIssue } from '../query/types';
 
 // A time range's end as the time control has it: '' where it's open or still to pick
@@ -64,6 +65,9 @@ export interface UseQueryUrlReturn {
   selectedInstance: Instance | null;
   selectInstance: (id: string) => void;
   instanceQueryKey: string;
+  // One item of an items query, a part of its path: '' for the list
+  itemId: string;
+  setItemId: (item: string) => void;
   selectInstanceQuery: (queryKey: string) => void;
   // What is queried: the collection and its query, or the picked instance and the query on it. Null until both are
   queryTarget: { collection: Collection; queryKey: string } | null;
@@ -78,7 +82,9 @@ export interface UseQueryUrlReturn {
 
 export function useQueryUrl(): UseQueryUrlReturn {
   const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery } = useMapInteraction();
-  const { selectedCollection, selectedFeature, setSelectedFeature, locationFeatures, setCollectionUrl } = useCollection();
+  const { selectedCollection: openCollection, selectedFeature, setSelectedFeature, locationFeatures, setCollectionUrl } = useCollection();
+  // The open collection as the form sees it: a Features or Records collection's items link as an items query
+  const selectedCollection = withItemsQuery(openCollection);
   const { editUrl } = useRequestUrl();
   const { setQueryValidation } = useQueryValidationContext();
   const { index: apiIndex } = useOpenApi();
@@ -95,6 +101,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [filterByTime, setFilterByTime] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
+  const [itemId, setItemId] = useState('');
   const setQueryParam = useCallback((name: string, value: string) => setQueryParams(params => ({ ...params, [name]: value })), []);
 
   // A mode switched keeps the text, as far as the other control can hold it
@@ -126,6 +133,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setFilterByTime(false);
     setSelectedInstanceId('');
     setInstanceQueryKey('');
+    setItemId('');
   }, []);
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
@@ -146,6 +154,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   // Switch the collection's data query, leaving any instance
   const selectDataQuery = useCallback((collection: Collection, queryKey: string) => {
     setSelectedDataQuery(queryKey);
+    setItemId('');
     setSelectedInstanceId('');
     setInstanceQueryKey('');
     applyQueryDefaults(collection, queryKey);
@@ -174,6 +183,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
 
   const selectInstanceQuery = useCallback((queryKey: string) => {
     setInstanceQueryKey(queryKey);
+    setItemId('');
     if (selectedInstance && queryKey) applyQueryDefaults(selectedInstance, queryKey);
     else setDataQuery('instances');
   }, [selectedInstance, applyQueryDefaults, setDataQuery]);
@@ -222,6 +232,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setInstanceQueryKey(target.queryKey);
     applyQueryDefaults(instance, target.queryKey);
     setSelectedFeature(feature);
+    setItemId(target.itemId ?? '');
     applySelections(readQuerySelections(url, instance, target.queryKey), queryTypeOf(instance, target.queryKey), !!feature);
     return true;
   }, [instances.instances, featureFor, applyQueryDefaults, applySelections, setDataQuery, setSelectedFeature]);
@@ -268,6 +279,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     }
     if (target.queryKey !== selectedDataQuery || selectedInstanceId) selectDataQuery(selectedCollection, target.queryKey);
     if (feature !== selectedFeature) setSelectedFeature(feature);
+    setItemId(target.itemId ?? '');
     applySelections(readQuerySelections(url, selectedCollection, target.queryKey), queryTypeOf(selectedCollection, target.queryKey), !!feature);
     setApplied({ onResult, followed: true });
   }, [selectedCollection, selectedDataQuery, selectedInstanceId, selectedFeature, instances.status, featureFor, selectDataQuery, setSelectedFeature, applyInstanceUrl, applySelections]);
@@ -321,11 +333,12 @@ export function useQueryUrl(): UseQueryUrlReturn {
       radius: { value: radius, units: radiusUnits },
       queryParams,
       locationFeature,
+      itemId,
     });
   }, [
     target, instancesHref, selectedFormat, selectedParameters,
     datetime, filterByTime, vertical,
-    dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature,
+    dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature, itemId,
   ]);
 
   // Publish the request URL and what the query is still missing, adding the API docs' view once
@@ -381,6 +394,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     filterByTime, setFilterByTime,
     instances, selectedInstance, selectInstance,
     instanceQueryKey, selectInstanceQuery,
+    itemId, setItemId,
     queryTarget: target,
     resetQueryState,
     getEffectiveOutputFormats,

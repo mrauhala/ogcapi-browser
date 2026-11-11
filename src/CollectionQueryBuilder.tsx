@@ -31,6 +31,7 @@ import QueryStatus from './queryForm/QueryStatus';
 import { useOpenDocs } from './queryForm/fieldFocus';
 import { BoxPickers } from './queryForm/ValueInputs';
 import ParamText from './queryForm/ParamText';
+import ItemText from './queryForm/ItemText';
 import MoreParams from './queryForm/MoreParams';
 import { paramOf, paramsIn } from './query/requestUrl';
 import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
@@ -192,12 +193,13 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
         return {
           control: (
             <>
-              {typed('datetime', 'Pick a time below, or type one')}
+              {/* Without a time in the extent there's nothing below to pick from */}
+              {typed('datetime', collection.extent?.temporal ? 'Pick a time below, or type one' : 'Type a time, or an interval')}
               {/* A list has everything in it unless filtered by time */}
               {timeIsFilter && collection.extent?.temporal && (
                 <FormControlLabel
                   control={<Checkbox size="small" checked={filterByTime} onChange={event => setFilterByTime(event.target.checked)} />}
-                  label={<Typography variant="body2">Pick a time to filter {queryType === 'locations' ? 'locations' : 'items'} by</Typography>}
+                  label={<Typography variant="body2">Pick a time to filter {queryType === 'locations' ? 'locations' : collection.itemType === 'record' ? 'records' : 'items'} by</Typography>}
                 />
               )}
               {(!timeIsFilter || filterByTime) && collection.extent?.temporal && (
@@ -298,8 +300,20 @@ function LocationField() {
   );
 }
 
+// item, a part of the path for an items query: one item by its id, a record in a Records collection. None lists them
+function ItemField({ itemType, itemId, setItemId }: { itemType?: string; itemId: string; setItemId: (item: string) => void }) {
+  const word = itemType === 'record' ? 'record' : 'item';
+  return (
+    <ParamField id="item" title={word === 'record' ? 'Record' : 'Item'} name={word} path="path" requirement="optional"
+      hints={[`A${word === 'item' ? 'n' : ''} ${word}'s \`id\`, as in the list's ${word === 'record' ? 'records' : 'features'}`]}
+      leftOut={`the request lists the ${word}s`} empty={!itemId}>
+      <ItemText word={word} value={itemId} onChange={setItemId} />
+    </ParamField>
+  );
+}
+
 const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collection, queryState }) => {
-  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters } = queryState;
+  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters, itemId, setItemId } = queryState;
   const { showMap, isMobile } = usePanes();
   const { leaveQuery } = useOpenCollection();
   const { apiOperation } = useQueryValidation();
@@ -311,10 +325,11 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
     ? (selectedInstance && instanceQueryKey ? { collection: selectedInstance, queryKey: instanceQueryKey } : null)
     : (selectedDataQuery ? { collection, queryKey: selectedDataQuery } : null);
   const specs = target
-    ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, { apiRequired: apiOperation?.required, hasLocation: !!selectedFeature, inRequest: paramsIn(requestUrl).map(([name]) => name) })
+    ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, { apiRequired: apiOperation?.required, hasLocation: !!selectedFeature, hasItem: !!itemId, inRequest: paramsIn(requestUrl).map(([name]) => name) })
     : [];
   const forLocations = !!target && queryTypeOf(target.collection, target.queryKey) === 'locations';
-  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
+  const forItems = !!target && queryTypeOf(target.collection, target.queryKey) === 'items';
+  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...(forItems ? ['item'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
 
   // A query's next step, drawing its geometry, is on the map: beside the form on a desktop. On a phone the coords
   // field's Map button goes there, rather than the pick itself
@@ -336,6 +351,7 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
       {selectedDataQuery && <QueryStatus shown={shown} />}
       {instanceMode && <InstancePicker queryState={queryState} />}
       {forLocations && <LocationField />}
+      {forItems && <ItemField itemType={target.collection.itemType} itemId={itemId} setItemId={setItemId} />}
       {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} specs={specs} />}
     </>
   );

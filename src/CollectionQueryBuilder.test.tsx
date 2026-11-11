@@ -5,6 +5,7 @@ import type { Collection } from './DataRetrievalAPI';
 import { withClass, words } from './coverage/cellsTestData';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
 import type { QueryIssue } from './query/types';
+import { withItemsQuery } from './query/itemsQuery';
 import fmiEcmwf from './query/__fixtures__/fmi-ecmwf.json';
 import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
 
@@ -333,6 +334,54 @@ describe('the form’s blocks', () => {
     const html = form(FMI, '');
     expect(blockIds(html)).toEqual(['query']);
     expect(shown(html)).toContain('Choose a query. Its parameters come from what the collection says it has: 6 parameters in parameter_names');
+  });
+
+  it('gives an items query its item, by its path, and asks one item only its format', () => {
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items';
+    const list = form(METEOCORE, 'items', { itemId: '', setItemId: () => {} });
+    expect(blockIds(list)).toEqual(['query', 'item', 'bbox', 'limit', 'datetime', 'f', 'more']);
+    expect(shown(field(list, 'item'))).toBe("Item item (path) optional An item's id , as in the list's features Left out: the request lists the items");
+    expect(list).toContain('id="query-input-item"');
+    expect(list).toContain('placeholder="An item&#x27;s id, or none for the list"');
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items/0-148-0-CHD64901';
+    const one = form(METEOCORE, 'items', { itemId: '0-148-0-CHD64901', setItemId: () => {} });
+    expect(blockIds(one)).toEqual(['query', 'item', 'f', 'more']);
+    expect(typedValue(one, 'item')).toBe('0-148-0-CHD64901');
+    expect(shown(field(one, 'item'))).not.toContain('Left out');
+    // No other query has one
+    around.requestUrl = 'https://opendata.fmi.fi/edr/collections/ecmwf/position';
+    expect(blockIds(form(FMI, 'position', { itemId: 'x' }))).not.toContain('item');
+  });
+
+  // The GDC's wis2-discovery-metadata: a Records collection, with no time in its extent
+  const GDC = {
+    id: 'wis2-discovery-metadata', itemType: 'record', extent: { spatial: { bbox: [[-180, -90, 180, 90]] } },
+    links: [{ href: 'https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items?f=json', rel: 'items', type: 'application/geo+json' }],
+  } as unknown as Collection;
+
+  it('calls a Records collection’s items records, and has the time Records servers SHALL take, typed', () => {
+    around.requestUrl = 'https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items';
+    const html = form(withItemsQuery(GDC), 'items', { itemId: '', setItemId: () => {} });
+    expect(blockIds(html)).toEqual(['query', 'item', 'bbox', 'limit', 'datetime', 'f', 'more']);
+    expect(shown(field(html, 'item'))).toBe("Record record (path) optional A record's id , as in the list's records Left out: the request lists the records");
+    expect(html).toContain('placeholder="A record&#x27;s id, or none for the list"');
+    expect(shown(field(html, 'bbox'))).toContain('Left out: records anywhere');
+    const time = field(html, 'datetime');
+    expect(time).toContain('placeholder="Type a time, or an interval"');
+    expect(shown(time)).toContain("Records servers SHALL support datetime on items. The collection's extent gives no time, so there's none to pick: type one Records 1 /req/record-core-query-parameters/datetime A");
+    expect(time).toContain('href="https://docs.ogc.org/is/20-004r1/20-004r1.html#_6b8fcab1-1090-e860-2ade-4cd7856bcfd4"');
+    // Nothing to pick from, so no box to tick for it
+    expect(shown(time)).not.toContain('Pick a time to filter');
+  });
+
+  it('asks to filter records by a time where a Records collection has times', () => {
+    const timed = withItemsQuery({ ...GDC, extent: { temporal: { interval: [['2025-01-01T00:00:00Z', null]] } } } as unknown as Collection);
+    around.requestUrl = 'https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items';
+    const time = field(form(timed, 'items', { itemId: '', setItemId: () => {} }), 'datetime');
+    expect(shown(time)).toContain('Pick a time to filter records by');
+    expect(time).toContain('placeholder="Pick a time below, or type one"');
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items';
+    expect(shown(field(form(METEOCORE, 'items', { itemId: '', setItemId: () => {} }), 'datetime'))).toContain('Pick a time to filter items by');
   });
 
   it('gives a locations query its location, searched by typing', () => {

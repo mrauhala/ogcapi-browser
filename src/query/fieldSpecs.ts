@@ -1,8 +1,10 @@
 // What the form shows for a query: a field per query parameter, named as it's sent, in the order the design has them,
 // each saying whether it's required, what the collection allows, and what the server does when it's left out. Pure,
 // from the metadata: the form puts today's controls inside the fields. Text in `backticks` is shown as code.
-import type { Collection, Temporal, Vertical } from '../types/api';
+import type { Citation, Collection, Temporal, Vertical } from '../types/api';
+import { EDR, FEATURES1, RECORDS1 } from '../standards';
 import { EDR_QUERY_RULES } from './edrRules';
+import { fromItemsLink } from './itemsQuery';
 import { effectiveOutputFormats, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
 import { timeIsOnlyAFilter } from './queryModel';
 import { expandTemporalValues, getOverallTemporalExtent, normalizeTemporal } from '../utils/extents/temporal';
@@ -11,13 +13,16 @@ import { expandCustomDimensionValues, getEffectiveCustomDimensions } from '../ut
 
 export type Requirement = 'required' | 'optional' | 'required by the API docs';
 
+// A line under a field: what the metadata says, or why the field is there, with the rule it rests on
+export type Hint = string | { text: string; rule: Citation | readonly Citation[] };
+
 export interface FieldSpec {
   title: string; // in plain words, before the name: Position, Output format, or a dimension's label
   name: string; // as sent: coords, within, parameter-name, datetime, z, member, f
   id: string; // after query-field-, which the status line and the issues jump to: z, dim:member
   requirement: Requirement;
   figure?: string; // what the metadata says, at the right of the name: 13 listed, hPa
-  hints: string[]; // what the collection allows, then how to fill it in
+  hints: Hint[]; // what the collection allows, then how to fill it in
   link?: { label: string; href: string }; // a custom dimension's reference
   leftOut?: string; // what the server does while the field is empty
   grammar?: string; // the forms a typed value takes, said while the field is empty or wrong
@@ -28,6 +33,7 @@ export interface FieldSpec {
 export interface FieldContext {
   apiRequired?: string[]; // the parameters the API docs' operation requires
   hasLocation?: boolean; // a location is picked: a locations query is for its data, not a list
+  hasItem?: boolean; // an item is named: an items query is for that one, not a list, and takes only f
   inRequest?: string[]; // the parameters the request line has: a field shows for one the metadata has nothing for
 }
 
@@ -49,7 +55,8 @@ export function timesSaid(temporal: Temporal): string | null {
   const first = overall?.[0] ?? listed[0] ?? null;
   const last = overall?.[1] ?? listed[listed.length - 1] ?? null;
   if (!first && !last) return listed.length ? `${listed.length} times listed` : null;
-  const withYear = !!first && !!last && new Date(first).getUTCFullYear() !== new Date(last).getUTCFullYear();
+  // An end left open says nothing of the year, so the other end gives its own
+  const withYear = !first || !last || new Date(first).getUTCFullYear() !== new Date(last).getUTCFullYear();
   const span = `${first ? timeOf(first, withYear) : 'open'} to ${last ? timeOf(last, withYear) : 'open'} UTC`;
   if (!listed.length) return `From ${span}`;
   return `${listed.length > 2000 ? 'Over 2,000' : listed.length} times listed, ${span}`;
@@ -129,6 +136,18 @@ const unitsHint = (offered: string[], variable: string) => (offered.length
   ? `Units from the query's \`${variable}\``
   : `The query lists no \`${variable}\`: type a unit`);
 
+// Why an items query has datetime when its collection gives no time: each standard has every items query take it, so
+// it's typed, with nothing to pick from. EDR's items query takes Features' parameters
+const ITEMS_TIME = ". The collection's extent gives no time, so there's none to pick: type one";
+function itemsTime(collection: Collection): Hint {
+  if (collection.itemType === 'record') return { text: `Records servers SHALL support \`datetime\` on items${ITEMS_TIME}`, rule: RECORDS1.datetime };
+  if (fromItemsLink(collection)) return { text: `Features servers SHALL support \`datetime\` on items${ITEMS_TIME}`, rule: FEATURES1.timeDefinition };
+  return {
+    text: `EDR's items query takes the parameters of Features, whose servers SHALL support \`datetime\`${ITEMS_TIME}`,
+    rule: [EDR.itemsParameters, FEATURES1.timeDefinition],
+  };
+}
+
 // The fields a query shows, in order: its geometry, its sizes and their units, then parameter-name, datetime, z, the
 // custom dimensions and f
 export function fieldSpecs(collection: Collection, queryKey: string, chosen: { parameters: number }, context: FieldContext = {}): FieldSpec[] {
@@ -143,6 +162,9 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
   });
   const fields: FieldSpec[] = [];
   const extent = collection.extent;
+  const oneItem = queryType === 'items' && !!context.hasItem;
+  // A Records collection's items are records
+  const items = collection.itemType === 'record' ? 'records' : 'items';
   const hasLevels = !!extent?.vertical && !!(extent.vertical.values?.length || extent.vertical.interval?.length);
 
   if (GEOMETRY_HINTS[queryType]) {
@@ -150,7 +172,7 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
   }
   const box = { hints: ['Drag a box on the map, or type its edges'], grammar: 'Typed: `west,south,east,north`, in degrees' };
   if (queryType === 'cube') fields.push(field('bbox', box));
-  if (queryType === 'items') fields.push(field('bbox', { ...box, leftOut: 'items anywhere' }));
+  if (queryType === 'items' && !oneItem) fields.push(field('bbox', { ...box, leftOut: `${items} anywhere` }));
 
   // A size and its unit: one block, the number then the unit, as they're read. EDR requires the two together
   const sized = (name: string, unitName: string, kind: 'within' | 'width' | 'height', hints: string[]): FieldSpec =>
@@ -161,8 +183,8 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
     // A height needs a level to be measured from, so only collections with levels get one
     if (hasLevels) fields.push(sized('corridor-height', 'height-units', 'height', ['Measured from the level in `z`']));
   }
-  if (queryType === 'items') {
-    fields.push(field('limit', { leftOut: 'the server decides how many items (often 10)', grammar: 'A whole number of at least 1' }));
+  if (queryType === 'items' && !oneItem) {
+    fields.push(field('limit', { leftOut: `the server decides how many ${items} (often 10)`, grammar: 'A whole number of at least 1' }));
   }
 
   const selectsData = !rule?.featureList && !(queryType === 'locations' && !context.hasLocation);
@@ -177,12 +199,14 @@ export function fieldSpecs(collection: Collection, queryKey: string, chosen: { p
 
   // A field for what the metadata has, or for what the request has though the metadata hasn't
   const inRequest = new Set(context.inRequest ?? []);
-  if ((extent?.temporal || inRequest.has('datetime')) && queryType !== 'instances') {
-    const said = extent?.temporal ? timesSaid(extent.temporal) : "The collection's extent has no time";
+  // Every items query takes one, whatever the extent says
+  if ((extent?.temporal || inRequest.has('datetime') || queryType === 'items') && queryType !== 'instances' && !oneItem) {
+    const said: Hint | null = extent?.temporal ? timesSaid(extent.temporal)
+      : queryType === 'items' ? itemsTime(collection) : "The collection's extent has no time";
     const list = timeIsOnlyAFilter(queryType, !!context.hasLocation);
     fields.push(field('datetime', {
       hints: said ? [said] : [],
-      leftOut: list ? `no time filter: all ${queryType === 'locations' ? 'locations' : 'items'} are listed` : 'the server decides which times',
+      leftOut: list ? `no time filter: all ${queryType === 'locations' ? 'locations' : items} are listed` : 'the server decides which times',
       grammar: DATETIME_GRAMMAR,
     }));
   }
