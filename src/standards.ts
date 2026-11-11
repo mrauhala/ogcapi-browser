@@ -176,14 +176,24 @@ export const EDR11 = {
   // SHOULD return data at all available vertical levels"
   zResponse: edr11('/req/edr/z-response A', '_05c014b7-76ff-2c78-4710-6ca05ddccbf1'),
   zAllLevels: edr11('/req/edr/z-response E', '_5406561c-0742-a189-74ba-5c811f8fedf6'),
+  // A: "If the parameter-name parameter is provided, only those parameters named SHALL be returned. If the
+  // parameter-name parameter is not specified all parameters in the collection SHALL be returned."
+  parameterNameResponseA: edr11('/req/edr/parameter-name-response A', '_02c656ef-f4b7-6d28-33f7-d32625ead84c'),
   // B: "The parameter-name parameter SHALL consist of a comma delimited string value based on an enumerated list of
   // options listed in the collections metadata."
   parameterNameResponseB: edr11('/req/edr/parameter-name-response B', '_d2f6fcfe-d79e-2007-d61b-f4abb890bf55'),
   // A: "Each resource collection operation SHALL support a parameter f with the following characteristics …"
   fDefinition: edr11('/req/edr/rc-f-definition A', '_b14d18f2-6d04-8462-5364-5ae77c801b49'),
+  // A: "If the f parameter is provided, the returned information should be transformed to the defined data format."
+  // A should, in lower case, as in C
+  fResponseA: edr11('/req/edr/REQ_rc-f-response A', '_e89f9b26-7758-2be4-7253-f388714455ec'),
   // B: "The f parameter SHALL consist of a string value based on an enumerated list of available options provided in
   // the collections metadata."
   fResponseB: edr11('/req/edr/REQ_rc-f-response B', '_cf6da47c-4a66-e0a9-f143-496224c0d199'),
+  // C: "If f value is not defined the returned data should be in the default format specified by the
+  // default_output_format attribute of the collections metadata response. If a default_output_format attribute is not
+  // specified, the data return SHOULD be in the native format of the source datastore."
+  fResponseC: edr11('/req/edr/REQ_rc-f-response C', '_a02d5d42-1498-57ff-cb5f-4087fab73eec'),
   // B: "A within-units value SHALL be one of the values defined in the instance metadata:" and its fragment, "name:
   // within-units / in: query / required: false / schema: type: string"
   withinUnitsDefinition: edr11('/req/edr/within-units-definition B', '_e66cddad-9b4d-93bf-2ec7-cb48e6588081'),
@@ -218,6 +228,9 @@ export const EDR11 = {
   // intervals available in the collection, each member of the array can either be a single time, an ISO 8601 time
   // interval or an ISO 8601 time duration"
   temporalValues: edr11('Annex C.7 (informative)', '_8f4c9f38-bc6a-4b98-8fd9-772e42d60ab2'),
+  // Annex C (informative), the Parameter Object's extent: "Information on the spatio-temporal extent of the parameter
+  // values (if different from other parameters in the collection)"
+  parameterObject: edr11('Annex C.12 (informative)', '_da400aef-f6ee-4d08-b36c-2f535d581d53'),
   // The Locations query, in the clause's text: "If a location id is not defined the API SHALL return a GeoJSON features
   // array of valid location identifiers, the schema of the GeoJSON response SHOULD be defined in the OpenAPI definition"
   locationsQuery: edr11('8.2.8', '_76907fac-bf01-f4f3-6672-cbc8f25486c0'),
@@ -312,10 +325,17 @@ export const EDR12 = {
   zIgnored: edr12('/req/edr/z-response A', '_ab1fb9fa-774a-ac74-efe7-4e5804c0ab43', 'B.55'),
   zResponse: edr12('/req/edr/z-response B', '_6d458fa8-adfe-a9d3-7655-92a6c8210952', 'B.55'),
   zAllLevels: edr12('/req/edr/z-response F', '_5a1dea3c-9ddc-70cc-43fa-e35299a185c7', 'B.55'),
+  // A: as 1.1's, "only those parameters listed SHALL be returned"
+  parameterNameResponseA: edr12('/req/edr/parameter-name-response A', '_7d591558-34a5-d7c7-c7a2-d5473786753e', 'B.51'),
   parameterNameResponseB: edr12('/req/edr/parameter-name-response B', '_c3cce842-c10e-423e-877c-7fe1f29bf2aa', 'B.51'),
   // J: "A data query GET or POST operation SHOULD include an f query parameter"
   queryF: edr12('/req/edr/rc-core-query-parameters J', '_36756374-4167-aa52-7f49-8800c1f3aca2', 'B.49'),
+  // A: "If the f parameter is provided, the returned information SHOULD be transformed to the defined data format." C:
+  // "If f value is not defined the returned data SHOULD be in the default format specified by the
+  // default_output_format attribute of the collections metadata response. …"
+  fResponseA: edr12('/req/edr/REQ_rc-f-response A', '_cccffd97-302d-9464-f2cc-46bd49e7fb60', 'B.59'),
   fResponseB: edr12('/req/edr/REQ_rc-f-response B', '_8458c6b5-9cd2-a890-a6e0-a8646eeddb04', 'B.59'),
+  fResponseC: edr12('/req/edr/REQ_rc-f-response C', '_e8359e04-25a1-b6f6-d763-0ee1ce9d4b40', 'B.59'),
   withinUnitsDefinition: edr12('/req/edr/within-units-definition B', '_82b6b45c-22d7-42c7-352b-26053aabdba3', 'B.80'),
   widthUnitsDefinition: edr12('/req/edr/REQ_rc-width-units-definition A', '_e94367a5-e9c7-9063-54c3-604bda2e056d', 'B.133'),
   heightUnitsDefinition: edr12('/req/edr/REQ_rc-height-units-definition A', '_ac3bbd2e-f4e6-f744-0bf6-a2a158d1fa7c', 'B.135'),
@@ -335,6 +355,7 @@ export const EDR12 = {
   oas31Definition: edr12('/req/oas31/oas-definition A', '_0396bf08-e85d-1246-0a8a-19b6f040e362'),
   crossOrigin: edr12('Recommendation 3', '_b41b4d07-fb4e-7add-07cd-d7684805ffb6'),
   temporalValues: edr12('Annex C.8 (informative)', '_db0d9ee1-a7e2-4238-af58-631cd46f6404'),
+  parameterObject: edr12('Annex C.14 (informative)', '_d0026e88-8950-4cb4-aee5-64e3f240a7cc'),
   // "If a location id is not defined, the API implementation SHALL return a GeoJSON features array of valid location
   // identifiers and the schema of the GeoJSON response SHOULD be defined in the OpenAPI definition of the EDR service."
   locationsQuery: edr12('8.2.8', '_c7ea2a8a-9696-0d9f-7141-fb986d941c20'),
@@ -402,10 +423,14 @@ export const EDR = {
   zResponse: both(EDR11.zResponse, EDR12.zResponse),
   zIgnored: both(undefined, EDR12.zIgnored),
   zAllLevels: both(EDR11.zAllLevels, EDR12.zAllLevels),
+  parameterNameResponseA: both(EDR11.parameterNameResponseA, EDR12.parameterNameResponseA),
   parameterNameResponseB: both(EDR11.parameterNameResponseB, EDR12.parameterNameResponseB),
   // 1.1: each operation SHALL support f; 1.2: a data query SHOULD include it
   queryF: both(EDR11.fDefinition, EDR12.queryF),
+  fResponseA: both(EDR11.fResponseA, EDR12.fResponseA),
   fResponseB: both(EDR11.fResponseB, EDR12.fResponseB),
+  fResponseC: both(EDR11.fResponseC, EDR12.fResponseC),
+  parameterObject: both(EDR11.parameterObject, EDR12.parameterObject),
   withinUnitsDefinition: both(EDR11.withinUnitsDefinition, EDR12.withinUnitsDefinition),
   widthUnitsDefinition: both(EDR11.widthUnitsDefinition, EDR12.widthUnitsDefinition),
   heightUnitsDefinition: both(EDR11.heightUnitsDefinition, EDR12.heightUnitsDefinition),

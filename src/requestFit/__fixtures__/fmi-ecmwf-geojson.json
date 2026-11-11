@@ -1,0 +1,77 @@
+{
+ "links": [
+  {
+   "href": "https://opendata.fmi.fi/edr/collections/ecmwf/position?coords=POINT%2824.94%2060.17%29&datetime=2026-11-12T00%3A00%3A00Z%2F2026-11-12T06%3A00%3A00Z&f=CoverageJSON&parameter-name=temperature%2Cpressure",
+   "rel": "alternate",
+   "type": "application/vnd.cov+json"
+  },
+  {
+   "href": "https://opendata.fmi.fi/edr/collections/ecmwf/position?coords=POINT%2824.94%2060.17%29&datetime=2026-11-12T00%3A00%3A00Z%2F2026-11-12T06%3A00%3A00Z&f=GeoJSON&parameter-name=temperature%2Cpressure",
+   "rel": "self",
+   "type": "application/geo+json"
+  },
+  {
+   "href": "https://opendata.fmi.fi/edr/collections/ecmwf",
+   "rel": "collection",
+   "type": "application/json"
+  }
+ ],
+ "bbox": [
+  24.94,
+  60.17,
+  24.94,
+  60.17
+ ],
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "coordinates": [
+     24.94,
+     60.17
+    ],
+    "type": "Point"
+   },
+   "properties": {
+    "pressure": [
+     997.954,
+     996.654,
+     996.153
+    ],
+    "temperature": [
+     5.95106,
+     6.11291,
+     6.28261
+    ],
+    "time": [
+     "2026-11-12T00:00:00Z",
+     "2026-11-12T03:00:00Z",
+     "2026-11-12T06:00:00Z"
+    ]
+   }
+  }
+ ],
+ "parameters": [
+  {
+   "id": "Temperature",
+   "description": "Temperature",
+   "label": "Temperature",
+   "type": "Parameter",
+   "observedProperty": {
+    "id": "Temperature",
+    "label": "Temperature"
+   }
+  },
+  {
+   "id": "Pressure",
+   "description": "Pressure",
+   "label": "Pressure",
+   "type": "Parameter",
+   "observedProperty": {
+    "id": "Pressure",
+    "label": "Pressure"
+   }
+  }
+ ],
+ "type": "FeatureCollection"
+}
