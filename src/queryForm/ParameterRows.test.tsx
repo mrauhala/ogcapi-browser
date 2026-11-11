@@ -17,6 +17,12 @@ const render = (rows: ParameterRow[], chosen: string[] = [], several = false) =>
   <ParameterRows rows={rows} chosen={chosen} several={several} onChange={() => {}} />,
 );
 const count = (html: string, text: string) => html.split(text).length - 1;
+// The CSS written for the element a text is in: the last style block before it
+const cssBefore = (html: string, text: string) => {
+  const at = html.indexOf(text);
+  const from = html.lastIndexOf('<style', at);
+  return html.slice(from, html.indexOf('</style>', from));
+};
 // Each row's role and whether it's checked, in order
 const states = (html: string) => html.split('<button').slice(1).map(button => [
   button.includes('role="radio"') ? 'radio' : button.includes('role="checkbox"') ? 'checkbox' : '?',
@@ -70,8 +76,11 @@ describe('ParameterRows', () => {
     expect(count(html, columns)).toBeGreaterThan(0);
     expect(html).not.toContain('subgrid');
     expect(html).not.toContain('fit-content');
-    // In mono, so that a ch is an id's character; the label in the UI's font
-    expect(html).toContain('font-family:monospace');
+    // Each row a grid of its own, in mono, so that a ch is an id's character; the label in the UI's font
+    const rowCss = cssBefore(html, 'role="radio"');
+    expect(rowCss).toContain('display:grid');
+    expect(rowCss).toContain('font-family:monospace');
+    expect(rowCss).toContain(columns);
     // As Emotion writes it, without the spaces
     expect(html).toContain(`min-width:0;font-family:${createTheme().typography.fontFamily!.replace(/, /g, ',')}`);
   });
