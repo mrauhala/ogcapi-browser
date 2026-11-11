@@ -257,6 +257,10 @@ export const EDR11 = {
   // should be generated"
   corridorWidthUnitsUnsupported: edr11('/req/edr/rc-corridor L', '_44ede6eb-f916-c610-117f-1ccef8744dbb'),
   corridorHeightUnitsUnsupported: edr11('/req/edr/rc-corridor O', '_534096a2-9648-0fd3-4483-e0fbc640579f'),
+  // The items query: "If an itemId is not specified, the query will return a list of the available itemId's. This
+  // behavior is specified in OGC API — Features. All other parameters for use with the Items query are defined by OGC API
+  // — Features." Its table lists bbox, datetime and limit
+  itemsParameters: edr11('8.2.7.1', '_26b0e263-d85c-2d79-0aeb-f0a33ec85841'),
 };
 
 export const EDR12 = {
@@ -373,6 +377,8 @@ export const EDR12 = {
   // K, N: as 1.1's L and O, "… a HTTP 400 error SHOULD be generated"
   corridorWidthUnitsUnsupported: edr12('/req/edr/rc-corridor K', '_e98e127e-f6a0-ed77-3a1c-7dc9e75f70c1', 'B.112'),
   corridorHeightUnitsUnsupported: edr12('/req/edr/rc-corridor N', '_714e7636-d5f4-4c35-ba3c-995d17e4c425', 'B.112'),
+  // As 1.1's, under 8.2.7 itself, with "OGC API-Features" for "OGC API — Features"
+  itemsParameters: edr12('8.2.7', '_3c2581c9-194c-a22c-1898-4f2e87035833'),
 };
 
 // An EDR rule as both versions word it, for Checks to cite the one the API declares. A version without one cites none
@@ -453,6 +459,7 @@ export const EDR = {
   corridorHeight: both(EDR11.corridorHeight, EDR12.corridorHeight),
   corridorWidthUnits: both(EDR11.corridorWidthUnits, EDR12.corridorWidthUnits),
   corridorHeightUnits: both(EDR11.corridorHeightUnits, EDR12.corridorHeightUnits),
+  itemsParameters: both(EDR11.itemsParameters, EDR12.itemsParameters),
 };
 
 // ---- OGC API – Common Part 1 (OGC 19-072), published ----
@@ -507,6 +514,22 @@ export const FEATURES1 = {
   // intersects with this point." and "in cases where the box spans the anti-meridian the first value (west-most box
   // edge) is larger than the third value (east-most box edge)."
   bboxResponse: features1('/req/core/fc-bbox-response, its notes', 'req_core_fc-bbox-response'),
+  // A: "The operation SHALL support a parameter datetime with the following characteristics (using an OpenAPI
+  // Specification 3.0 fragment): name: datetime in: query required: false schema: type: string style: form explode:
+  // false". The operation is a collection's items
+  timeDefinition: features1('/req/core/fc-time-definition A', 'req_core_fc-time-definition'),
+};
+
+// ---- OGC API – Records Part 1 (OGC 20-004r1), published ----
+// A requirement's statements have ids of their own
+const RECORDS_1 = 'https://docs.ogc.org/is/20-004r1/20-004r1.html';
+const records1 = (requirement: string, anchor: string): Rule => ({ label: `Records 1 ${requirement}`, url: `${RECORDS_1}#${anchor}` });
+
+export const RECORDS1 = {
+  // A: "A searchable endpoint SHALL support a Temporal Searching (datetime) parameter as defined in the OGC API — Features
+  // — Part 1: Core Standard." B: "All references to the term "features" in the OGC API — Features — Part 1: Core Standard
+  // SHALL be replaced by the term "records" or "local resources" as the context may indicate."
+  datetime: records1('/req/record-core-query-parameters/datetime A', '_6b8fcab1-1090-e860-2ade-4cd7856bcfd4'),
 };
 
 // ---- OpenAPI 3.0.3 and BCP 47 ----

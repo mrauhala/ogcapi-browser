@@ -31,9 +31,11 @@ vi.mock('@mui/material/Button', async importOriginal => {
 });
 vi.mock('./contexts/ValidationContext', () => ({ useValidation: () => ({ validationResult: state.validation }) }));
 // Each has its own tests, or needs a server: here it's only whether they're there
-vi.mock('./CollectionQueryBuilder', () => ({ default: () => <i>the query builder</i> }));
+// The builder says which queries it was given
+vi.mock('./CollectionQueryBuilder', () => ({
+  default: ({ collection }: { collection: Collection }) => <i>the query builder ({Object.keys(collection.data_queries ?? {}).join(' ')})</i>,
+}));
 vi.mock('./MapsPanel', () => ({ default: () => <i>the maps panel</i> }));
-vi.mock('./ItemsTable', () => ({ default: ({ title }: { title: string }) => <i>the table {title}</i> }));
 vi.mock('./LocationFeatureList', () => ({ default: ({ features }: { features: unknown[] }) => <i>{features.length} locations</i> }));
 
 const position = { position: { link: { href: 'https://a.example/collections/one/position', rel: 'data' } } };
@@ -220,10 +222,9 @@ describe('CollectionPane', () => {
     expect(render(edr)).not.toContain('About');
   });
 
-  it('shows the query builder for a collection with queries, and no table', () => {
+  it('shows the query builder for a collection with queries', () => {
     const html = render(edr);
-    expect(html).toContain('the query builder');
-    expect(html).not.toContain('the table');
+    expect(html).toContain('the query builder (position)');
     expect(html).not.toContain('the maps panel');
   });
 
@@ -232,26 +233,23 @@ describe('CollectionPane', () => {
     expect(render({ ...edr, data_queries: {} })).not.toContain('the query builder');
   });
 
-  it('shows the table of a Features, Records or STAC collection', () => {
+  it('makes a Features, Records or STAC collection’s items link its items query, and fetches nothing itself', () => {
     const items = { ...edr, data_queries: undefined, links: [
       { href: 'https://a.example/collections/one/items', rel: 'items', type: 'application/geo+json', title: 'Its items' },
       { href: 'https://a.example/collections/one/items?f=html', rel: 'items', type: 'text/html' },
     ] };
     const html = render(items);
-    expect(html).toContain('the table Its items');
-    expect(html.split('the table').length - 1).toBe(1);
-    expect(html).not.toContain('the query builder');
+    expect(html).toContain('the query builder (items)');
+    expect(html.split('the query builder').length - 1).toBe(1);
+    // Beside the queries it has
+    expect(render({ ...items, data_queries: position })).toContain('the query builder (position items)');
   });
 
-  it('makes no table of other GeoJSON links, which are map layers', () => {
-    const layer = { ...edr, links: [{ href: 'https://a.example/collections/one/layer', rel: 'alternate', type: 'application/geo+json' }] };
-    expect(render(layer)).not.toContain('the table');
-  });
-
-  it('calls a table with no title Items, and leaves out one with no address', () => {
-    const items = (link: object) => ({ ...edr, links: [{ rel: 'items', type: 'application/geo+json', ...link }] });
-    expect(render(items({ href: 'https://a.example/items' }))).toContain('the table Items');
-    expect(render(items({ href: '' }))).not.toContain('the table');
+  it('makes no query of other GeoJSON links, which are map layers, or of an items link with no address', () => {
+    const layer = { ...edr, data_queries: undefined, links: [{ href: 'https://a.example/collections/one/layer', rel: 'alternate', type: 'application/geo+json' }] };
+    expect(render(layer)).not.toContain('the query builder');
+    const nowhere = { ...edr, data_queries: undefined, links: [{ rel: 'items', type: 'application/geo+json', href: '' }] };
+    expect(render(nowhere)).not.toContain('the query builder');
   });
 
   it('keeps the maps panel mounted for a Maps collection, which writes the request line', () => {

@@ -18,7 +18,7 @@ import Tabs from '@mui/material/Tabs';
 import { useTheme } from '@mui/material/styles';
 import VirtualizedCodeView from './VirtualizedCodeView';
 import CoverageData, { type CoverageView } from './CoverageData';
-import LocationsData from './LocationsData';
+import FeaturesData, { FeatureData } from './FeaturesData';
 import { summarizeCoverage } from './coverage/coverageSummary';
 import { inheritedDomainType } from './coverage/inheritedDomainType';
 import FetchErrorAlert from './FetchErrorAlert';
@@ -33,6 +33,7 @@ import { usePublishResponseCells, useResponseCells } from './contexts/responseCe
 import { cellFindings } from './coverage/coverageCells';
 import { mediaTypeFindings } from './coverage/mediaType';
 import { useApi } from './contexts/ApiContext';
+import { itemsOf } from './items/itemsList';
 import { locationsListOf, locationsSchemaOf } from './locations/locationsList';
 import { locationIdFindings } from './locations/locationIds';
 import { geojsonMediaTypeFindings } from './locations/mediaType';
@@ -48,6 +49,7 @@ import type { ResponseDetails } from './api/sendRequest';
 import type { ValidationError } from './DataRetrievalAPI';
 import { useContentTypeDetection } from './hooks/useContentTypeDetection';
 import { useXSLTTransform } from './hooks/useXSLTTransform';
+import type { GeoJsonFeature } from './featureRows';
 import { useValidationErrorNavigation } from './hooks/useValidationErrorNavigation';
 import { findLineForJsonPointer } from './utils/jsonPointerToLine';
 
@@ -136,6 +138,9 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   const [coverageView, setCoverageView] = useState<CoverageView | null>(null);
   // A collection's locations, whatever the Content-Type says they are
   const locations = useMemo(() => locationsListOf(url, data, parsedJson)?.features ?? null, [url, data, parsedJson]);
+  // A collection's items, or one of them: records in a Records collection. Never a locations list, whose path isn't one
+  const items = useMemo(() => itemsOf(url, data, parsedJson), [url, data, parsedJson]);
+  const itemNoun = checkedAgainst?.itemType === 'record' ? 'record' : 'item';
 
   // A data query's answer, against what it asked for: a success with a body. An error's body isn't data, and a stored
   // response has no status to say it's one. Its body is read as JSON whatever its Content-Type says, as the format is
@@ -158,7 +163,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   const tabs = responseTabs({
     hasResponse: response !== null && !isLoading,
     // A response the app failed to read opens there too, on the line that says so
-    hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null || locations !== null,
+    hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null || locations !== null || items !== null,
     hasImage: imageUrl !== null,
   });
   const tab = shownTab(preferredTab, tabs);
@@ -389,7 +394,11 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           <CoverageData summary={coverage} view={coverageView} onViewChange={setCoverageView} />
         )}
 
-        {!isLoading && tab === 'data' && locations && <LocationsData features={locations} />}
+        {!isLoading && tab === 'data' && locations && <FeaturesData features={locations} />}
+
+        {!isLoading && tab === 'data' && items && (items.one
+          ? <FeatureData feature={items.features[0] as GeoJsonFeature} noun={itemNoun} />
+          : <FeaturesData features={items.features} noun={itemNoun} numberMatched={items.numberMatched} numberReturned={items.numberReturned} />)}
 
         {!isLoading && tab === 'data' && coverageFault && (
           <Alert severity="error" sx={{ borderRadius: 0 }} action={<Button color="inherit" size="small" onClick={showRaw}>Show Raw</Button>}>
@@ -397,7 +406,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           </Alert>
         )}
 
-        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && !locations && (
+        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && !locations && !items && (
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', backgroundColor: 'background.paper' }}>
             {transformedHtml && !isTransforming ? (
               <iframe

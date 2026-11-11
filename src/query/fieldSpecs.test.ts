@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Temporal, Vertical } from '../types/api';
 import { collectionOffers, crsOffered, dimensionTitle, fieldSpecs, heldNames, lacksTimeAndLevels, levelsSaid, levelUnit, timesSaid, type FieldSpec } from './fieldSpecs';
+import { withItemsQuery } from './itemsQuery';
+import { EDR, FEATURES1, RECORDS1 } from '../standards';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
 import fmiPainepinta from './__fixtures__/fmi-ecmwf-painepinta.json';
 import dwdIcon from './__fixtures__/dwd-icon-d2-ruc-single-level.json';
@@ -85,6 +87,12 @@ describe('fieldSpecs', () => {
     expect(one(items, 'datetime').leftOut).toBe('no time filter: all items are listed');
   });
 
+  it('asks for one item only its format', () => {
+    expect(ids(specs(METEOCORE, 'items', 0, { hasItem: true }))).toEqual(['f']);
+    // Another query has no item
+    expect(ids(specs(FMI, 'position', 0, { hasItem: true }))).toEqual(ids(specs(FMI, 'position')));
+  });
+
   it('lists locations with no data selection and no format, until a location is picked', () => {
     const list = specs(FMI, 'locations');
     expect(ids(list)).toEqual(['datetime']);
@@ -160,6 +168,58 @@ describe('fieldSpecs', () => {
   });
 });
 
+describe('fieldSpecs, items of Features, Records and EDR', () => {
+  // Each with no time in its extent: DMI's observation has no extent at all
+  const link = (rest: Record<string, unknown> = {}) => ({
+    id: 'observation', links: [{ href: 'https://opendataapi.dmi.dk/v2/metObs/collections/observation/items?f=json', rel: 'items', type: 'application/geo+json' }], ...rest,
+  }) as unknown as Collection;
+  const time = (collection: Collection) => one(specs(collection, 'items'), 'datetime');
+
+  it('gives every items query a time, which a Features server SHALL take, though the extent gives none', () => {
+    const dmi = withItemsQuery(link());
+    expect(ids(specs(dmi, 'items'))).toEqual(['bbox', 'limit', 'datetime', 'f']);
+    expect(time(dmi).hints).toEqual([{
+      text: "Features servers SHALL support `datetime` on items. The collection's extent gives no time, so there's none to pick: type one",
+      rule: FEATURES1.timeDefinition,
+    }]);
+    expect(time(dmi).leftOut).toBe('no time filter: all items are listed');
+  });
+
+  it('cites Records for a Records collection’s', () => {
+    const gdc = withItemsQuery(link({ itemType: 'record' }));
+    expect(time(gdc).hints).toEqual([{
+      text: "Records servers SHALL support `datetime` on items. The collection's extent gives no time, so there's none to pick: type one",
+      rule: RECORDS1.datetime,
+    }]);
+    expect(time(gdc).leftOut).toBe('no time filter: all records are listed');
+  });
+
+  it('cites EDR, and Features whose parameters EDR’s items take, for EDR’s own items query', () => {
+    const edr = made({}, {}, { data_queries: { items: { link: { href: 'https://a.example/collections/made/items', variables: { query_type: 'items' } } } } });
+    expect(time(edr).hints).toEqual([{
+      text: "EDR's items query takes the parameters of Features, whose servers SHALL support `datetime`. The collection's extent gives no time, so there's none to pick: type one",
+      rule: [EDR.itemsParameters, FEATURES1.timeDefinition],
+    }]);
+  });
+
+  it('says the times there are where the extent gives them', () => {
+    expect(time(METEOCORE).hints).toEqual([timesSaid(METEOCORE.extent!.temporal!)]);
+    expect(time(withItemsQuery(link({ extent: { temporal: { interval: [['1850-01-01T00:00:00Z', null]] } } }))).hints).toEqual(['From Jan 1 1850 00:00 to open UTC']);
+  });
+
+  it('calls a Records collection’s items records', () => {
+    const gdc = specs(withItemsQuery(link({ itemType: 'record' })), 'items');
+    expect(one(gdc, 'bbox').leftOut).toBe('records anywhere');
+    expect(one(gdc, 'limit').leftOut).toBe('the server decides how many records (often 10)');
+    const msc = specs(withItemsQuery(link({ itemType: 'feature' })), 'items');
+    expect(one(msc, 'bbox').leftOut).toBe('items anywhere');
+  });
+
+  it('has no time for one item', () => {
+    expect(ids(specs(withItemsQuery(link()), 'items', 0, { hasItem: true }))).toEqual(['f']);
+  });
+});
+
 describe('fieldSpecs, typed values', () => {
   it('says how each typed value is written', () => {
     const grammar = (collection: Collection, queryKey: string, id: string) => one(specs(collection, queryKey), id).grammar;
@@ -186,9 +246,9 @@ describe('fieldSpecs, typed values', () => {
     expect(ids(asked)).toEqual(['coords', 'datetime', 'z', 'f']);
     expect(one(asked, 'datetime')).toMatchObject({ hints: ["The collection's extent has no time"], leftOut: 'the server decides which times' });
     expect(one(asked, 'z')).toMatchObject({ hints: ["The collection's extent has no levels"], leftOut: 'the server decides which levels' });
-    // Not for a list, which takes no z
+    // Not for a list, which takes no z, though it takes a time whatever the extent says
     const list = made({}, {}, { data_queries: { items: { link: { href: 'h', variables: { query_type: 'items' } } } } });
-    expect(ids(specs(list, 'items', 0, { inRequest: ['z'] }))).toEqual(['bbox', 'limit', 'f']);
+    expect(ids(specs(list, 'items', 0, { inRequest: ['z'] }))).toEqual(['bbox', 'limit', 'datetime', 'f']);
     // Nor a second one where the collection has them
     expect(ids(specs(FMI_LEVELS, 'position', 0, { inRequest: ['datetime', 'z'] })).filter(id => id === 'z' || id === 'datetime')).toEqual(['datetime', 'z']);
   });
@@ -241,7 +301,10 @@ describe('timesSaid', () => {
   it('says from when to when, in UTC, with the year where the two ends’ years differ', () => {
     expect(timesSaid({ interval: [['2026-10-05T03:00:00Z', '2026-10-15T00:00:00Z']] } as Temporal)).toBe('From Oct 5 03:00 to Oct 15 00:00 UTC');
     expect(timesSaid({ interval: [['2025-12-31T18:00:00Z', '2026-01-02T06:30:00Z']] } as Temporal)).toBe('From Dec 31 2025 18:00 to Jan 2 2026 06:30 UTC');
-    expect(timesSaid({ interval: [['2026-10-05T00:00:00Z', null]] } as Temporal)).toBe('From Oct 5 00:00 to open UTC');
+    // An end left open says nothing of the year, so the other end gives its own
+    expect(timesSaid({ interval: [['2026-10-05T00:00:00Z', null]] } as Temporal)).toBe('From Oct 5 2026 00:00 to open UTC');
+    expect(timesSaid({ interval: [['1850-01-01T00:00:00Z', null]] } as Temporal)).toBe('From Jan 1 1850 00:00 to open UTC');
+    expect(timesSaid({ interval: [[null, '2026-10-15T00:00:00Z']] } as Temporal)).toBe('From open to Oct 15 2026 00:00 UTC');
   });
 
   it('counts the times a collection lists', () => {

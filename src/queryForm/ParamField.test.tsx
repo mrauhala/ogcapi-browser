@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ParamField, { type ParamFieldProps } from './ParamField';
 import { withClass, words } from '../coverage/cellsTestData';
 import type { QueryIssue } from '../query/types';
-import { EDR } from '../standards';
+import { EDR, FEATURES1 } from '../standards';
 
 // An API declaring EDR 1.2, whose rules the fields cite
 vi.mock('../contexts/ApiContext', () => ({ useApi: () => ({ conformsTo: ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core'], apiUrl: 'https://a.example/edr' }) }));
@@ -65,5 +65,18 @@ describe('ParamField', () => {
     expect(words(html)).toBe('Output format f Output format "NetCDF" isn\'t offered for this query EDR 1.2 /req/edr/REQ_rc-f-response B, test B.59 Looks wrong');
     expect(html).toContain('href="https://docs.ogc.org/is/19-086r9/19-086r9.html#_8458c6b5-9cd2-a890-a6e0-a8646eeddb04"');
     expect(count(html, 'target="_blank"')).toBe(1);
+  });
+
+  // Why a field is there, as a Time on items is, with the rules it rests on: EDR's in the version the API declares
+  it('cites the rules a hint rests on after it', () => {
+    const html = render({ hints: [
+      { text: "EDR's items query takes the parameters of Features, whose servers SHALL support `datetime`", rule: [EDR.itemsParameters, FEATURES1.timeDefinition] },
+      'From Jan 1 1850 00:00 to open UTC',
+    ] });
+    expect(words(html)).toBe("Output format f EDR's items query takes the parameters of Features, whose servers SHALL support datetime "
+      + 'EDR 1.2 8.2.7 Features 1 /req/core/fc-time-definition A From Jan 1 1850 00:00 to open UTC');
+    expect(html).toContain('href="https://docs.ogc.org/is/19-086r9/19-086r9.html#_3c2581c9-194c-a22c-1898-4f2e87035833"');
+    expect(html).toContain('href="https://docs.ogc.org/is/17-069r4/17-069r4.html#req_core_fc-time-definition"');
+    expect(count(html, 'target="_blank"')).toBe(2);
   });
 });

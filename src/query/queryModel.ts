@@ -1,6 +1,8 @@
 import type { Collection, QueryVariables } from '../types/api';
 import { normalizeHref } from '../utils/href';
+import { TYPE_PARAMS } from './buildQueryUrl';
 import { EDR_QUERY_RULES, type EdrQueryRule } from './edrRules';
+import { itemHref } from './itemsQuery';
 import { queryTypeOf } from './queryTypes';
 import type { BBox } from './types';
 
@@ -28,6 +30,7 @@ export interface QueryModelInput {
   radius: { value: number | null; units: string }; // null and '' until chosen
   queryParams: Record<string, string>; // parameters of the query type, e.g. corridor-width; empty ones aren't sent
   locationFeature: LocationFeature | null; // selected location feature, for locations queries
+  itemId?: string; // one item of an items query, a part of its path: '' or left out for the list
 }
 
 export interface QueryModel extends QueryModelInput {
@@ -41,12 +44,23 @@ export function buildQueryModel(input: QueryModelInput): QueryModel | null {
   const query = input.queryKey ? input.collection.data_queries?.[input.queryKey] : undefined;
   if (!query) return null;
   const queryType = queryTypeOf(input.collection, input.queryKey);
-  return {
+  const baseHref = normalizeHref(query.link?.href);
+  const model = {
     ...input,
     queryType,
     rule: EDR_QUERY_RULES[queryType],
     variables: query.link?.variables,
-    baseHref: normalizeHref(query.link?.href),
+    baseHref,
+  };
+  if (queryType !== 'items' || !input.itemId || !baseHref) return model;
+  // One item: its path, and of the list's choices only f. The form keeps the rest for going back to the list
+  const listOnly = new Set(TYPE_PARAMS.items);
+  return {
+    ...model,
+    baseHref: itemHref(baseHref, input.itemId),
+    datetime: '',
+    bbox: null,
+    queryParams: Object.fromEntries(Object.entries(input.queryParams).filter(([name]) => !listOnly.has(name))),
   };
 }
 
