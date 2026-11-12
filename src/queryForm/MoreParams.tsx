@@ -15,34 +15,40 @@ import { useOpenDocs } from './fieldFocus';
 import { crsOffered, heldNames, type FieldSpec } from '../query/fieldSpecs';
 import { queryTypeOf } from '../query/queryTypes';
 import { paramsIn, renameParam, withParam } from '../query/requestUrl';
-import ParamField from './ParamField';
+import ParamField, { IssueLine } from './ParamField';
+import type { QueryIssue } from '../query/types';
 import NameToggles from './NameToggles';
 
 const MONO_INPUT = { htmlInput: { spellCheck: false, autoComplete: 'off', sx: { fontFamily: 'monospace' } } } as const;
 
-// One other parameter, as name = value. The name is kept to itself while it's typed, since a name the form has a field
-// for moves there on leaving it; the value goes into the line at once
-function OtherRow({ name, value, onRename, onValue, onRemove }: {
+// One other parameter, as name = value, and what's wrong with it, as that nothing declares it. The name is kept to itself
+// while it's typed, since a name the form has a field for moves there on leaving it; the value goes into the line at once
+function OtherRow({ name, value, onRename, onValue, onRemove, issues = [], openDocs }: {
   name: string;
   value: string;
   onRename: (name: string) => void;
   onValue: (value: string) => void;
   onRemove?: () => void;
+  issues?: QueryIssue[];
+  openDocs?: (pointer: string) => void;
 }) {
   const [draft, setDraft] = useState(name);
   useEffect(() => setDraft(name), [name]);
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.75 }}>
-      <TextField size="small" value={draft} placeholder="name" onChange={event => setDraft(event.target.value.trim())}
-        onBlur={() => draft !== name && onRename(draft)} onKeyDown={event => event.key === 'Enter' && (event.target as HTMLElement).blur()}
-        sx={{ width: '38%', minWidth: 90 }} slotProps={{ htmlInput: { ...MONO_INPUT.htmlInput, 'aria-label': 'Parameter name' } }} />
-      <Box component="span" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>=</Box>
-      <TextField size="small" value={value} placeholder="value" onChange={event => onValue(event.target.value)} sx={{ flex: 1, minWidth: 0 }}
-        slotProps={{ htmlInput: { ...MONO_INPUT.htmlInput, 'aria-label': `${name || 'New parameter'}'s value` } }} />
-      <IconButton size="small" aria-label={`Take out ${name || 'the new parameter'}`} onClick={onRemove} disabled={!onRemove}>
-        <CloseIcon fontSize="small" />
-      </IconButton>
-    </Box>
+    <>
+      <Box id={name ? `query-field-${name}` : undefined} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.75 }}>
+        <TextField size="small" value={draft} placeholder="name" onChange={event => setDraft(event.target.value.trim())}
+          onBlur={() => draft !== name && onRename(draft)} onKeyDown={event => event.key === 'Enter' && (event.target as HTMLElement).blur()}
+          sx={{ width: '38%', minWidth: 90 }} slotProps={{ htmlInput: { ...MONO_INPUT.htmlInput, 'aria-label': 'Parameter name' } }} />
+        <Box component="span" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>=</Box>
+        <TextField size="small" value={value} placeholder="value" onChange={event => onValue(event.target.value)} sx={{ flex: 1, minWidth: 0 }}
+          slotProps={{ htmlInput: { ...MONO_INPUT.htmlInput, 'aria-label': `${name || 'New parameter'}'s value` } }} />
+        <IconButton size="small" aria-label={`Take out ${name || 'the new parameter'}`} onClick={onRemove} disabled={!onRemove}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+      {issues.map(issue => <IssueLine key={issue.id} issue={issue} openDocs={openDocs} />)}
+    </>
   );
 }
 
@@ -95,7 +101,8 @@ const MoreParams: React.FC<{
           <ParamField id="other" title="Other parameters" name="" figure="sent as typed"
             hints={others.length || adding ? [] : ['Any parameter the request has that no field is for: the form sends it as it is']}>
             {others.map(([name, value], index) => (
-              <OtherRow key={`${index}-${name}`} name={name} value={value}
+              <OtherRow key={`${index}-${name}`} name={name} value={value} openDocs={openDocs}
+                issues={others.findIndex(([other]) => other === name) === index ? issues.filter(issue => issue.field === name) : []}
                 onRename={next => edit(renameParam(requestUrl, name, next, value, true), held.has(next) || next === '')}
                 onValue={text => editUrl(withParam(requestUrl, name, text, true))}
                 onRemove={() => edit(withParam(requestUrl, name, ''), false)} />

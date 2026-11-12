@@ -79,4 +79,25 @@ describe('ParamField', () => {
     expect(html).toContain('href="https://docs.ogc.org/is/17-069r4/17-069r4.html#req_core_fc-time-definition"');
     expect(count(html, 'target="_blank"')).toBe(2);
   });
+
+  it('tags who declared it at the right: a class in blue, a draft linking where it’s written, the API docs in orange', () => {
+    const html = render({
+      requirement: 'optional',
+      declaredBy: [
+        { kind: 'class', name: 'styled-map', uri: 'http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map' },
+        { kind: 'profile', name: 'A draft', href: 'https://example.org/draft', note: 'Being written' },
+        { kind: 'api-docs', pointer: '/paths/x' },
+      ],
+    });
+    expect(words(html)).toBe('Output format f optional styled-map A draft API docs');
+    expect(html).toContain('MuiChip-colorPrimary');
+    expect(html).toContain('MuiChip-colorWarning');
+    expect(html).toContain('href="https://example.org/draft"');
+    expect(html).toContain('target="_blank"');
+    // Its tooltips name the class's URI and the draft's note
+    expect(html).toContain('aria-label="The API declares the conformance class http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map"');
+    expect(html).toContain('aria-label="Being written"');
+    expect(html).toContain('aria-label="The API docs&#x27; operation for this request lists it"');
+    expect(words(render({ declaredBy: [{ kind: 'api-docs', pointer: '/paths/x' }] }))).toBe('Output format f API docs');
+  });
 });

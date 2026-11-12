@@ -1,0 +1,1502 @@
+{
+  "_comment": "Trimmed from https://meteocore.app.meteo.fi: /collections/ecmwf-aifs-single, /collections/ecmwf-ifs-pressure and /collections/fmi-radar-composite-dbz (links, styles and their links cut to the map ones), /collections/ecmwf-aifs-single/styles and /collections/ecmwf-ifs-pressure/styles, /conformance, and /api (the /map and /styles/{styleId}/map operations of two collections, the parameters without their descriptions), fetched 2026-11-11 14:00-14:21 UTC with User-Agent ogcapi-browser-check.",
+  "collections": [
+    {
+      "id": "ecmwf-aifs-single",
+      "title": "ECMWF AIFS Global Forecast — Single level",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "parameter_names": {
+        "10si": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Wind speed (10 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "10u": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "u-component of wind (10 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "10v": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "v-component of wind (10 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "2d": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Dewpoint temperature (2 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "°C"
+            },
+            "symbol": {
+              "value": "°C",
+              "type": "https://qudt.org/vocab/unit/DEG_C"
+            }
+          }
+        },
+        "2r": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Relative humidity over water (2 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "2t": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Temperature (2 m above ground)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "°C"
+            },
+            "symbol": {
+              "value": "°C",
+              "type": "https://qudt.org/vocab/unit/DEG_C"
+            }
+          }
+        },
+        "cp": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Convective precipitation (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "mm"
+            },
+            "symbol": {
+              "value": "mm",
+              "type": "https://qudt.org/vocab/unit/MilliM"
+            }
+          }
+        },
+        "gh": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential height (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "gpm"
+            },
+            "symbol": "gpm"
+          },
+          "extent": {
+            "temporal": {
+              "interval": [
+                [
+                  "2026-11-11T00:00:00+00:00",
+                  "2026-11-11T06:00:00+00:00"
+                ]
+              ],
+              "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+              "grid": {
+                "cellsCount": 2,
+                "resolution": "PT6H",
+                "firstCoordinate": "2026-11-11T00:00:00+00:00"
+              }
+            }
+          }
+        },
+        "hcc": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "High cloud cover (450 hPa)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "lcc": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Low cloud cover (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "mcc": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Medium cloud cover (800 hPa)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "msl": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Pressure (mean sea level)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "hPa"
+            },
+            "symbol": {
+              "value": "hPa",
+              "type": "https://qudt.org/vocab/unit/HectoPA"
+            }
+          }
+        },
+        "sf": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Snowfall water equivalent (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "mm"
+            },
+            "symbol": {
+              "value": "mm",
+              "type": "https://qudt.org/vocab/unit/MilliM"
+            }
+          }
+        },
+        "sp": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Pressure (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "hPa"
+            },
+            "symbol": {
+              "value": "hPa",
+              "type": "https://qudt.org/vocab/unit/HectoPA"
+            }
+          }
+        },
+        "tcc": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Total cloud cover (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "tcw": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Total column water (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "mm"
+            },
+            "symbol": {
+              "value": "mm",
+              "type": "https://qudt.org/vocab/unit/MilliM"
+            }
+          }
+        },
+        "tp": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Total precipitation (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "mm"
+            },
+            "symbol": {
+              "value": "mm",
+              "type": "https://qudt.org/vocab/unit/MilliM"
+            }
+          }
+        },
+        "z": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential (surface)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m2 s-2"
+            },
+            "symbol": {
+              "value": "m²/s²",
+              "type": "https://qudt.org/vocab/unit/M2-PER-SEC2"
+            }
+          },
+          "extent": {
+            "temporal": {
+              "interval": [
+                [
+                  "2026-11-11T00:00:00+00:00",
+                  "2026-11-11T06:00:00+00:00"
+                ]
+              ],
+              "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+              "grid": {
+                "cellsCount": 2,
+                "resolution": "PT6H",
+                "firstCoordinate": "2026-11-11T00:00:00+00:00"
+              }
+            }
+          }
+        }
+      },
+      "styles": [
+        {
+          "id": "default",
+          "title": "Default",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/default/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "contours",
+          "title": "contours",
+          "parameters": [
+            "2t",
+            "z",
+            "2d",
+            "msl",
+            "gh"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/contours/map?parameter-name=2t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "fmi-hires",
+          "title": "FMI HiRes temperature",
+          "parameters": [
+            "2t",
+            "2d"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=2t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single",
+          "rel": "self",
+          "type": "application/json",
+          "title": "ECMWF AIFS Global Forecast — Single level"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+          "type": "application/json",
+          "title": "Styles"
+        }
+      ]
+    },
+    {
+      "id": "ecmwf-ifs-pressure",
+      "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "parameter_names": {
+        "d": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Relative divergence"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "s-1"
+            },
+            "symbol": {
+              "value": "/s",
+              "type": "https://qudt.org/vocab/unit/PER-SEC"
+            }
+          }
+        },
+        "dpt": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Dew point temperature"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "°C"
+            },
+            "symbol": {
+              "value": "°C",
+              "type": "https://qudt.org/vocab/unit/DEG_C"
+            }
+          }
+        },
+        "gh": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential height"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "gpm"
+            },
+            "symbol": "gpm"
+          }
+        },
+        "q": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Specific humidity"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "kg kg-1"
+            },
+            "symbol": {
+              "value": "kg/kg",
+              "type": "https://qudt.org/vocab/unit/KiloGM-PER-KiloGM"
+            }
+          }
+        },
+        "r": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Relative humidity"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "%"
+            },
+            "symbol": {
+              "value": "%",
+              "type": "https://qudt.org/vocab/unit/PERCENT"
+            }
+          }
+        },
+        "t": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Temperature"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "°C"
+            },
+            "symbol": {
+              "value": "°C",
+              "type": "https://qudt.org/vocab/unit/DEG_C"
+            }
+          }
+        },
+        "u": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "u-component of wind"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "v": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "v-component of wind"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "vo": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Relative vorticity"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "s-1"
+            },
+            "symbol": {
+              "value": "/s",
+              "type": "https://qudt.org/vocab/unit/PER-SEC"
+            }
+          }
+        },
+        "w": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Vertical velocity (pressure)"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "Pa s-1"
+            },
+            "symbol": {
+              "value": "Pa/s",
+              "type": "https://qudt.org/vocab/unit/PA-PER-SEC"
+            }
+          }
+        },
+        "ws": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Wind speed"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m s-1"
+            },
+            "symbol": {
+              "value": "m/s",
+              "type": "https://qudt.org/vocab/unit/M-PER-SEC"
+            }
+          }
+        },
+        "z": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m2 s-2"
+            },
+            "symbol": {
+              "value": "m²/s²",
+              "type": "https://qudt.org/vocab/unit/M2-PER-SEC2"
+            }
+          }
+        }
+      },
+      "styles": [
+        {
+          "id": "default",
+          "title": "Default",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/default/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "contours",
+          "title": "contours",
+          "parameters": [
+            "gh",
+            "z",
+            "t",
+            "dpt"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "fmi-hires",
+          "title": "FMI HiRes temperature",
+          "parameters": [
+            "t"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/fmi-hires/map?parameter-name=t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure",
+          "rel": "self",
+          "type": "application/json",
+          "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+          "type": "application/json",
+          "title": "Styles"
+        }
+      ]
+    },
+    {
+      "id": "fmi-radar-composite-dbz",
+      "title": "Finnish Radar Reflectivity Composite (FMI)",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/3067",
+      "styles": [
+        {
+          "id": "default",
+          "title": "Default",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/default/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_bookbinder",
+          "title": "Bookbinder Radar",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_bookbinder/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_dbz",
+          "title": "MeteoCore Radar",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_dbz/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_fmi",
+          "title": "FMI Radar",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_fmi/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_lacrosse",
+          "title": "La Crosse (dBZ)",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_lacrosse/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_nssl2",
+          "title": "NSSL2 (dBZ)",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_nssl2/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_nssl3",
+          "title": "NSSL3 dBZ",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_nssl3/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_nws_ny",
+          "title": "NWS NY (dBZ)",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_nws_ny/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radar_smhi",
+          "title": "SMHI Radar",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_smhi/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radarscope_dbz_expert",
+          "title": "RadarScope Expert (dBZ)",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radarscope_dbz_expert/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "radarscope_dbz_standard",
+          "title": "RadarScope Standard (dBZ)",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radarscope_dbz_standard/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz",
+          "rel": "self",
+          "type": "application/json",
+          "title": "Finnish Radar Reflectivity Composite (FMI)"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+          "type": "application/json",
+          "title": "Styles"
+        }
+      ]
+    }
+  ],
+  "styles": {
+    "ecmwf-aifs-single": {
+      "styles": [
+        {
+          "id": "default",
+          "title": "Default",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/default/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "contours",
+          "title": "contours",
+          "parameters": [
+            "2t",
+            "z",
+            "2d",
+            "msl",
+            "gh"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/contours/map?parameter-name=2t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "fmi-hires",
+          "title": "FMI HiRes temperature",
+          "parameters": [
+            "2t",
+            "2d"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=2t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        }
+      ]
+    },
+    "ecmwf-ifs-pressure": {
+      "styles": [
+        {
+          "id": "default",
+          "title": "Default",
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/default/map",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "contours",
+          "title": "contours",
+          "parameters": [
+            "gh",
+            "z",
+            "t",
+            "dpt"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        },
+        {
+          "id": "fmi-hires",
+          "title": "FMI HiRes temperature",
+          "parameters": [
+            "t"
+          ],
+          "links": [
+            {
+              "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/fmi-hires/map?parameter-name=t",
+              "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+              "type": "image/png"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "conformsTo": [
+    "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/landing-page",
+    "http://www.opengis.net/spec/ogcapi-common-1/1.0/conf/oas30",
+    "http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/collections",
+    "http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/json",
+    "http://www.opengis.net/spec/ogcapi-common-2/1.0/conf/html",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/collection-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/spatial-subsetting",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/scaling",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/datetime",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/crs",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/png",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/jpeg",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/background",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/tileset",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/tilesets-list",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/geodata-tilesets",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/datetime",
+    "http://www.opengis.net/spec/tms/2.0/conf/tilematrixset",
+    "http://www.opengis.net/spec/tms/2.0/conf/json-tilematrixset",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/png",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/jpeg",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/mvt",
+    "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30",
+    "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
+    "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/html",
+    "http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/tilesets"
+  ],
+  "api": {
+    "openapi": "3.0.3",
+    "info": {
+      "title": "MeteoCore - OGC API",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/collections/ecmwf-aifs-single/map": {
+        "get": {
+          "operationId": "getMap_ecmwf-aifs-single",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/bbox"
+            },
+            {
+              "$ref": "#/components/parameters/bbox-crs"
+            },
+            {
+              "$ref": "#/components/parameters/subset"
+            },
+            {
+              "$ref": "#/components/parameters/subset-crs"
+            },
+            {
+              "$ref": "#/components/parameters/center"
+            },
+            {
+              "$ref": "#/components/parameters/center-crs"
+            },
+            {
+              "$ref": "#/components/parameters/width"
+            },
+            {
+              "$ref": "#/components/parameters/height"
+            },
+            {
+              "$ref": "#/components/parameters/scale-denominator"
+            },
+            {
+              "$ref": "#/components/parameters/crs"
+            },
+            {
+              "$ref": "#/components/parameters/map-datetime"
+            },
+            {
+              "$ref": "#/components/parameters/bgcolor"
+            },
+            {
+              "$ref": "#/components/parameters/transparent"
+            },
+            {
+              "$ref": "#/components/parameters/void-color"
+            },
+            {
+              "$ref": "#/components/parameters/void-transparent"
+            },
+            {
+              "$ref": "#/components/parameters/f"
+            },
+            {
+              "$ref": "#/components/parameters/quality"
+            },
+            {
+              "$ref": "#/components/parameters/elevation"
+            },
+            {
+              "$ref": "#/components/parameters/parameter-name"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A map"
+            }
+          }
+        }
+      },
+      "/collections/ecmwf-aifs-single/styles/{styleId}/map": {
+        "get": {
+          "operationId": "getStyledMap_ecmwf-aifs-single",
+          "parameters": [
+            {
+              "name": "styleId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              },
+              "description": "Style identifier"
+            },
+            {
+              "$ref": "#/components/parameters/bbox"
+            },
+            {
+              "$ref": "#/components/parameters/bbox-crs"
+            },
+            {
+              "$ref": "#/components/parameters/subset"
+            },
+            {
+              "$ref": "#/components/parameters/subset-crs"
+            },
+            {
+              "$ref": "#/components/parameters/center"
+            },
+            {
+              "$ref": "#/components/parameters/center-crs"
+            },
+            {
+              "$ref": "#/components/parameters/width"
+            },
+            {
+              "$ref": "#/components/parameters/height"
+            },
+            {
+              "$ref": "#/components/parameters/scale-denominator"
+            },
+            {
+              "$ref": "#/components/parameters/crs"
+            },
+            {
+              "$ref": "#/components/parameters/map-datetime"
+            },
+            {
+              "$ref": "#/components/parameters/bgcolor"
+            },
+            {
+              "$ref": "#/components/parameters/transparent"
+            },
+            {
+              "$ref": "#/components/parameters/void-color"
+            },
+            {
+              "$ref": "#/components/parameters/void-transparent"
+            },
+            {
+              "$ref": "#/components/parameters/f"
+            },
+            {
+              "$ref": "#/components/parameters/quality"
+            },
+            {
+              "$ref": "#/components/parameters/elevation"
+            },
+            {
+              "$ref": "#/components/parameters/parameter-name"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A map"
+            }
+          }
+        }
+      },
+      "/collections/fmi-radar-composite-dbz/map": {
+        "get": {
+          "operationId": "getMap_fmi-radar-composite-dbz",
+          "parameters": [
+            {
+              "$ref": "#/components/parameters/bbox"
+            },
+            {
+              "$ref": "#/components/parameters/bbox-crs"
+            },
+            {
+              "$ref": "#/components/parameters/subset"
+            },
+            {
+              "$ref": "#/components/parameters/subset-crs"
+            },
+            {
+              "$ref": "#/components/parameters/center"
+            },
+            {
+              "$ref": "#/components/parameters/center-crs"
+            },
+            {
+              "$ref": "#/components/parameters/width"
+            },
+            {
+              "$ref": "#/components/parameters/height"
+            },
+            {
+              "$ref": "#/components/parameters/scale-denominator"
+            },
+            {
+              "$ref": "#/components/parameters/crs"
+            },
+            {
+              "$ref": "#/components/parameters/map-datetime"
+            },
+            {
+              "$ref": "#/components/parameters/bgcolor"
+            },
+            {
+              "$ref": "#/components/parameters/transparent"
+            },
+            {
+              "$ref": "#/components/parameters/void-color"
+            },
+            {
+              "$ref": "#/components/parameters/void-transparent"
+            },
+            {
+              "$ref": "#/components/parameters/f"
+            },
+            {
+              "$ref": "#/components/parameters/quality"
+            },
+            {
+              "$ref": "#/components/parameters/elevation"
+            },
+            {
+              "$ref": "#/components/parameters/parameter-name"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A map"
+            }
+          }
+        }
+      },
+      "/collections/fmi-radar-composite-dbz/styles/{styleId}/map": {
+        "get": {
+          "operationId": "getStyledMap_fmi-radar-composite-dbz",
+          "parameters": [
+            {
+              "name": "styleId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              },
+              "description": "Style identifier"
+            },
+            {
+              "$ref": "#/components/parameters/bbox"
+            },
+            {
+              "$ref": "#/components/parameters/bbox-crs"
+            },
+            {
+              "$ref": "#/components/parameters/subset"
+            },
+            {
+              "$ref": "#/components/parameters/subset-crs"
+            },
+            {
+              "$ref": "#/components/parameters/center"
+            },
+            {
+              "$ref": "#/components/parameters/center-crs"
+            },
+            {
+              "$ref": "#/components/parameters/width"
+            },
+            {
+              "$ref": "#/components/parameters/height"
+            },
+            {
+              "$ref": "#/components/parameters/scale-denominator"
+            },
+            {
+              "$ref": "#/components/parameters/crs"
+            },
+            {
+              "$ref": "#/components/parameters/map-datetime"
+            },
+            {
+              "$ref": "#/components/parameters/bgcolor"
+            },
+            {
+              "$ref": "#/components/parameters/transparent"
+            },
+            {
+              "$ref": "#/components/parameters/void-color"
+            },
+            {
+              "$ref": "#/components/parameters/void-transparent"
+            },
+            {
+              "$ref": "#/components/parameters/f"
+            },
+            {
+              "$ref": "#/components/parameters/quality"
+            },
+            {
+              "$ref": "#/components/parameters/elevation"
+            },
+            {
+              "$ref": "#/components/parameters/parameter-name"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "A map"
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "parameters": {
+        "bbox": {
+          "name": "bbox",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "oneOf": [
+              {
+                "minItems": 4,
+                "maxItems": 4
+              },
+              {
+                "minItems": 6,
+                "maxItems": 6
+              }
+            ],
+            "items": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          "style": "form",
+          "explode": false
+        },
+        "bbox-crs": {
+          "name": "bbox-crs",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "bgcolor": {
+          "name": "bgcolor",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": false,
+          "schema": {
+            "type": "string",
+            "default": "0xFFFFFF"
+          }
+        },
+        "center": {
+          "name": "center",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": false,
+          "schema": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "center-crs": {
+          "name": "center-crs",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "crs": {
+          "name": "crs",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "elevation": {
+          "name": "elevation",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "number"
+          }
+        },
+        "f": {
+          "name": "f",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "default": "image/png",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp"
+            ]
+          }
+        },
+        "height": {
+          "name": "height",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "schema": {
+            "type": "number",
+            "maximum": 8000
+          }
+        },
+        "map-datetime": {
+          "name": "datetime",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "style": "form",
+          "explode": false
+        },
+        "parameter-name": {
+          "name": "parameter-name",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        "quality": {
+          "name": "quality",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "scale-denominator": {
+          "name": "scale-denominator",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "schema": {
+            "type": "number"
+          }
+        },
+        "subset": {
+          "name": "subset",
+          "in": "query",
+          "style": "form",
+          "explode": false,
+          "required": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "subset-crs": {
+          "name": "subset-crs",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "transparent": {
+          "name": "transparent",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "void-color": {
+          "name": "void-color",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": false,
+          "schema": {
+            "type": "string",
+            "default": "0xFFFFFF"
+          }
+        },
+        "void-transparent": {
+          "name": "void-transparent",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "explode": false,
+          "schema": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "width": {
+          "name": "width",
+          "in": "query",
+          "required": false,
+          "style": "form",
+          "schema": {
+            "type": "number",
+            "maximum": 8000
+          }
+        }
+      }
+    }
+  }
+}

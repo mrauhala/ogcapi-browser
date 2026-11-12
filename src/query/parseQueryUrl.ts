@@ -141,6 +141,9 @@ function boxOf(text: string | null): BBox | null {
   return parts?.length === 4 && parts.every(Number.isFinite) ? parts as BBox : null;
 }
 
+// parameter-name's ids, as a comma-separated list
+const parameterNames = (params: URLSearchParams) => (params.get('parameter-name') ?? '').split(',').map(name => name.trim()).filter(Boolean);
+
 // What a request URL says, in the form's terms
 // Nothing the form holds: what a map query's form has, besides its style in the path, and what a URL for it gives
 const NOTHING_HELD: QuerySelections = {
@@ -151,8 +154,10 @@ const NOTHING_HELD: QuerySelections = {
 export function readQuerySelections(url: string, collection: Collection, queryKey: string): QuerySelections {
   const params = new URL(url).searchParams;
   const queryType = queryTypeOf(collection, queryKey);
-  // A map's parameters have no fields yet: they stay in the line as typed, and are sent
-  if (queryType === 'map') return { ...NOTHING_HELD, customDims: {}, points: [], polygons: [], queryParams: {} };
+  // Of a map's parameters, the form holds its parameter and format. The rest stay in the line as typed, and are sent
+  if (queryType === 'map') {
+    return { ...NOTHING_HELD, customDims: {}, points: [], polygons: [], queryParams: {}, format: params.get('f') ?? '', parameters: parameterNames(params) };
+  }
   const kind = geometryKindOf(queryType);
   const coords = params.get('coords') ?? '';
 
@@ -169,7 +174,7 @@ export function readQuerySelections(url: string, collection: Collection, queryKe
 
   return {
     format: params.get('f') ?? '',
-    parameters: (params.get('parameter-name') ?? '').split(',').map(name => name.trim()).filter(Boolean),
+    parameters: parameterNames(params),
     datetime: params.get('datetime') ?? '',
     vertical: params.get('z') ?? '',
     customDims,

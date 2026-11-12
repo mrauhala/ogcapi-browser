@@ -22,6 +22,7 @@ import { useCollection } from './contexts/CollectionContext';
 import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useMapInteraction } from './contexts/MapInteractionContext';
 import { useOpenCollection } from './contexts/OpenCollectionContext';
+import { useApi } from './contexts/ApiContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryValidation } from './hooks/useQueryValidation';
 import ParamField from './queryForm/ParamField';
@@ -37,6 +38,8 @@ import MoreParams from './queryForm/MoreParams';
 import { paramOf, paramsIn } from './query/requestUrl';
 import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
 import { parametersOf } from './queryForm/pickerSearch';
+import ParameterRows from './queryForm/ParameterRows';
+import { hasParameterNames, mapOffer, parameterRows, styleDeclarers } from './query/mapOffer';
 
 interface CollectionQueryBuilderProps {
   collection: Collection;
@@ -138,6 +141,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     queryParams, setQueryParam,
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,
+    mapStyles,
   } = queryState;
   const { radiusUnits, setRadiusUnits } = useMapInteraction();
   const { issues, apiOperation } = useQueryValidation();
@@ -189,6 +193,15 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
           empty: !sent(spec.name),
         };
       case 'parameter-name':
+        // A map's, as rows of parameter_names, one at a time unless the API docs take several; typed where it has none
+        if (queryType === 'map') {
+          return {
+            control: hasParameterNames(collection)
+              ? <ParameterRows rows={parameterRows(collection, mapStyles?.styles ?? [])} chosen={selectedParameters} several={spec.choice === 'several'} onChange={setSelectedParameters} />
+              : typed('parameter-name', 'Type a parameter'),
+            empty: !sent('parameter-name'),
+          };
+        }
         return { control: <ParameterSelect collection={collection} chosen={selectedParameters} onChange={setSelectedParameters} error={hasError('parameter-name')} />, empty: selectedParameters.length === 0 };
       case 'datetime':
         return {
@@ -226,11 +239,16 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
           empty: !sent('z'),
         };
       }
-      case 'f':
+      case 'f': {
+        // A map's from the API docs' enum, typed where they list none
+        const options = spec.options ?? getEffectiveOutputFormats(collection, queryKey);
         return {
-          control: <NameToggles label="f" options={getEffectiveOutputFormats(collection, queryKey)} value={selectedFormat} onChange={setSelectedFormat} marked={spec.marked} />,
+          control: queryType === 'map' && !options.length
+            ? typed('f', 'A media type, as image/png')
+            : <NameToggles label="f" options={options} value={selectedFormat} onChange={setSelectedFormat} marked={spec.marked} />,
           empty: !selectedFormat,
         };
+      }
       default: {
         const dimension = customs.find(each => each.id === spec.name);
         if (!dimension) return { control: null, empty: true };
@@ -260,7 +278,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
         return (
           <React.Fragment key={spec.id}>
             <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} · ${spec.unit.name}` : spec.name} figure={spec.figure}
-              requirement={spec.requirement} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
+              requirement={spec.requirement} declaredBy={spec.declaredBy} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
               leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
               {spec.unit && unit ? (
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
@@ -270,7 +288,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
                 </Box>
               ) : control}
             </ParamField>
-            {spec.name === 'parameter-name' && lacksTimeAndLevels(collection, specs) && (
+            {spec.name === 'parameter-name' && queryType !== 'map' && lacksTimeAndLevels(collection, specs) && (
               <Typography component="div" sx={{ mt: 1.25, px: 1.25, fontSize: 12, lineHeight: '16px', color: 'text.secondary' }}>
                 No <Box component="code" sx={{ fontFamily: 'monospace' }}>datetime</Box> or <Box component="code" sx={{ fontFamily: 'monospace' }}>z</Box>: the
                 collection&apos;s extent has no time or levels. To send one anyway, add it under More.
@@ -314,24 +332,30 @@ function ItemField({ itemType, itemId, setItemId }: { itemType?: string; itemId:
 }
 
 const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collection, queryState }) => {
-  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters, itemId, setItemId, styleId, styleByLink, selectStyle, mapStyles } = queryState;
+  const { selectedDataQuery, selectDataQuery, selectedInstance, instanceQueryKey, selectedParameters, selectedFormat, itemId, setItemId, styleId, styleByLink, selectStyle, mapStyles } = queryState;
   const { showMap, isMobile } = usePanes();
   const { leaveQuery } = useOpenCollection();
-  const { apiOperation } = useQueryValidation();
+  const { apiOperation, issues } = useQueryValidation();
+  const { conformsTo } = useApi();
+  const openDocs = useOpenDocs();
   const { selectedFeature } = useCollection();
   const { requestUrl } = useRequestUrl();
+  const inRequest = paramsIn(requestUrl).map(([name]) => name);
   const instanceMode = !!selectedDataQuery && queryTypeOf(collection, selectedDataQuery) === 'instances';
   // What the fields describe: the collection's query, or the picked instance's
   const target = instanceMode
     ? (selectedInstance && instanceQueryKey ? { collection: selectedInstance, queryKey: instanceQueryKey } : null)
     : (selectedDataQuery ? { collection, queryKey: selectedDataQuery } : null);
   const specs = target
-    ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, { apiRequired: apiOperation?.required, hasLocation: !!selectedFeature, hasItem: !!itemId, inRequest: paramsIn(requestUrl).map(([name]) => name) })
+    ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, {
+      apiRequired: apiOperation?.required, hasLocation: !!selectedFeature, hasItem: !!itemId, inRequest, conformsTo, apiDocs: apiOperation?.params ?? null,
+    })
     : [];
   const forLocations = !!target && queryTypeOf(target.collection, target.queryKey) === 'locations';
   const forItems = !!target && queryTypeOf(target.collection, target.queryKey) === 'items';
   const forMap = !!target && queryTypeOf(target.collection, target.queryKey) === 'map';
-  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...(forItems ? ['item'] : []), ...(forMap ? ['style'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])])]);
+  // Where each issue shows: in its field, or for another parameter the request has, in its row under More
+  const shown = new Set(['query', ...(instanceMode ? ['instance', 'instance-query'] : []), ...(forLocations ? ['location'] : []), ...(forItems ? ['item'] : []), ...(forMap ? ['style'] : []), 'crs', ...specs.flatMap(spec => [spec.id, ...(spec.unit ? [spec.unit.id] : [])]), ...inRequest]);
 
   // A query's next step, drawing its geometry, is on the map: beside the form on a desktop. On a phone the coords
   // field's Map button goes there, rather than the pick itself
@@ -354,7 +378,11 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
       {instanceMode && <InstancePicker queryState={queryState} />}
       {forLocations && <LocationField />}
       {forItems && <ItemField itemType={target.collection.itemType} itemId={itemId} setItemId={setItemId} />}
-      {forMap && <StyleField state={mapStyles} styleId={styleId} byLink={styleByLink} onChange={selectStyle} />}
+      {forMap && (
+        <StyleField state={mapStyles} styleId={styleId} byLink={styleByLink} onChange={selectStyle} collection={target.collection} chosen={selectedParameters}
+          held={{ 'parameter-name': selectedParameters.join(','), f: selectedFormat }} issues={issues.filter(issue => issue.field === 'style')} openDocs={openDocs}
+          declaredBy={styleDeclarers(mapOffer(hasParameterNames(target.collection), conformsTo, apiOperation?.params ?? null))} />
+      )}
       {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} specs={specs} />}
     </>
   );

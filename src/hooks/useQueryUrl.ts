@@ -17,10 +17,15 @@ import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl
 import { useInstances, type InstancesState } from './useInstances';
 import { instanceStep, type Instance } from '../query/instances';
 import { normalizeHref } from '../utils/href';
-import { withLinkQueries } from '../query/mapQuery';
+import { styleLinkFills, withLinkQueries } from '../query/mapQuery';
+import { hasParameterNames } from '../query/mapOffer';
+import { apiDocsParams } from '../query/declared';
 import { getMapsLinks } from '../api/maps';
 import { useMapStyles, type MapStylesState } from './useMapStyles';
 import type { QueryIssue } from '../query/types';
+
+// No style: the collection's own map
+const NO_STYLE = { id: '', href: '', linked: {} };
 
 // A time range's end as the time control has it: '' where it's open or still to pick
 const openEnd = (end: string | undefined) => (end && end !== '..' ? end : '');
@@ -111,8 +116,9 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
   const [itemId, setItemId] = useState('');
-  // The style picked, and its own map link: '' to go by the path Maps gives a style, as for one from a typed URL
-  const [style, setStyle] = useState<{ id: string; href: string }>({ id: '', href: '' });
+  // The style picked, and its own map link: '' to go by the path Maps gives a style, as for one from a typed URL. And
+  // what its link put in the form's fields, by name, as text: the next style's link replaces those, unless they changed
+  const [style, setStyle] = useState<{ id: string; href: string; linked: Record<string, string> }>(NO_STYLE);
   const setQueryParam = useCallback((name: string, value: string) => setQueryParams(params => ({ ...params, [name]: value })), []);
 
   // A mode switched keeps the text, as far as the other control can hold it
@@ -145,7 +151,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setSelectedInstanceId('');
     setInstanceQueryKey('');
     setItemId('');
-    setStyle({ id: '', href: '' });
+    setStyle(NO_STYLE);
   }, []);
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
@@ -167,7 +173,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const selectDataQuery = useCallback((collection: Collection, queryKey: string) => {
     setSelectedDataQuery(queryKey);
     setItemId('');
-    setStyle({ id: '', href: '' });
+    setStyle(NO_STYLE);
     setSelectedInstanceId('');
     setInstanceQueryKey('');
     applyQueryDefaults(collection, queryKey);
@@ -185,10 +191,15 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const stylesHref = selectedCollection ? normalizeHref(getMapsLinks(selectedCollection).stylesLink?.href) : null;
   const mapStyles = useMapStyles(stylesHref, (openCollection as { styles?: unknown } | null)?.styles, forMap);
   // A style picked is asked for by its own map link, as the server gives it: MeteoCore's carries the parameter the style
-  // is for. Without one, by the path Maps gives a style
+  // is for. Without one, by the path Maps gives a style. What the link asks for that the form has a field for goes into
+  // that field, in place of what the last style's link put there; a value chosen in the field stays
   const selectStyle = useCallback((styleId: string) => {
-    setStyle({ id: styleId, href: mapStyles.styles.find(each => each.id === styleId)?.href ?? '' });
-  }, [mapStyles.styles]);
+    const href = mapStyles.styles.find(each => each.id === styleId)?.href ?? '';
+    const { fills, linked } = styleLinkFills(href, { 'parameter-name': selectedParameters.join(','), f: selectedFormat }, style.linked);
+    if ('parameter-name' in fills) setSelectedParameters(fills['parameter-name'].split(',').map(id => id.trim()).filter(Boolean));
+    if ('f' in fills) setSelectedFormat(fills.f);
+    setStyle({ id: styleId, href, linked });
+  }, [mapStyles.styles, style.linked, selectedParameters, selectedFormat]);
 
   // Pick an instance, keeping the query if it has one too. A time from another run may lie outside
   // this one, so it goes.
@@ -304,7 +315,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     if (feature !== selectedFeature) setSelectedFeature(feature);
     setItemId(target.itemId ?? '');
     // By its path: what a typed URL asks for besides is in the line already
-    setStyle({ id: target.styleId ?? '', href: '' });
+    setStyle({ ...NO_STYLE, id: target.styleId ?? '' });
     applySelections(readQuerySelections(url, selectedCollection, target.queryKey), queryTypeOf(selectedCollection, target.queryKey), !!feature);
     setApplied({ onResult, followed: true });
   }, [selectedCollection, selectedDataQuery, selectedInstanceId, selectedFeature, instances.status, featureFor, selectDataQuery, setSelectedFeature, applyInstanceUrl, applySelections]);
@@ -361,11 +372,13 @@ export function useQueryUrl(): UseQueryUrlReturn {
       itemId,
       styleId: style.id,
       styleHref: style.href,
+      styles: queryType === 'map' ? mapStyles.styles : undefined,
     });
   }, [
     target, instancesHref, selectedFormat, selectedParameters,
     datetime, filterByTime, vertical,
     dimensions, clickedCoords, selectedArea, selectedBbox, bboxAsCoords, radius, radiusUnits, queryParams, selectedFeature, itemId, style,
+    mapStyles.styles,
   ]);
 
   // Publish the request URL and what the query is still missing, adding the API docs' view once
@@ -394,7 +407,9 @@ export function useQueryUrl(): UseQueryUrlReturn {
         template: operation.template,
         pointer: operation.pointer,
         required: operation.params.filter(param => param.in === 'query' && param.required).map(param => param.name),
+        params: apiDocsParams(operation.params),
       } : null,
+      declaring: queryModel?.queryType === 'map' ? { query: 'map', parameterNames: hasParameterNames(queryModel.collection) } : null,
     });
   }, [queryModel, instancesHref, selectedInstance, apiIndex, setCollectionUrl, setQueryValidation]);
 

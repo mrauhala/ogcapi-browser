@@ -1,0 +1,205 @@
+{
+  "_comment": "Made by hand from ecmwf-aifs-single in meteocore-maps-params.json (MeteoCore, fetched 2026-11-11), with five of its parameters given metocean:styles and metocean:defaultStyle as proposed for the MetOcean Maps profile in https://github.com/opengeospatial/metocean-ogcapi-maps-profile/issues/5 (open on 2026-11-11, no requirements text yet), and a style isobars added without parameters. No server serves these. 2d's metocean:styles leave out contours, whose parameters list 2d, so that the two lists disagree; z has none, so only the styles' parameters speak for it.",
+  "collection": {
+    "id": "ecmwf-aifs-single",
+    "title": "ECMWF AIFS Global Forecast — Single level",
+    "links": [
+      {
+        "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single",
+        "rel": "self",
+        "type": "application/json",
+        "title": "ECMWF AIFS Global Forecast — Single level"
+      },
+      {
+        "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/map",
+        "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+        "type": "image/png",
+        "title": "Map"
+      },
+      {
+        "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles",
+        "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+        "type": "application/json",
+        "title": "Styles"
+      }
+    ],
+    "parameter_names": {
+      "2d": {
+        "type": "Parameter",
+        "observedProperty": {
+          "label": {
+            "en": "Dewpoint temperature (2 m above ground)"
+          }
+        },
+        "unit": {
+          "label": {
+            "en": "°C"
+          },
+          "symbol": {
+            "value": "°C",
+            "type": "https://qudt.org/vocab/unit/DEG_C"
+          }
+        },
+        "metocean:styles": [
+          "default",
+          "fmi-hires"
+        ]
+      },
+      "2t": {
+        "type": "Parameter",
+        "observedProperty": {
+          "label": {
+            "en": "Temperature (2 m above ground)"
+          }
+        },
+        "unit": {
+          "label": {
+            "en": "°C"
+          },
+          "symbol": {
+            "value": "°C",
+            "type": "https://qudt.org/vocab/unit/DEG_C"
+          }
+        },
+        "metocean:styles": [
+          "fmi-hires",
+          "contours",
+          "default"
+        ],
+        "metocean:defaultStyle": "fmi-hires"
+      },
+      "msl": {
+        "type": "Parameter",
+        "observedProperty": {
+          "label": {
+            "en": "Pressure (mean sea level)"
+          }
+        },
+        "unit": {
+          "label": {
+            "en": "hPa"
+          },
+          "symbol": {
+            "value": "hPa",
+            "type": "https://qudt.org/vocab/unit/HectoPA"
+          }
+        },
+        "metocean:styles": [
+          "contours",
+          "isobars"
+        ],
+        "metocean:defaultStyle": "isobars"
+      },
+      "tp": {
+        "type": "Parameter",
+        "observedProperty": {
+          "label": {
+            "en": "Total precipitation (surface)"
+          }
+        },
+        "unit": {
+          "label": {
+            "en": "mm"
+          },
+          "symbol": {
+            "value": "mm",
+            "type": "https://qudt.org/vocab/unit/MilliM"
+          }
+        },
+        "metocean:styles": [
+          "default"
+        ]
+      },
+      "z": {
+        "type": "Parameter",
+        "observedProperty": {
+          "label": {
+            "en": "Geopotential (surface)"
+          }
+        },
+        "unit": {
+          "label": {
+            "en": "m2 s-2"
+          },
+          "symbol": {
+            "value": "m²/s²",
+            "type": "https://qudt.org/vocab/unit/M2-PER-SEC2"
+          }
+        },
+        "extent": {
+          "temporal": {
+            "interval": [
+              [
+                "2026-11-11T00:00:00+00:00",
+                "2026-11-11T06:00:00+00:00"
+              ]
+            ],
+            "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+            "grid": {
+              "cellsCount": 2,
+              "resolution": "PT6H",
+              "firstCoordinate": "2026-11-11T00:00:00+00:00"
+            }
+          }
+        }
+      }
+    }
+  },
+  "styles": [
+    {
+      "id": "default",
+      "title": "Default",
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/default/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "id": "contours",
+      "title": "contours",
+      "parameters": [
+        "2t",
+        "z",
+        "2d",
+        "msl",
+        "gh"
+      ],
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/contours/map?parameter-name=2t",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "id": "fmi-hires",
+      "title": "FMI HiRes temperature",
+      "parameters": [
+        "2t",
+        "2d"
+      ],
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/fmi-hires/map?parameter-name=2t",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "id": "isobars",
+      "title": "Isobars",
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/styles/isobars/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

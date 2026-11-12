@@ -48,7 +48,8 @@ const NameToggles: React.FC<{
   onChange: (value: string) => void;
   tall?: boolean; // as tall as the number field beside it, as a unit is
   marked?: string; // the option the metadata names as the default: tagged, not pressed
-}> = ({ label, options, value, onChange, tall = false, marked }) => {
+  warned?: string; // an option the request has though the metadata doesn't back it here, as a style not for the parameter: in orange
+}> = ({ label, options, value, onChange, tall = false, marked, warned }) => {
   const extra = value && !options.includes(value) ? value : null;
   return (
     <ToggleButtonGroup
@@ -60,7 +61,7 @@ const NameToggles: React.FC<{
       sx={GROUP_SX}
     >
       {options.map(option => (
-        <ToggleButton key={option} value={option} sx={tall ? { ...BUTTON_SX, height: 40 } : BUTTON_SX}>
+        <ToggleButton key={option} value={option} sx={{ ...(option === warned ? EXTRA_SX : BUTTON_SX), ...(tall ? { height: 40 } : {}) }}>
           {option}
           {option === marked && <Box component="span" sx={DEFAULT_TAG_SX}>default</Box>}
         </ToggleButton>

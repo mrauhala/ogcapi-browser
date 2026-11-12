@@ -17,7 +17,8 @@ function shortLink(href: string): string {
 
 // Where the styles were read, and what the one picked is: its title, its own map link and what that adds to the request
 // byLink: the request is the style's own link, as when it's picked, rather than the path, as from a typed URL
-export function styleHints(state: MapStylesState, picked: MapStyle | undefined, styleId: string, byLink = true): string[] {
+// held: what the form's fields hold of what a link may add, as parameter-name: a value chosen there is sent instead
+export function styleHints(state: MapStylesState, picked: MapStyle | undefined, styleId: string, byLink = true, held: Record<string, string> = {}): string[] {
   const hints: string[] = [];
   if (state.source === 'link') hints.push(`From the collection's ${code('styles')} link`);
   else if (state.source === 'collection') {
@@ -32,10 +33,18 @@ export function styleHints(state: MapStylesState, picked: MapStyle | undefined, 
     const added = linkQuery(picked.href);
     const link = picked.href ? `Its map link: ${code(shortLink(picked.href))}` : `It has no map link of its own: sent by the path Maps gives a style, ${code(`…/styles/${picked.id}/map`)}`;
     hints.push(`${picked.title ? `${picked.title}. ` : ''}${link}`);
-    if (added.length) {
-      hints.push(byLink
-        ? `The link adds ${added.map(code).join(', ')}, which the request now has`
-        : `The link adds ${added.map(code).join(', ')}. This request has the path, from what was typed, and only what was typed with it`);
+    // What the request has instead of what the link adds, where a field holds another value
+    const instead = added.flatMap(pair => {
+      const name = pair.slice(0, pair.indexOf('='));
+      if (!(name in held) || held[name] === pair.slice(name.length + 1)) return [];
+      return [held[name] ? code(`${name}=${held[name]}`) : `no ${code(name)}`];
+    });
+    if (added.length && !byLink) {
+      hints.push(`The link adds ${added.map(code).join(', ')}. This request has the path, from what was typed, and only what was typed with it`);
+    } else if (added.length) {
+      hints.push(instead.length
+        ? `The link adds ${added.map(code).join(', ')}. The request has ${instead.join(', ')} instead, as chosen`
+        : `The link adds ${added.map(code).join(', ')}, which the request now has`);
     }
     if (picked.parameters.length) hints.push(`For ${picked.parameters.map(code).join(', ')}, as its ${code('parameters')} say`);
   }

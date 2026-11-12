@@ -695,6 +695,11 @@ export const MAPS1 = {
   // A: "Every 200-response of the server with the media type image/svg+xml SHALL be an SVG document representing only
   // a map."
   svgContent: maps1('/req/svg/content A', '_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a'),
+  // ---- What a map request asks for ----
+  // 7.2.3, NOTE 2: "HTTP content negotiation addresses the same use cases as the FORMAT= parameter of WMS. However, for
+  // convenience, some implementations can implement an f= parameter for circumstances where content negotiation is not
+  // possible or available (e.g., testing the API in a web browser, or using a URL embedded in an HTML IMG SRC tag)."
+  formatNegotiation: { label: 'Maps 1 7.2.3 NOTE 2', url: `${MAPS_1}#_1fd4c9a7-9f1c-3741-456d-8168aa6aea24` } as Rule,
   // ---- The collection's description ----
   // A, in the general-subsetting class: "Wherever applicable (e.g., the collection or dataset description), the extent
   // of any additional dimension(s) beyond temporal and spatial SHALL be described in a way similar to the temporal
