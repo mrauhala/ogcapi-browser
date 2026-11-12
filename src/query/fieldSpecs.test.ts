@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Collection, Temporal, Vertical } from '../types/api';
-import { collectionOffers, crsOffered, dimensionTitle, fieldSpecs, heldNames, lacksTimeAndLevels, levelsSaid, levelUnit, timesSaid, type FieldSpec } from './fieldSpecs';
+import { collectionOffers, crsOffered, dimensionTitle, fieldSpecs, heldNames, lacksTimeAndLevels, levelsSaid, levelUnit, stepSaid, timesSaid, type FieldSpec } from './fieldSpecs';
 import { withItemsQuery } from './itemsQuery';
 import { EDR, FEATURES1, RECORDS1 } from '../standards';
 import fmiEcmwf from './__fixtures__/fmi-ecmwf.json';
@@ -311,6 +311,23 @@ describe('timesSaid', () => {
     const listed = { values: ['2026-10-05T00:00:00Z', '2026-10-05T06:00:00Z', '2026-10-05T12:00:00Z'] } as Temporal;
     expect(timesSaid(listed)).toBe('3 times listed, Oct 5 00:00 to Oct 5 12:00 UTC');
     expect(timesSaid({} as Temporal)).toBeNull();
+  });
+
+  it('says a grid’s times: how many, their step where it’s even, and where they’re listed', () => {
+    const regular = { interval: [['2026-11-11T18:00:00+00:00', '2026-11-27T00:00:00+00:00']], grid: { cellsCount: 62, resolution: 'PT6H', firstCoordinate: '2026-11-11T18:00:00+00:00' } } as Temporal;
+    expect(timesSaid(regular)).toBe('62 times, every 6 h, Nov 11 18:00 to Nov 27 00:00 UTC, from `extent.temporal.grid`');
+    const radar = { grid: { coordinates: ['2026-11-09T22:35:00+00:00', '2026-11-09T22:40:00+00:00', '2026-11-09T22:45:00+00:00'] } } as Temporal;
+    expect(timesSaid(radar)).toBe('3 times, every 5 min, Nov 9 22:35 to Nov 9 22:45 UTC, from `extent.temporal.grid.coordinates`');
+    // Uneven: no step. Across a year: the years
+    const uneven = { grid: { coordinates: ['2025-12-31T18:00:00Z', '2026-01-01T00:00:00Z', '2026-01-01T12:00:00Z'] } } as Temporal;
+    expect(timesSaid(uneven)).toBe('3 times, Dec 31 2025 18:00 to Jan 1 2026 12:00 UTC, from `extent.temporal.grid.coordinates`');
+    expect(timesSaid({ grid: { coordinates: ['2026-11-12T00:00:00Z'] } } as Temporal)).toBe('1 time, Nov 12 00:00 UTC, from `extent.temporal.grid.coordinates`');
+    // EDR's values stay as they were said, whatever grid comes with them
+    expect(timesSaid({ ...regular, values: ['2026-10-05T00:00:00Z'] } as Temporal)).toBe('1 times listed, Nov 11 18:00 to Nov 27 00:00 UTC');
+  });
+
+  it('says a step as people do', () => {
+    expect([30000, 300000, 3600000, 3 * 3600000, 36 * 3600000, 86400000, 7 * 86400000, 90 * 60000].map(stepSaid)).toEqual(['30 s', '5 min', '1 h', '3 h', '36 h', '1 day', '7 days', '1.5 h']);
   });
 });
 

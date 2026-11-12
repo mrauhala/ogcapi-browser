@@ -49,7 +49,8 @@ const NameToggles: React.FC<{
   tall?: boolean; // as tall as the number field beside it, as a unit is
   marked?: string; // the option the metadata names as the default: tagged, not pressed
   warned?: string; // an option the request has though the metadata doesn't back it here, as a style not for the parameter: in orange
-}> = ({ label, options, value, onChange, tall = false, marked, warned }) => {
+  labels?: Readonly<Record<string, string>>; // what an option shows where it isn't its value: a model run's * as Latest
+}> = ({ label, options, value, onChange, tall = false, marked, warned, labels }) => {
   const extra = value && !options.includes(value) ? value : null;
   return (
     <ToggleButtonGroup
@@ -62,7 +63,7 @@ const NameToggles: React.FC<{
     >
       {options.map(option => (
         <ToggleButton key={option} value={option} sx={{ ...(option === warned ? EXTRA_SX : BUTTON_SX), ...(tall ? { height: 40 } : {}) }}>
-          {option}
+          {labels?.[option] ?? option}
           {option === marked && <Box component="span" sx={DEFAULT_TAG_SX}>default</Box>}
         </ToggleButton>
       ))}
@@ -70,5 +71,20 @@ const NameToggles: React.FC<{
     </ToggleButtonGroup>
   );
 };
+
+// Names to add or take out, each on its own: pressed while the value has it, as a map subset's axes
+export const AxisToggles: React.FC<{
+  label: string;
+  options: string[];
+  pressed: string[];
+  onToggle: (option: string) => void;
+}> = ({ label, options, pressed, onToggle }) => (
+  <ToggleButtonGroup size="small" value={pressed} onChange={(_, next: string[]) => {
+    const changed = options.find(option => next.includes(option) !== pressed.includes(option));
+    if (changed) onToggle(changed);
+  }} aria-label={label} sx={GROUP_SX}>
+    {options.map(option => <ToggleButton key={option} value={option} sx={BUTTON_SX}>{option}</ToggleButton>)}
+  </ToggleButtonGroup>
+);
 
 export default NameToggles;

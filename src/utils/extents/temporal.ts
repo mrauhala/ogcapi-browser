@@ -194,8 +194,56 @@ export function computeStepMs(spanMs: number): number {
   return 7 * 24 * 60 * 60 * 1000;                                       // >1y: weekly
 }
 
+// An instant as Maps 1.0 asks servers to take it, in UTC with Z: /req/datetime/datetime-definition C, "the server is only
+// required to support the Z UTC time notation, and not required to support local time offsets". As it was where it
+// doesn't read as a time
+function inUtc(time: string): string {
+  const epoch = Date.parse(time);
+  return isNaN(epoch) ? time : new Date(epoch).toISOString().replace(/\.000Z$/, 'Z');
+}
+
+// The times a temporal extent lists, as EDR's values have them: its values, else its grid's coordinates, else its regular
+// grid as a repeating interval, R{cellsCount}/{firstCoordinate}/{resolution}, which expandTemporalValues reads. A grid's
+// times are written in UTC with Z. Empty where it lists none, as for an interval alone
+export function temporalValuesOf(temporal: Temporal | null | undefined): string[] {
+  if (!temporal) return [];
+  if (Array.isArray(temporal.values) && temporal.values.length > 0) return temporal.values;
+  const grid = temporal.grid;
+  if (!grid || typeof grid !== 'object') return [];
+  if (Array.isArray(grid.coordinates)) {
+    return grid.coordinates.filter((time): time is string => typeof time === 'string' && !!time.trim()).map(inUtc);
+  }
+  const { firstCoordinate: first, resolution, cellsCount } = grid;
+  if (typeof first === 'string' && typeof resolution === 'string' && typeof cellsCount === 'number' && cellsCount > 0 && parseDuration(resolution)) {
+    return [`R${Math.floor(cellsCount)}/${inUtc(first)}/${resolution}`];
+  }
+  return [];
+}
+
+// Where a temporal extent's listed times come from, for saying so: EDR's values, a grid's coordinates, or a regular grid
+export type ListedTimesForm = 'values' | 'coordinates' | 'regular' | null;
+export function listedTimesForm(temporal: Temporal | null | undefined): ListedTimesForm {
+  if (!temporal) return null;
+  if (Array.isArray(temporal.values) && temporal.values.length > 0) return 'values';
+  const values = temporalValuesOf(temporal);
+  if (!values.length) return null;
+  return Array.isArray(temporal.grid?.coordinates) ? 'coordinates' : 'regular';
+}
+
+// The step between a grid's times where they're evenly spaced: a regular grid's resolution, or the one gap between each
+// of its coordinates. Null for EDR's values, which say nothing of a step, and for a grid that isn't even
+export function gridStepMs(temporal: Temporal | null | undefined): number | null {
+  const form = listedTimesForm(temporal);
+  if (form === 'regular') return parseDuration(String(temporal!.grid!.resolution));
+  if (form !== 'coordinates') return null;
+  const times = temporalValuesOf(temporal).map(time => Date.parse(time));
+  if (times.length < 3 || times.some(isNaN)) return null;
+  const step = times[1] - times[0];
+  return step > 0 && times.every((time, i) => i === 0 || time - times[i - 1] === step) ? step : null;
+}
+
 // Utility function to expand temporal extent into individual datetime values for selection
-// Prioritizes temporal.values if available, falls back to temporal.interval
+// Prioritizes the times listed (temporal.values, else a grid's) if available, falls back to temporal.interval
 export function expandTemporalValues(temporal: Temporal | null | undefined, maxValues: number = 1000): string[] {
   const values: string[] = [];
   const seen = new Set<string>();
@@ -324,9 +372,10 @@ export function expandTemporalValues(temporal: Temporal | null | undefined, maxV
   };
 
   try {
-    // PRIORITIZE temporal.values if it exists
-    if (temporal.values && Array.isArray(temporal.values) && temporal.values.length > 0) {
-      temporal.values.forEach(value => {
+    // PRIORITIZE the times listed if there are any
+    const listed = temporalValuesOf(temporal);
+    if (listed.length > 0) {
+      listed.forEach(value => {
         if (value && typeof value === 'string') {
           // Check if value is an interval format (e.g., "2024-01-01T00:00Z/2024-01-02T00:00Z")
           if (value.includes('/')) {
@@ -339,7 +388,7 @@ export function expandTemporalValues(temporal: Temporal | null | undefined, maxV
         }
       });
     }
-    // FALLBACK to temporal.interval ONLY if temporal.values is not available
+    // FALLBACK to temporal.interval ONLY if no times are listed
     else if (temporal.interval && Array.isArray(temporal.interval)) {
       for (const interval of temporal.interval) {
         if (!Array.isArray(interval) || interval.length < 2) {

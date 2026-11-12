@@ -69,4 +69,17 @@ describe('matchOperation against the real data_queries', () => {
     expect(matchOperation(index, 'https://x.org/v2/collections/c/area')).toBeNull();
     expect(matchOperation(index, 'not a url')).toBeNull();
   });
+
+  it('keeps what the document says of each parameter, where it says anything', () => {
+    const index = buildOperationIndex({
+      url: 'https://x.org/api',
+      doc: { paths: { '/collections/{id}/map': { get: { parameters: [
+        { name: 'subset', in: 'query', schema: { type: 'array' }, description: 'Axes: `Lon(19:32)`' },
+        { name: 'datetime', in: 'query', description: '  ' },
+        { name: 'f', in: 'query', description: 7 },
+      ] } } } },
+    });
+    const params = matchOperation(index, 'https://x.org/collections/c/map')!.entry.params;
+    expect(params.map(param => [param.name, param.description])).toEqual([['subset', 'Axes: `Lon(19:32)`'], ['datetime', undefined], ['f', undefined]]);
+  });
 });

@@ -9,6 +9,7 @@ import { withItemsQuery } from './query/itemsQuery';
 import fmiEcmwf from './query/__fixtures__/fmi-ecmwf.json';
 import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
 import mapsParams from './query/__fixtures__/meteocore-maps-params.json';
+import mapsDims from './query/__fixtures__/meteocore-maps-dimensions.json';
 import { mapStylesOf, withLinkQueries } from './query/mapQuery';
 import { apiDocsParams } from './query/declared';
 import { buildOperationIndex, matchOperation } from './validation/openapi/operationIndex';
@@ -420,7 +421,8 @@ describe('a map’s form', () => {
     around.conformsTo = mapsParams.conformsTo;
     issues.apiOperation = operationFor('/collections/ecmwf-aifs-single/map');
     const html = form(collectionOf('ecmwf-aifs-single'), 'map', { ...mapState('ecmwf-aifs-single'), selectedParameters: ['2t'] });
-    expect(blockIds(html)).toEqual(['query', 'style', 'parameter-name', 'f', 'more']);
+    // Its time, level and subset between them: see 'a map’s time, levels, run and subset'
+    expect(blockIds(html)).toEqual(['query', 'style', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
     expect(tagsOf(field(html, 'style'))).toEqual(['styled-map']);
     expect(tagsOf(field(html, 'parameter-name'))).toEqual(['MetOcean Maps (draft)', 'API docs']);
     expect(tagsOf(field(html, 'f'))).toEqual(['API docs']);
@@ -442,7 +444,7 @@ describe('a map’s form', () => {
     around.requestUrl = `${ROOT}/collections/fmi-radar-composite-dbz/map`;
     issues.apiOperation = operationFor('/collections/fmi-radar-composite-dbz/map');
     const html = form(collectionOf('fmi-radar-composite-dbz'), 'map', mapState('fmi-radar-composite-dbz', { mapStyles: { status: 'ready', styles: [], source: null } }));
-    expect(blockIds(html)).toEqual(['query', 'parameter-name', 'f', 'more']);
+    expect(blockIds(html)).toEqual(['query', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
     expect(html).toContain('placeholder="Type a parameter"');
     expect(typedValue(html, 'parameter-name')).toBe('');
     // Without the API's conformance, no class is named
@@ -462,3 +464,42 @@ describe('a map’s form', () => {
     expect(shown(field(html, 'style'))).toContain('The request has parameter-name=tp instead, as chosen');
   });
 });
+
+// A model's map on MeteoCore: its time, its level as subset=vertical(…) and as the API docs' elevation, its model run
+// and its subset, each a field of its own and tagged by who declared it
+describe('a map’s time, levels, run and subset', () => {
+  const ROOT = 'https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map';
+  const ifs = () => withLinkQueries(structuredClone(mapsDims.collections.find(each => each.id === 'ecmwf-ifs-pressure')) as unknown as Collection);
+  const docs = apiDocsParams(mapsDims.apiParams.map(param => ({ ...param, enumValues: null, isArray: param.schema.type === 'array' })) as unknown as Parameters<typeof apiDocsParams>[0]);
+  const state = { styleId: '', styleByLink: false, selectStyle: () => {}, mapStyles: { status: 'ready', styles: [], source: null } };
+
+  it('names each by what’s sent, and says what the server does while each is left out', () => {
+    around.requestUrl = ROOT;
+    around.conformsTo = mapsDims.conformsTo;
+    issues.apiOperation = { template: '/collections/ecmwf-ifs-pressure/map', pointer: '/paths/x', required: [], params: docs };
+    const html = form(ifs(), 'map', state);
+    expect(blockIds(html)).toEqual(['query', 'datetime', 'subset:vertical', 'elevation', 'subset:reference_time', 'subset', 'more']);
+    expect(shown(field(html, 'subset:vertical'))).toContain('Level subset=vertical(…) hPa · optional MetOcean Maps (draft) 1000 925 850');
+    expect(shown(field(html, 'subset:reference_time'))).toContain('Model run subset=reference_time(…) 2 listed · optional MetOcean Maps (draft) API docs Latest 2026-11-12T00:00:00Z 2026-11-11T18:00:00Z');
+    expect(shown(field(html, 'elevation'))).toContain('Level elevation hPa · optional API docs');
+    expect(typedValue(html, 'subset')).toBe('');
+    expect(html).toContain('placeholder="axis(low:high), axis(value)"');
+    for (const id of ['subset:vertical', 'elevation', 'subset:reference_time', 'subset']) expect(shown(field(html, id)), id).toContain('Left out:');
+    // How to type subset, while it's empty
+    expect(shown(field(html, 'subset'))).toContain('Typed: axis(low:high) or axis(value) , comma-separated');
+  });
+
+  it('shows what the request has in each, and its issue in its field', () => {
+    around.requestUrl = `${ROOT}?subset=vertical(777),reference_time(*)&elevation=850`;
+    around.conformsTo = mapsDims.conformsTo;
+    issues.apiOperation = { template: '/collections/ecmwf-ifs-pressure/map', pointer: '/paths/x', required: [], params: docs };
+    issues.list = [{ id: 'metadata:subset:vertical:offered', severity: 'warning', source: 'metadata', field: 'subset:vertical', message: "Level 777 isn't one of the collection's levels" }];
+    const html = form(ifs(), 'map', state);
+    expect(typedValue(html, 'subset')).toBe('vertical(777),reference_time(*)');
+    expect(typedValue(html, 'elevation')).toBe('850');
+    for (const id of ['subset:vertical', 'elevation', 'subset:reference_time', 'subset']) expect(shown(field(html, id)), id).not.toContain('Left out:');
+    expect(shown(field(html, 'subset:vertical'))).toContain("Level 777 isn't one of the collection's levels");
+    expect(count(field(html, 'subset:reference_time'), 'aria-pressed="true"')).toBe(1);
+  });
+});
+

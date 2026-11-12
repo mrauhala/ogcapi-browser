@@ -51,16 +51,17 @@ describe('the Maps classes', () => {
   });
 
   it('tag the style by styled-map where the API declares it', () => {
-    expect(styleDeclarers(mapOffer(true, meteocore.conformsTo, null))).toEqual([{ kind: 'class', name: 'styled-map', uri: 'http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map' }]);
-    expect(styleDeclarers(mapOffer(true, meteocore.conformsTo.filter(uri => !uri.endsWith('styled-map')), null))).toEqual([]);
-    expect(styleDeclarers(mapOffer(true, null, null))).toEqual([]);
+    expect(styleDeclarers(mapOffer(['parameter-name'], meteocore.conformsTo, null))).toEqual([{ kind: 'class', name: 'styled-map', uri: 'http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map' }]);
+    expect(styleDeclarers(mapOffer(['parameter-name'], meteocore.conformsTo.filter(uri => !uri.endsWith('styled-map')), null))).toEqual([]);
+    expect(styleDeclarers(mapOffer(['parameter-name'], null, null))).toEqual([]);
   });
 });
 
 describe('a map’s fields', () => {
   it('are its parameter, from parameter_names, and its format, from the API docs, each tagged by who declared it', () => {
     const fields = specs(aifs(), AIFS_DOCS);
-    expect(fields.map(field => field.name)).toEqual(['parameter-name', 'f']);
+    // Its time, level and subset between them: see mapDimensions.test.ts
+    expect(fields.map(field => field.name)).toEqual(['parameter-name', 'datetime', 'elevation', 'subset', 'f']);
     const parameter = one(fields, 'parameter-name');
     expect(parameter).toMatchObject({ title: 'Parameter', requirement: 'optional', figure: '18 listed', choice: 'one' });
     expect(tags(parameter)).toEqual(['MetOcean Maps (draft)', 'API docs']);
@@ -94,7 +95,7 @@ describe('a map’s fields', () => {
 
   it('without API docs: the parameter on the draft’s word, one at a time, and no format', () => {
     const fields = specs(ifs(), null);
-    expect(fields.map(field => field.name)).toEqual(['parameter-name']);
+    expect(fields.map(field => field.name)).toEqual(['parameter-name', 'datetime', 'subset']);
     expect(tags(fields[0])).toEqual(['MetOcean Maps (draft)']);
     expect(fields[0].declaredBy?.[0]).toBe(METOCEAN_MAPS_DRAFT);
     expect(fields[0].hints).toEqual(["From the collection's `parameter_names`. One at a time: nothing says it takes several"]);
@@ -109,8 +110,8 @@ describe('a map’s fields', () => {
   });
 
   it('show what the request has though nobody declares it, untagged, and nothing for what isn’t there', () => {
-    expect(specs(radar(), null)).toEqual([]);
-    const fields = specs(radar(), null, { inRequest: ['parameter-name', 'f', 'bbox'] });
+    expect(specs(radar(), null, { conformsTo: null })).toEqual([]);
+    const fields = specs(radar(), null, { inRequest: ['parameter-name', 'f', 'bbox'], conformsTo: null });
     expect(fields.map(field => [field.name, tags(field)])).toEqual([['parameter-name', []], ['f', []]]);
     expect(one(fields, 'parameter-name').hints).toEqual(['The collection has no `parameter_names` to pick from']);
     expect(one(fields, 'f')).toMatchObject({ options: [], marked: undefined, leftOut: "by `Accept`, which the app sends as `*/*`: the server's default" });

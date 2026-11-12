@@ -17,6 +17,7 @@ export interface ApiDocsParam {
   enumValues: string[] | null;
   defaultValue: string | null; // the schema's default, what the server does unasked
   pointer: string;
+  description?: string; // what the API docs say of it: a map's subset names its axes there
 }
 
 // The operation's query parameters, as the API docs give them
@@ -29,6 +30,7 @@ export function apiDocsParams(params: readonly ResolvedParam[]): ApiDocsParam[] 
       enumValues: param.enumValues,
       defaultValue: typeof given === 'string' || typeof given === 'number' || typeof given === 'boolean' ? String(given) : null,
       pointer: param.pointer,
+      ...(param.description ? { description: param.description } : {}),
     };
   });
 }

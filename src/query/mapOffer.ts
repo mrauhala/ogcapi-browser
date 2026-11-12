@@ -10,6 +10,7 @@ import { declaredClasses, declarersOf, type ApiDocsParam, type Declarer, type Of
 import { parameterIdsOf } from './queryTypes';
 import { distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { MAPS1 } from '../standards';
+import { extentDimensions, mapDimensionSpecs } from './mapDimensions';
 
 // Where a Maps conformance class's URI names it: …/spec/ogcapi-maps-1/1.0/conf/{class}
 export const MAPS_CONF = '/spec/ogcapi-maps-1/1.0/conf/';
@@ -65,20 +66,32 @@ export const METOCEAN_MAPS_DRAFT: Extract<Declarer, { kind: 'profile' }> = {
   kind: 'profile',
   name: 'MetOcean Maps (draft)',
   href: 'https://github.com/opengeospatial/metocean-ogcapi-maps-profile/issues/5',
-  note: 'A draft profile in progress (opengeospatial/metocean-ogcapi-maps-profile#5): the collection has parameter_names, '
-    + 'as it reads them. Nothing is checked against it yet',
+  note: 'A draft profile in progress (opengeospatial/metocean-ogcapi-maps-profile#5): parameter-name from the collection\'s '
+    + 'parameter_names, a level as subset=vertical(…) and a model run as subset=reference_time(…), where the collection has '
+    + 'them. Nothing is checked against it yet',
 };
 
 export const hasParameterNames = (collection: Collection): boolean => parameterIdsOf(collection).length > 0;
 
+// What the draft profile uses of a map request, by what the collection has: parameter-name where it has
+// parameter_names, and subset where its extent has levels (vertical) or model runs (reference_time), which it picks as
+// subset=vertical(…) and subset=reference_time(…)
+export function mapProfileNames(collection: Collection): string[] {
+  const dimensions = extentDimensions(collection).map(dimension => dimension.id);
+  return [
+    ...(hasParameterNames(collection) ? ['parameter-name'] : []),
+    ...(dimensions.includes('vertical') || dimensions.includes('reference_time') ? ['subset'] : []),
+  ];
+}
+
 // Who declares what for a map request: the Maps classes the API declares (none known while its conformance isn't), the
-// draft profile's parameter-name where the collection has parameter_names, and the API docs' operation
-export function mapOffer(parameterNames: boolean, conformsTo: readonly string[] | null | undefined, apiDocs: ApiDocsParam[] | null): Offer {
+// draft profile's parameters (mapProfileNames), and the API docs' operation
+export function mapOffer(profileNames: readonly string[], conformsTo: readonly string[] | null | undefined, apiDocs: ApiDocsParam[] | null): Offer {
   return {
     standard: 'Maps',
     classesOf: MAPS_PARAMETER_CLASSES,
     classes: conformsTo ? declaredClasses(conformsTo, MAPS_CONF) : null,
-    profile: { declarer: METOCEAN_MAPS_DRAFT, names: parameterNames ? ['parameter-name'] : [] },
+    profile: { declarer: METOCEAN_MAPS_DRAFT, names: profileNames },
     apiDocs,
   };
 }
@@ -169,10 +182,10 @@ export function parameterRows(collection: Collection, styles: readonly MapStyle[
 
 const DEFAULT_FIELDS = 'defaultFields';
 
-// The fields of a map query that this form has, in order: the parameter, then the output format. Each shows where it's
-// declared or the request has it, and says who declared it
+// The fields of a map query that this form has, in order: the parameter, its time, level, model run and subset, then
+// the output format. Each shows where it's declared or the request has it, and says who declared it
 export function mapFieldSpecs(collection: Collection, chosen: { parameters: number }, context: FieldContext): FieldSpec[] {
-  const offer = mapOffer(hasParameterNames(collection), context.conformsTo, context.apiDocs ?? null);
+  const offer = mapOffer(mapProfileNames(collection), context.conformsTo, context.apiDocs ?? null);
   const inRequest = new Set(context.inRequest ?? []);
   const requirementOf = (name: string) => (context.apiRequired?.includes(name) ? 'required by the API docs' as const : 'optional' as const);
   const docs = (name: string) => context.apiDocs?.find(param => param.name === name);
@@ -205,6 +218,8 @@ export function mapFieldSpecs(collection: Collection, chosen: { parameters: numb
       choice: several ? 'several' : 'one',
     });
   }
+
+  fields.push(...mapDimensionSpecs(collection, offer, inRequest, requirementOf));
 
   const formatBy = declarersOf('f', offer);
   if (formatBy.length || inRequest.has('f')) {

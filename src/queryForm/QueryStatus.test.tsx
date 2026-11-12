@@ -58,6 +58,11 @@ describe('QueryStatus', () => {
     expect(render()).toBe('Missing: query 1 error: member');
   });
 
+  it('names a map’s level and model run by their axes in subset', () => {
+    state.issues = [issue('warning', 'subset:vertical'), issue('warning', 'subset:reference_time'), issue('error', 'subset')];
+    expect(render(new Set(['subset', 'subset:vertical', 'subset:reference_time']))).toBe('1 error: subset 2 issues: vertical , reference_time');
+  });
+
   it('says whether the API docs are being read, or were checked against', () => {
     state.status = 'loading';
     expect(render()).toBe('✓ Nothing missing Reading the API docs…');

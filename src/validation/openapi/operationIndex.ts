@@ -11,6 +11,7 @@ export interface ResolvedParam {
   enumValues: string[] | null; // allowed values, from schema.enum, items.enum or anyOf/oneOf enums
   isArray: boolean;
   pointer: string; // JSON pointer to the parameter in the document
+  description?: string; // what the document says of it, where it says anything
 }
 
 export interface OperationEntry {
@@ -95,6 +96,7 @@ function resolveParams(doc: Json, pathItem: Json, pathPointer: string, operation
         required: parameter.required === true || parameter.in === 'path',
         ...enumInfo(doc, parameter.schema),
         pointer: `${listPointer}/parameters/${i}`,
+        ...(typeof parameter.description === 'string' && parameter.description.trim() ? { description: parameter.description } : {}),
       });
     });
   };

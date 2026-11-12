@@ -21,6 +21,9 @@ describe('apiDocsParams', () => {
       pointer: '/paths/~1collections~1ecmwf-aifs-single~1map/get/parameters/15',
     });
     expect(params.find(param => param.name === 'parameter-name')).toMatchObject({ isArray: false, enumValues: null, defaultValue: null });
+    // What the docs say of it, where they say anything: the fixture's parameters have no descriptions
+    expect(params.some(param => 'description' in param)).toBe(false);
+    expect(apiDocsParams([{ name: 'subset', in: 'query', required: false, enumValues: null, isArray: true, pointer: '/s', description: 'Axes: `Lon(1:2)`' }])[0].description).toBe('Axes: `Lon(1:2)`');
     expect(params.find(param => param.name === 'bbox')).toMatchObject({ isArray: true });
   });
 

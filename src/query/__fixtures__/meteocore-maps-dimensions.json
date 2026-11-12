@@ -1,0 +1,303 @@
+{
+  "_comment": "Trimmed from https://meteocore.app.meteo.fi, fetched 2026-11-12 08:46 UTC with User-Agent ogcapi-browser-check: /collections/ecmwf-ifs-pressure, /collections/fmi-radar-composite-dbz and /collections/ecmwf-aifs-single (id, title, crs, storageCrs, the map link and the extent, its spatial grids left out; a time grid's coordinates cut to the first 6, with its cellsCount and interval to match), the Maps classes of /conformance, and from /api the query parameters subset, subset-crs, datetime and elevation of /collections/ecmwf-ifs-pressure/map, as served",
+  "collections": [
+    {
+      "id": "ecmwf-ifs-pressure",
+      "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "extent": {
+        "spatial": {
+          "bbox": [
+            [
+              -180.0,
+              -90.0,
+              180.0,
+              90.0
+            ]
+          ],
+          "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "temporal": {
+          "interval": [
+            [
+              "2026-11-11T18:00:00+00:00",
+              "2026-11-12T09:00:00+00:00"
+            ]
+          ],
+          "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+          "grid": {
+            "cellsCount": 6,
+            "coordinates": [
+              "2026-11-11T18:00:00+00:00",
+              "2026-11-11T21:00:00+00:00",
+              "2026-11-12T00:00:00+00:00",
+              "2026-11-12T03:00:00+00:00",
+              "2026-11-12T06:00:00+00:00",
+              "2026-11-12T09:00:00+00:00"
+            ]
+          }
+        },
+        "vertical": {
+          "interval": [
+            [
+              10.0,
+              1000.0
+            ]
+          ],
+          "vrs": "VERTCRS[\"Atmospheric pressure\",VDATUM[\"Atmosphere\"],CS[vertical,1],AXIS[\"Pressure (hPa)\",down],UNIT[\"hPa\",100]]",
+          "values": [
+            1000.0,
+            925.0,
+            850.0,
+            700.0,
+            600.0,
+            500.0,
+            400.0,
+            300.0,
+            250.0,
+            200.0,
+            150.0,
+            100.0,
+            50.0,
+            10.0
+          ],
+          "unit": "hPa",
+          "grid": {
+            "cellsCount": 14,
+            "coordinates": [
+              1000.0,
+              925.0,
+              850.0,
+              700.0,
+              600.0,
+              500.0,
+              400.0,
+              300.0,
+              250.0,
+              200.0,
+              150.0,
+              100.0,
+              50.0,
+              10.0
+            ]
+          }
+        },
+        "reference_time": {
+          "interval": [
+            [
+              "2026-11-11T18:00:00Z",
+              "2026-11-12T00:00:00Z"
+            ]
+          ],
+          "description": "Model run (forecast reference time), as RFC 3339; the collection's EDR instance ids where it serves EDR",
+          "definition": "https://vocab.nerc.ac.uk/standard_name/forecast_reference_time/",
+          "grid": {
+            "cellsCount": 2,
+            "coordinates": [
+              "2026-11-11T18:00:00Z",
+              "2026-11-12T00:00:00Z"
+            ]
+          }
+        }
+      },
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        }
+      ]
+    },
+    {
+      "id": "fmi-radar-composite-dbz",
+      "title": "Finnish Radar Reflectivity Composite (FMI)",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/3067",
+      "extent": {
+        "spatial": {
+          "bbox": [
+            [
+              6.682740501703563,
+              55.93417040538872,
+              43.12029176280373,
+              72.85568464682855
+            ]
+          ],
+          "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+          "storageCrsBbox": [
+            [
+              -196593.004,
+              6255329.699,
+              1044176.9410000001,
+              8084432.005
+            ]
+          ]
+        },
+        "temporal": {
+          "interval": [
+            [
+              "2026-11-11T08:40:00+00:00",
+              "2026-11-11T09:05:00+00:00"
+            ]
+          ],
+          "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+          "grid": {
+            "cellsCount": 6,
+            "coordinates": [
+              "2026-11-11T08:40:00+00:00",
+              "2026-11-11T08:45:00+00:00",
+              "2026-11-11T08:50:00+00:00",
+              "2026-11-11T08:55:00+00:00",
+              "2026-11-11T09:00:00+00:00",
+              "2026-11-11T09:05:00+00:00"
+            ]
+          }
+        }
+      },
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        }
+      ]
+    },
+    {
+      "id": "ecmwf-aifs-single",
+      "title": "ECMWF AIFS Global Forecast — Single level",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "extent": {
+        "spatial": {
+          "bbox": [
+            [
+              -180.0,
+              -90.0,
+              180.0,
+              90.0
+            ]
+          ],
+          "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        },
+        "temporal": {
+          "interval": [
+            [
+              "2026-11-11T18:00:00+00:00",
+              "2026-11-27T00:00:00+00:00"
+            ]
+          ],
+          "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+          "grid": {
+            "cellsCount": 62,
+            "resolution": "PT6H",
+            "firstCoordinate": "2026-11-11T18:00:00+00:00"
+          }
+        },
+        "reference_time": {
+          "interval": [
+            [
+              "2026-11-11T18:00:00Z",
+              "2026-11-12T00:00:00Z"
+            ]
+          ],
+          "description": "Model run (forecast reference time), as RFC 3339; the collection's EDR instance ids where it serves EDR",
+          "definition": "https://vocab.nerc.ac.uk/standard_name/forecast_reference_time/",
+          "grid": {
+            "cellsCount": 2,
+            "coordinates": [
+              "2026-11-11T18:00:00Z",
+              "2026-11-12T00:00:00Z"
+            ]
+          }
+        }
+      },
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        }
+      ]
+    }
+  ],
+  "conformsTo": [
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/collection-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/spatial-subsetting",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/scaling",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/datetime",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/crs",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/png",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/jpeg",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/background",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/tilesets"
+  ],
+  "apiParams": [
+    {
+      "name": "subset",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "description": "Retrieve only part of the data by slicing or trimming along one or more axis\nFor trimming: {axisAbbrev}({low}:{high}) (preserves dimensionality)\nFor slicing:  {axisAbbrev}({value})      (reduces dimensionality)\nAn asterisk (`*`) can be used instead of {low} or {high} to indicate the minimum/maximum value.\nFor a temporal dimension, a single asterisk can be used to indicate the high value.\nSupport for `*` is required for time, but optional for spatial and other dimensions.\n\nAxes: `Lon` and `Lat` (also `Long`, `Longitude`, `Latitude`) in a geographic `subset-crs`, `E` and `N` (also `X`, `Easting`, `Y`, `Northing`) in a projected one, each trimmed with an interval; `*` is the collection extent's edge, and an axis left out keeps the extent. A `Lon` low greater than its high crosses the antimeridian. `time` (also `t`) takes double-quoted RFC 3339 values or the partial forms `yyyy`, `yyyy-mm`, `yyyy-mm-dd`, `yyyy-mm-ddThhZ` and `yyyy-mm-ddThh:mmZ`: an instant is snapped like `datetime`, an interval, a partial value or `*` renders the latest time inside it. `reference_time`, on a collection whose `extent` has a `reference_time` dimension, selects its model run: one double-quoted RFC 3339 run of that dimension, the run's EDR instance id, or `*` for the latest run, as omitting it is. A named run is drawn exactly, the latest included: the time is one of that run's own valid times, by default its latest, an instant inside the run snaps to one of its steps, and an instant outside it or an interval holding none of them is a 404. With `*` or no run, the run is the one the collection draws the time from, an older one where the newest lacks it. A run the collection does not have is a 404; an interval of runs, or the axis on a collection without runs, a 400. Any other axis is a 400; an interval entirely outside its axis' valid values, or holding no time, a 404. Spatial axes not with `bbox` or `center`, `time` not with `datetime` (400). Examples: `subset=Lon(19:32),Lat(59:70)`, `subset=reference_time(\"2026-10-01T06:00:00Z\")`.",
+      "pointer": "/paths/~1collections~1ecmwf-ifs-pressure~1map/get/parameters/2"
+    },
+    {
+      "name": "subset-crs",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      },
+      "description": "A URI (or safe CURIE) of the coordinate reference system for the coordinates specified in the `subset` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if different), or the output `crs` (if specified).\n\nThis server accepts every CRS a collection lists in `crs`, as URI, safe CURIE or short identifier. Ignored without a spatial `subset` axis.",
+      "pointer": "/paths/~1collections~1ecmwf-ifs-pressure~1map/get/parameters/3"
+    },
+    {
+      "name": "datetime",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      },
+      "description": "Either a date-time or an interval. Date and time expressions adhere to RFC 3339, section 5.6. Intervals may be bounded or half-bounded (double-dots at start or end).\n\nAn instant is snapped to an available time step; an interval renders the latest time step inside it, and is a 404 when it holds none. Without `datetime` or a `time` subset the map shows the collection's default (normally latest) time, or the latest time of the model run a `reference_time` subset names; with a named run, an instant outside it is a 404. `Content-Datetime` reports the instant rendered. Not with `subset=time(…)` (400). Examples: `2018-02-12T23:20:50Z`, `2018-02-12T00:00:00Z/2018-03-18T12:31:12Z`, `2018-02-12T00:00:00Z/..`.",
+      "pointer": "/paths/~1collections~1ecmwf-ifs-pressure~1map/get/parameters/10"
+    },
+    {
+      "name": "elevation",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "number"
+      },
+      "description": "Vertical level (e.g. radar elevation angle). Only valid for collections with a vertical dimension.",
+      "pointer": "/paths/~1collections~1ecmwf-ifs-pressure~1map/get/parameters/17"
+    }
+  ]
+}

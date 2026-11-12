@@ -4,12 +4,13 @@ const readable = (text: string) => encodeURIComponent(text)
   .replace(/%2C/g, ',')
   .replace(/%3A/g, ':')
   .replace(/%2F/g, '/')
+  .replace(/%22/g, '"')
   .replace(/%20/g, ' ');
 
 const pairOf = (name: string, value: string) => `${readable(name)}=${readable(value)}`;
 
-// Query values show their ( ) , : / and spaces as themselves. What would change the URL's meaning
-// (+ & = # %) stays encoded, and the browser sends the spaces as %20.
+// Query values show their ( ) , : / " and spaces as themselves, as a map's subset=time("…") is written. What would
+// change the URL's meaning (+ & = # %) stays encoded, and the browser sends the spaces and quotes encoded.
 export function readableUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -123,6 +124,9 @@ export function paramOf(url: string, name: string): string | null {
 
 // The line's parameters in order, decoded, as typed
 export const paramsIn = (url: string): [string, string][] => splitUrl(url).pairs.map(pair => [nameOf(pair), valueOf(pair)]);
+
+// Every value the line gives a parameter, in order: a map's subset may come more than once
+export const paramValues = (url: string, name: string): string[] => paramsIn(url).filter(([each]) => each === name).map(([, value]) => value);
 
 // The line with one parameter's value set where it is, or added at the end, and any second copy of it dropped. An empty
 // value takes the parameter out, unless it's to be kept, as `name=`. The rest stays as typed.

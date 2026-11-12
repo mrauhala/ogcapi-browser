@@ -47,16 +47,29 @@ export interface Spatial {
     crs?: string; // Also optional since some extents might be empty
 }
 
+// A dimension's grid, as Common Part 2 (a draft) and Maps 1.0's additional dimensions describe it: the coordinates of an
+// irregular one, or a regular one's first coordinate, its resolution and how many cells it has. A time's resolution is
+// an ISO 8601 duration (PT5M)
+export interface DimensionGrid {
+    coordinates?: (string | number)[];
+    firstCoordinate?: string | number;
+    resolution?: string | number;
+    cellsCount?: number;
+}
+
 export interface Temporal {
     interval?: (string | null)[][]; // Array of ISO 8601 date interval arrays, null values indicate open intervals
     values?: string[]; // Array of ISO 8601 datestrings for specific time points/intervals
     trs?: string; // Temporal reference system, defaults to Gregorian
+    grid?: DimensionGrid; // The times as a grid: a map collection's, where EDR's have values
 }
 
 export interface Vertical {
     interval?: (number | string | null)[][]; // Array of level value arrays, can be strings or numbers for min/max vertical levels
     values?: (number | string)[]; // Array of height values supported by the collection, can be strings or numbers
     vrs?: string; // Vertical reference system, follows Well Known Text standard
+    grid?: DimensionGrid; // The levels as a grid, as a map collection may also give them
+    unit?: string;
 }
 
 export interface CustomDimension {
@@ -71,6 +84,9 @@ export interface Extent {
     temporal?: Temporal; // Made optional to handle missing temporal extent
     vertical?: Vertical; // Made optional to handle missing vertical extent
     custom?: CustomDimension[]; // Custom dimensions array
+    // Any other member is an additional dimension, as Maps 1.0's General Subsetting and Common Part 2 (a draft) have
+    // them, keyed by its name: a map collection's reference_time
+    [dimension: string]: unknown;
 }
 
 export interface parameterNames {

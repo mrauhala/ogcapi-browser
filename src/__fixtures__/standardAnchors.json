@@ -1,6 +1,8 @@
 {
   "https://docs.ogc.org/DRAFTS/20-024.html": [
-    "_3572a54e-a65e-18bf-1aa0-63ce7c1b70f9"
+    "_3572a54e-a65e-18bf-1aa0-63ce7c1b70f9",
+    "_bc7cbacc-ad22-4224-d191-1a38937a8e73",
+    "_dca3f3dc-0479-ea46-ace1-7ea633f6b944"
   ],
   "https://docs.ogc.org/cs/21-069r2/21-069r2.html": [
     "_047098cc-a6d3-197b-1520-b9677775cf47",
@@ -223,13 +225,16 @@
     "_dddadcd4-b61a-caab-cd17-98de02ea8e03"
   ],
   "https://docs.ogc.org/is/20-058/20-058.html": [
+    "_01e1ad06-7ec5-50fe-0d29-5a49367ec7fb",
     "_07d62e65-5242-5c18-330c-4868db760188",
     "_07f11e62-30f5-d20e-5b9e-e4950f827162",
     "_083a9e68-692f-5bda-aec6-5d609fd2f978",
+    "_129d3f13-82a1-e777-e9a9-0eb6bb3d58ca",
     "_150b09ae-e5a1-1f68-24bf-6a42b73bfb86",
     "_1bcee57a-1072-7bbb-7d00-0515b2aea951",
     "_1fd4c9a7-9f1c-3741-456d-8168aa6aea24",
     "_2154f3b4-539b-e999-84c6-8ee7589e840a",
+    "_22a6c667-c766-b1c2-34f2-72e56e8445cb",
     "_35ec26ab-2e34-4c64-dd64-5cc8a3b14995",
     "_3741a1cd-d9f4-5b80-48cd-ea0846d8529f",
     "_40e910e9-a84b-91fa-c7b1-9692ff235b12",
@@ -239,14 +244,19 @@
     "_5972794a-f020-79c3-f86d-e889a6d3e4c2",
     "_5a37f7c9-1788-30f4-ba32-d23dd2f6cce1",
     "_5b4c5144-e0ba-fdb7-862b-9dc795d19cc0",
+    "_6bcf19aa-f704-07a7-a87e-a600a22bc47a",
     "_6eaa2a14-ce44-a25d-9b06-25352cf621f8",
     "_73821492-5c8e-c96a-6212-3f14df76b289",
     "_787cf543-d0a7-de3f-44d2-0232ea5fe147",
     "_7ed970c0-de9a-122c-e0ba-ddad42cc788e",
     "_83ecd147-d476-5e94-9959-fcb85742f869",
+    "_892bf6a3-c8a3-8b6d-ddae-5abcc834ba17",
     "_8bf75214-0d0c-e27e-0f3b-e9d4c47a047d",
     "_8f6c32c0-7744-dbf3-06a9-7d7699eb5d74",
     "_91402b86-f309-ced6-6c70-119bcb71060b",
+    "_9148cbd5-9087-3f75-fe97-86925594c3c5",
+    "_9389b8fe-a629-7e9e-23e2-a5712e802357",
+    "_95b1caa8-f85f-7a55-3550-7cf0e73aa53e",
     "_96523345-0077-9c2e-e905-1b78aae58e4d",
     "_9997acfa-497e-154c-bcde-66f186a6f5b3",
     "_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a",
@@ -258,6 +268,7 @@
     "_d1afa42a-ef37-c60c-a5c9-788f5185ea3b",
     "_d1e9a88a-5a30-ae9e-31e8-57d8b7bc548c",
     "_d3716672-08ce-c67c-f7d7-4f70b7f892ac",
+    "_d667fb72-4b2f-f32f-6511-f7db4cb44673",
     "_dabe363f-d0a0-5584-5ae7-160825fc4066",
     "_db1cf4a2-99c7-fe69-8386-b84a636a5f7d",
     "_e7950323-2ddd-799e-afe6-02f412e2cfb4",

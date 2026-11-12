@@ -7,7 +7,7 @@ import { EDR_QUERY_RULES } from './edrRules';
 import { fromItemsLink } from './itemsQuery';
 import { effectiveOutputFormats, queryTypeOf, queryVariables, unitsFor } from './queryTypes';
 import { timeIsOnlyAFilter } from './queryModel';
-import { expandTemporalValues, getOverallTemporalExtent, normalizeTemporal } from '../utils/extents/temporal';
+import { expandTemporalValues, getOverallTemporalExtent, gridStepMs, listedTimesForm, normalizeTemporal } from '../utils/extents/temporal';
 import { getVerticalUnit } from '../utils/extents/vertical';
 import { expandCustomDimensionValues, getEffectiveCustomDimensions } from '../utils/extents/custom';
 import type { ApiDocsParam, Declarer } from './declared';
@@ -32,6 +32,7 @@ export interface FieldSpec {
   marked?: string; // the value the metadata names as the default, as default_output_format: marked, not sent
   options?: string[]; // the values to pick from where the API docs list them, as a map's f
   choice?: 'one' | 'several'; // how many values it takes, where the form can tell: a map's parameter-name
+  axis?: string; // the axis of subset it writes, where it's a field of its own: a map's level, vertical, sent as subset
   declaredBy?: Declarer[]; // who declared it, tagged in its head: a conformance class, a draft profile, the API docs
 }
 
@@ -54,8 +55,33 @@ function timeOf(iso: string, withYear: boolean): string {
   return `${day} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
+// A step between times, as people say it: 5 min, 3 h, 1 day, 36 h
+export function stepSaid(ms: number): string {
+  const minutes = ms / 60000;
+  if (minutes < 1) return `${ms / 1000} s`;
+  if (minutes < 60) return `${minutes} min`;
+  const days = minutes / (24 * 60);
+  if (Number.isInteger(days)) return `${days} day${days === 1 ? '' : 's'}`;
+  return `${Number((minutes / 60).toFixed(1))} h`;
+}
+
+// A grid's times: how many, their step where it's even, from when to when, and where they're listed
+function gridTimesSaid(temporal: Temporal, form: 'coordinates' | 'regular'): string | null {
+  const listed = expandTemporalValues(temporal, 100000);
+  if (!listed.length) return null;
+  const first = listed[0];
+  const last = listed[listed.length - 1];
+  const withYear = new Date(first).getUTCFullYear() !== new Date(last).getUTCFullYear();
+  const step = gridStepMs(temporal);
+  const where = form === 'regular' ? 'extent.temporal.grid' : 'extent.temporal.grid.coordinates';
+  const span = listed.length === 1 ? timeOf(first, false) + ' UTC' : `${timeOf(first, withYear)} to ${timeOf(last, withYear)} UTC`;
+  return `${listed.length} time${listed.length === 1 ? '' : 's'}${step ? `, every ${stepSaid(step)}` : ''}, ${span}, from \`${where}\``;
+}
+
 // The times a collection has: how many it lists, and from when to when
 export function timesSaid(temporal: Temporal): string | null {
+  const form = listedTimesForm(temporal);
+  if (form === 'coordinates' || form === 'regular') return gridTimesSaid(temporal, form);
   const normalized = normalizeTemporal(temporal);
   const overall = normalized ? getOverallTemporalExtent(normalized.intervals) : null;
   const listed = temporal.values?.length ? expandTemporalValues(temporal, 2001) : [];
@@ -135,7 +161,7 @@ const COORDS_GRAMMAR: Record<string, string> = {
   corridor: 'Typed: `LINESTRING(lon lat, lon lat, …)`',
   area: 'Typed: `POLYGON((lon lat, …, the first again))`, or `MULTIPOLYGON`',
 };
-const DATETIME_GRAMMAR = 'One time, an interval `start/end`, or one open at an end, `start/..` or `../end`';
+export const DATETIME_GRAMMAR = 'One time, an interval `start/end`, or one open at an end, `start/..` or `../end`';
 const LEVEL_GRAMMAR = 'One level, a list `1000,850`, an interval `1000/500`, or `R5/100/50` for 5 levels 50 apart from 100';
 const VALUE_GRAMMAR = 'One value, a list `1,2,3`, or an interval `1/5`';
 

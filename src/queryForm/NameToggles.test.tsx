@@ -1,7 +1,8 @@
+import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createTheme } from '@mui/material/styles';
-import NameToggles from './NameToggles';
+import NameToggles, { AxisToggles } from './NameToggles';
 import { words } from '../coverage/cellsTestData';
 
 const render = (value: string, extra: { marked?: string; tall?: boolean } = {}) => renderToStaticMarkup(
@@ -34,6 +35,25 @@ describe('NameToggles', () => {
     expect(pressed(render('', { marked: 'CoverageJSON' }))).toEqual([false, false, false]);
     expect(pressed(render('CoverageJSON', { marked: 'CoverageJSON' }))).toEqual([true, false, false]);
     expect(count(words(render('', { marked: 'NetCDF' })), 'default')).toBe(0);
+  });
+
+  it('shows an option by its label where it has one, its value as it is', () => {
+    const html = renderToStaticMarkup(<NameToggles label="reference_time" options={['*', '2026-11-12T00:00:00Z']} value="*" onChange={() => {}} labels={{ '*': 'Latest' }} />);
+    expect(words(html)).toBe('Latest 2026-11-12T00:00:00Z');
+    expect(html).toContain('value="*"');
+    expect(pressed(html)).toEqual([true, false]);
+  });
+
+  it('as axes, presses each the value has, and hears which one is pressed or let go', () => {
+    const toggled: string[] = [];
+    const element = AxisToggles({ label: 'subset axes', options: ['Lon', 'Lat', 'time'], pressed: ['Lat', 'vertical'], onToggle: axis => toggled.push(axis) }) as ReactElement<{ onChange: (event: unknown, next: string[]) => void }>;
+    const html = renderToStaticMarkup(element);
+    expect(words(html)).toBe('Lon Lat time');
+    expect(pressed(html)).toEqual([false, true, false]);
+    element.props.onChange(null, ['Lat', 'vertical', 'time']);
+    element.props.onChange(null, ['vertical']);
+    element.props.onChange(null, ['Lat', 'vertical']);
+    expect(toggled).toEqual(['time', 'Lat']);
   });
 
   it('stands as tall as the number beside it, as a unit does', () => {

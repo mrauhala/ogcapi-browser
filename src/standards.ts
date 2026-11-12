@@ -657,6 +657,39 @@ export const MAPS1 = {
   // D: "A 4xx error status code SHALL be returned if an axis name in the subset parameter value does not correspond
   // to one of the axes of the subsetting CRS 2."
   subsetDefinition: maps1('/req/spatial-subsetting/subset-definition D', '_b1081210-6da4-4bf7-52d5-7c3b46602866'),
+  // ---- What a map request's subset, datetime and levels are checked against ----
+  // A: "The implementation SHALL support a subset parameter conforming to the following Augmented Backus Naur Form
+  // (ABNF) fragment: SubsetSpec = "subset" "=" axisName "(" intervalOrSingle ")" intervalOrSingle = interval / single
+  // interval = low ":" high low = single high = single single = number Where: `axisName` is an abbreviation identifying
+  // an axis starting by a lowercase or uppercase letter A-Z, optionally followed by any number of alphanumeric
+  // characters `number` is an integer or floating-point number."
+  subsetGrammar: maps1('/req/spatial-subsetting/subset-definition A', '_01e1ad06-7ec5-50fe-0d29-5a49367ec7fb'),
+  // H: "If the subset parameter including any of the dimensions corresponding to those of the map bounding box is used
+  // with a bbox and/or center parameter, the server SHALL return a 4xx error."
+  subsetWithBbox: maps1('/req/spatial-subsetting/subset-definition H', '_22a6c667-c766-b1c2-34f2-72e56e8445cb'),
+  // B: "If the center parameter is used together with the bbox and/or with a subset parameter including any of the
+  // dimensions corresponding to those of the map bounding box, the server SHALL return a 4xx client error."
+  centerDefinition: maps1('/req/spatial-subsetting/center-definition B', '_892bf6a3-c8a3-8b6d-ddae-5abcc834ba17'),
+  // A, in the general-subsetting class: the same fragment with "single = number / text / "*"", where "`text` is some
+  // general ASCII text (such as a time and date notation in RFC 3339 section 5.6) enclosed in double-quotes" and "For an
+  // additional temporal dimension, a single asterisk may be supported to indicate the latest available time."
+  generalSubsetGrammar: maps1('/req/general-subsetting/subset-definition A', '_9389b8fe-a629-7e9e-23e2-a5712e802357'),
+  // B: "Any name of the additional dimensions in the extent of the collection SHALL be supported as an axis name."
+  generalSubsetAxes: maps1('/req/general-subsetting/subset-definition B', '_95b1caa8-f85f-7a55-3550-7cf0e73aa53e'),
+  // C: "A 4xx error status code SHALL be returned if an axis name does not correspond to the name of one of the
+  // additional dimensions in the extent of the collection, or recognized in the context of another requirements class."
+  generalSubsetUnknownAxis: maps1('/req/general-subsetting/subset-definition C', '_d667fb72-4b2f-f32f-6511-f7db4cb44673'),
+  // D: "If the intervalOrSingle values fall entirely outside the range of valid values defined for the identified axis,
+  // a 204 or 404 status code SHALL be returned."
+  generalSubsetOutside: maps1('/req/general-subsetting/subset-definition D', '_129d3f13-82a1-e777-e9a9-0eb6bb3d58ca'),
+  // B: "Temporal geometries are either a date-time value or a time interval. The parameter value SHALL conform to the
+  // following syntax (using ABNF): interval-bounded = instant "/" instant interval-bounded-start = [".."] "/" instant
+  // interval-bounded-end = instant "/" [".."] interval-unbounded = [".."] "/" [".."] interval = interval-bounded /
+  // interval-bounded-start / interval-bounded-end / interval-unbounded datetime = instant / interval"
+  datetimeSyntax: maps1('/req/datetime/datetime-definition B', '_6bcf19aa-f704-07a7-a87e-a600a22bc47a'),
+  // C: "The implementation SHALL support an instant defined as specified by RFC 3339, 5.6, with the exception that the
+  // server is only required to support the Z UTC time notation, and not required to support local time offsets."
+  datetimeInstant: maps1('/req/datetime/datetime-definition C', '_9148cbd5-9087-3f75-fe97-86925594c3c5'),
   // A: "The content of the response SHALL represent elements inside or intersecting with the spatial extent of the
   // geographical area of the map identified with the subsetting coordinates."
   spatialMapSuccess: maps1('/req/spatial-subsetting/map-success A', '_8bf75214-0d0c-e27e-0f3b-e9d4c47a047d'),
@@ -720,6 +753,16 @@ const common2Draft = (requirement: string, anchor: string): Rule => ({ label: `C
 export const COMMON2_DRAFT = {
   // B: "The content of the response SHALL validate against the JSON schema collections.yaml."
   collectionsListSuccessB: common2Draft('/req/collections/collections-list-success B', '_3572a54e-a65e-18bf-1aa0-63ce7c1b70f9'),
+  // A: "Any additional dimension property added to the extent of a collection description SHALL contain an interval
+  // property consisting of an array of one or more interval(s), where the first element describes the overall interval
+  // where data is available for the collection, whereas any additional elements describe intervals encompassing
+  // clusters of data availability within the overall interval."
+  additionalDimension: common2Draft('/req/uad-collections/extent-uad-definition A', '_dca3f3dc-0479-ea46-ace1-7ea633f6b944'),
+  // A: "If data is organized as a regular or irregular grid for the temporal and any additional dimension, that
+  // dimension SHALL contain a grid object property describing the grid of that dimension." Its Table 10 has a regular
+  // grid's firstCoordinate, "First coordinate where a regular grid begins, with subsequent coordinates adding resolution
+  // unit at each step", and E an irregular one's coordinates
+  gridDescription: common2Draft('/req/uad-collections/grid-description A', '_bc7cbacc-ad22-4224-d191-1a38937a8e73'),
 };
 
 // ---- OpenAPI 3.0.3 and BCP 47 ----

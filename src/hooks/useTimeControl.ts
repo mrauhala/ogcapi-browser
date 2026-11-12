@@ -8,6 +8,7 @@ import {
   formatDateString,
   parseDuration,
 } from '../DataRetrievalAPI';
+import { gridStepMs, temporalValuesOf } from '../utils/extents/temporal';
 
 export type TimeMode = 'discrete' | 'continuous' | 'fallback';
 
@@ -106,15 +107,16 @@ function getDefaultStepIndex(options: StepOption[], spanMs: number): number {
   return bestIdx;
 }
 
+// The times' own step: a repeating interval's duration, among EDR's values or a regular grid's, or the gap between a
+// grid's evenly spaced coordinates (a radar's 5 minutes)
 function detectRepeatingDuration(temporal: Temporal): number | null {
-  if (!temporal.values) return null;
-  for (const v of temporal.values) {
+  for (const v of temporalValuesOf(temporal)) {
     if (typeof v === 'string') {
       const match = v.match(/^R\d+\/[^/]+\/(.+)$/);
       if (match) return parseDuration(match[1]);
     }
   }
-  return null;
+  return gridStepMs(temporal);
 }
 
 function formatStepLabelMs(ms: number): string {
@@ -216,7 +218,7 @@ export function useTimeControl(
 
   const timeMode: TimeMode = useMemo(() => {
     if (!temporal || !rawBounds) return 'fallback';
-    const hasValues = temporal.values && temporal.values.length > 0;
+    const hasValues = temporalValuesOf(temporal).length > 0;
     if (hasValues && timeValues.length <= 250) return 'discrete';
     return 'continuous';
   }, [temporal, rawBounds, timeValues.length]);

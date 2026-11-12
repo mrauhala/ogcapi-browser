@@ -9,8 +9,10 @@ import type { QueryIssue } from '../query/types';
 import RuleLinks from '../RuleLinks';
 import { focusQueryField, useOpenDocs } from './fieldFocus';
 
-// As the field is named: a dimension by its id, the query on an instance as query
-const nameOf = (field: string) => (field.startsWith('dim:') ? field.slice(4) : field === 'instance-query' ? 'query' : field);
+// As the field is named: a dimension by its id, a map's level or model run by its axis in subset, the query on an
+// instance as query
+const nameOf = (field: string) => (field.startsWith('dim:') ? field.slice(4) : field.startsWith('subset:') ? field.slice('subset:'.length)
+  : field === 'instance-query' ? 'query' : field);
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 // The fields named in one part of the line, each jumping to its field

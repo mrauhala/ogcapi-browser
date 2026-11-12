@@ -154,9 +154,18 @@ const NOTHING_HELD: QuerySelections = {
 export function readQuerySelections(url: string, collection: Collection, queryKey: string): QuerySelections {
   const params = new URL(url).searchParams;
   const queryType = queryTypeOf(collection, queryKey);
-  // Of a map's parameters, the form holds its parameter and format. The rest stay in the line as typed, and are sent
+  // Of a map's parameters, the form holds its parameter, time, subset, elevation and format. The rest stay in the line
+  // as typed, and are sent. Several subset parameters are read as one, comma-separated, as Maps 1.0 has them:
+  // /req/spatial-subsetting/subset-definition I, "Multiple subset parameters SHALL be interpreted, as if all dimension
+  // subsetting values were provided in a single subset parameter (comma separated)"
   if (queryType === 'map') {
-    return { ...NOTHING_HELD, customDims: {}, points: [], polygons: [], queryParams: {}, format: params.get('f') ?? '', parameters: parameterNames(params) };
+    return {
+      ...NOTHING_HELD, customDims: {}, points: [], polygons: [],
+      format: params.get('f') ?? '',
+      parameters: parameterNames(params),
+      datetime: params.get('datetime') ?? '',
+      queryParams: { subset: params.getAll('subset').filter(value => value.trim()).join(','), elevation: params.get('elevation') ?? '' },
+    };
   }
   const kind = geometryKindOf(queryType);
   const coords = params.get('coords') ?? '';
