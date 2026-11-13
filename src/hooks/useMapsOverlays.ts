@@ -7,31 +7,17 @@ import ImageSource from 'ol/source/Image';
 import { transformExtent } from 'ol/proj';
 import type BaseLayer from 'ol/layer/Base';
 import { addApiKeyToUrl } from '../api/auth';
-import { buildDynamicMapUrl } from '../api/maps';
+import { sentKey, viewUrl, withParams } from '../query/mapLayer';
 import { useMapsLayers, type MapsLayer } from '../contexts/MapsLayerContext';
 
 type AnyImageOrTileLayer = TileLayer<XYZ> | ImageLayer<ImageSource>;
 
-// Append the layer's frozen dimensions (datetime + elevation + UAD dims) to a tile URL template.
-function applyDimensionsToTileUrl(template: string, config: MapsLayer): string {
-  const params: [string, string][] = [];
-  if (config.datetime) params.push(['datetime', config.datetime]);
-  if (config.elevation) params.push(['elevation', config.elevation]);
-  if (config.dimensions) {
-    for (const [name, value] of Object.entries(config.dimensions)) {
-      if (value) params.push([name, value]);
-    }
-  }
-  if (!params.length) return template;
-  const sep = template.includes('?') ? '&' : '?';
-  return template + sep + params.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
-}
-
+// Tiles, with the layer's choices on each
 function createTileLayer(config: MapsLayer): TileLayer<XYZ> {
-  const datetimed = applyDimensionsToTileUrl(config.tileUrl!, config);
+  const chosen = withParams(config.tileUrl!, config.params);
   const urlWithKey = config.apiKey
-    ? addApiKeyToUrl(datetimed, { apiKey: config.apiKey, apiKeyParam: config.apiKeyParam })
-    : datetimed;
+    ? addApiKeyToUrl(chosen, { apiKey: config.apiKey, apiKeyParam: config.apiKeyParam })
+    : chosen;
 
   const source = new XYZ({
     url: urlWithKey,
@@ -60,25 +46,9 @@ function createImageLayer(config: MapsLayer): ImageLayer<ImageSource> {
       const width = Math.round(((maxX - minX) / resolution) * pixelRatio);
       const height = Math.round(((maxY - minY) / resolution) * pixelRatio);
 
-      // Servers expect bbox in CRS84 (lon/lat) by default; OL gives us extent in Web Mercator.
-      const [lonMin, latMin, lonMax, latMax] = transformExtent(
-        [minX, minY, maxX, maxY],
-        'EPSG:3857',
-        'EPSG:4326',
-      );
-
-      const url = buildDynamicMapUrl(endpoint, {
-        bbox: [lonMin, latMin, lonMax, latMax],
-        crs: 'EPSG:3857',
-        width,
-        height,
-        format: config.format,
-        datetime: config.datetime,
-        elevation: config.elevation,
-        dimensions: config.dimensions,
-        styleId: config.styleQuery,
-        transparent: true,
-      });
+      // The view's box in CRS84, the bbox's default CRS, drawn in the map's: the box OpenLayers gives is in Web Mercator
+      const [lonMin, latMin, lonMax, latMax] = transformExtent([minX, minY, maxX, maxY], 'EPSG:3857', 'EPSG:4326');
+      const url = viewUrl(endpoint, config.params, { bbox: [lonMin, latMin, lonMax, latMax], width, height, crs: config.crs ?? '' });
       const finalUrl = config.apiKey
         ? addApiKeyToUrl(url, { apiKey: config.apiKey, apiKeyParam: config.apiKeyParam })
         : url;
@@ -110,21 +80,6 @@ function buildLayer(config: MapsLayer): AnyImageOrTileLayer | null {
   return null;
 }
 
-// Anything that requires a source rebuild — not just an opacity/zIndex tweak.
-function fingerprint(config: MapsLayer): string {
-  return [
-    config.sourceType,
-    config.tileUrl ?? '',
-    config.dynamicEndpoint ?? '',
-    config.format,
-    config.datetime ?? '',
-    config.elevation ?? '',
-    config.dimensions ? JSON.stringify(config.dimensions) : '',
-    config.apiKey ?? '',
-    config.apiKeyParam ?? '',
-  ].join('|');
-}
-
 export function useMapsOverlays(map: OLMap | null): void {
   const { mapsLayers, mapsBundles } = useMapsLayers();
   const olLayersRef = useRef<globalThis.Map<string, AnyImageOrTileLayer>>(new globalThis.Map());
@@ -141,7 +96,7 @@ export function useMapsOverlays(map: OLMap | null): void {
     for (const config of mapsLayers) {
       wantedIds.add(config.id);
       let existing = tracked.get(config.id);
-      const fp = fingerprint(config);
+      const fp = sentKey(config);
       const prevFp = fingerprints.get(config.id);
 
       // Non-bundle layers honor the `visible` flag (remove when hidden). Bundle frames stay built
@@ -156,7 +111,7 @@ export function useMapsOverlays(map: OLMap | null): void {
         continue;
       }
 
-      // Rebuild when datetime/format/source/URL changes — OL sources can't be hot-swapped reliably.
+      // Rebuilt when what it sends changes: OL sources can't be hot-swapped reliably
       if (existing && prevFp !== fp) {
         olMap.removeLayer(existing as unknown as BaseLayer);
         tracked.delete(config.id);

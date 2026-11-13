@@ -1,35 +1,28 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import SlideshowIcon from '@mui/icons-material/Slideshow';
 
 import type { Collection } from './DataRetrievalAPI';
-import { normalizeHref, expandTemporalValues } from './DataRetrievalAPI';
-import {
-  fetchStyles,
-  getMapsLinks,
-  getStyleLinks,
-  hasMapsSupport,
-  resolveWebMercatorTileTemplate,
-  type StyleEntry,
-} from './api/maps';
+import { normalizeHref } from './DataRetrievalAPI';
+import { getMapsLinks, hasMapsSupport, resolveWebMercatorTileTemplates } from './api/maps';
 import { useMapsLayers, type MapsLayer } from './contexts/MapsLayerContext';
 import { useService } from './contexts/ServiceContext';
-import { intervalEnds, wholeValue } from './query/dimensionText';
+import { useQueryValidationContext } from './contexts/QueryValidationContext';
+import { useOpenApi } from './contexts/OpenApiContext';
+import { useApi } from './contexts/ApiContext';
+import { queryTypeOf } from './query/queryTypes';
+import { matchOperation } from './validation/openapi/operationIndex';
+import {
+  MAX_FRAMES, choicesSaid, frameParams, layerSourceOf, layerTitle, mapCrsOf, seriesTimes, tilesDatetimeDeclared, tilesFor,
+  type LayerSource, type Pairs,
+} from './query/mapLayer';
+import { readableQuery } from './query/requestUrl';
 import type { UseQueryUrlReturn } from './hooks/useQueryUrl';
-
-const DEFAULT_STYLE_ID = '__default__';
-const FORMAT_OPTIONS = ['image/png', 'image/jpeg'];
-// Cap frames per animated series so a wide range doesn't fire hundreds of /map requests.
-const MAX_FRAMES = 48;
 
 interface MapsPanelProps {
   collection: Collection;
@@ -37,112 +30,92 @@ interface MapsPanelProps {
   queryState: UseQueryUrlReturn;
 }
 
-// A stable string for the non-time dimension selection, so layers differing only by
-// elevation/UAD-dimension get distinct ids.
-function dimsKey(elevation?: string, dimensions?: Record<string, string>): string {
-  const dims = dimensions
-    ? Object.entries(dimensions).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).sort().join(',')
-    : '';
-  return [elevation ?? '', dims].filter(Boolean).join('|');
+// How a layer is drawn: by tiles carrying the choices, or by the map for each view, and why not by tiles
+type Drawn = { sourceType: 'tiles'; tileUrl: string; params: Pairs } | { sourceType: 'dynamic'; params: Pairs; because: string | null };
+
+// What the box says it draws
+function sourceText(source: LayerSource): string {
+  if (source.from === 'tiles') return "Draws the collection's tiles, as served: it has no map to choose what's drawn from.";
+  if (source.from === 'waiting') return 'Draws what the form above has chosen, once its request is built.';
+  if (source.from === 'collection') return "Draws the collection's own map over the map's view. Pick map in the Query row above to choose what's drawn.";
+  const said = choicesSaid(source.choices);
+  return said.length
+    ? `Draws what the form above has chosen: ${said.join(' · ')}, over the map's view.`
+    : "Draws what the form above has chosen: nothing yet, so the collection's own map, over the map's view.";
 }
 
-function layerIdFor(
-  collectionId: string,
-  styleId: string | undefined,
-  sourceType: 'tiles' | 'dynamic',
-  datetime?: string,
-  extras?: string,
-): string {
-  return `${collectionId}::${styleId ?? 'default'}::${sourceType}::${datetime ?? 'now'}::${extras ?? ''}`;
-}
-
-// The OGC API Maps `datetime` from the query's, or undefined if none. A range still missing an end isn't one yet.
-function currentDatetime(q: UseQueryUrlReturn): string | undefined {
-  return wholeValue(q.datetime) || undefined;
-}
-
-// z → OGC API Maps `elevation`: as the query has it, once whole
-function currentElevation(q: UseQueryUrlReturn): string | undefined {
-  return wholeValue(q.vertical) || undefined;
-}
-
-// Additional (UAD) dimensions the user selected → { dimensionId: text }, those that are whole
-function currentDimensions(q: UseQueryUrlReturn): Record<string, string> | undefined {
-  const out: Record<string, string> = {};
-  for (const [id, text] of Object.entries(q.dimensions || {})) {
-    if (wholeValue(text)) out[id] = wholeValue(text);
-  }
-  return Object.keys(out).length ? out : undefined;
-}
-
+// Layers on the map from the collection's map: what the map query's form has chosen, over the map's own view. Each
+// layer keeps what it was added with
 export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelProps) {
   const { setMapsLayers, setMapsBundles } = useMapsLayers();
   const { getAuthCredentials } = useService();
-  const [styles, setStyles] = useState<StyleEntry[] | null>(null);
-  const [stylesError, setStylesError] = useState<string | null>(null);
-  const [stylesLoading, setStylesLoading] = useState(false);
-  const [selectedStyleId, setSelectedStyleId] = useState<string>(DEFAULT_STYLE_ID);
-  const [selectedFormat, setSelectedFormat] = useState<string>(FORMAT_OPTIONS[0]);
+  const { queryValidation } = useQueryValidationContext();
+  const { index } = useOpenApi();
+  const { conformsTo } = useApi();
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const collectionLinks = useMemo(() => getMapsLinks(collection), [collection]);
-  const supported = hasMapsSupport(collection);
+  const links = useMemo(() => getMapsLinks(collection), [collection]);
+  const { queryTarget, styleId, mapStyles } = queryState;
+  const mapPicked = !!queryTarget && queryTypeOf(queryTarget.collection, queryTarget.queryKey) === 'map';
+  // The form's request, once it's the map query's for this collection
+  const formRequest = mapPicked && queryValidation?.declaring?.query === 'map' && queryValidation.declaring.collection.id === collection.id
+    ? queryValidation
+    : null;
+  const source = useMemo(() => layerSourceOf({
+    mapPicked,
+    request: formRequest ? { url: formRequest.url, issues: formRequest.issues } : null,
+    styleId,
+    mapHref: normalizeHref(links.mapLink?.href),
+  }), [mapPicked, formRequest, styleId, links.mapLink]);
+  const choices = 'choices' in source ? source.choices : null;
+  // An error in the form's request stops a layer, which would ask the same; so does a request not yet built
+  const blocked = source.from === 'form' ? source.blocked : null;
+  const waiting = source.from === 'waiting';
+  const series = useMemo(() => (collection.extent?.temporal ? seriesTimes(collection.extent.temporal, choices?.params ?? []) : null), [collection, choices]);
 
-  // Fetch styles when collection changes and a styles link is advertised.
-  useEffect(() => {
-    if (!supported) return;
-    setStyles(null);
-    setStylesError(null);
-    setSelectedStyleId(DEFAULT_STYLE_ID);
+  // The tiles: a style's own, or, with no style, the collection's
+  const style = choices?.styleId ? mapStyles.styles.find(each => each.id === choices.styleId) : undefined;
+  const tilesHref = choices?.styleId ? style?.tilesHref ?? null : normalizeHref(links.tilesetsLink?.href);
 
-    const stylesHref = normalizeHref(collectionLinks.stylesLink?.href);
-    if (!stylesHref) return;
-
-    const controller = new AbortController();
-    setStylesLoading(true);
-    fetchStyles(stylesHref, getAuthCredentials(apiUrl), controller.signal)
-      .then(doc => {
-        if (controller.signal.aborted) return;
-        if (!doc) {
-          setStylesError('Could not load styles document.');
-          return;
-        }
-        setStyles(doc.styles);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setStylesLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [collection, supported, collectionLinks.stylesLink, apiUrl, getAuthCredentials]);
-
-  const selectedStyle: StyleEntry | undefined =
-    selectedStyleId !== DEFAULT_STYLE_ID ? styles?.find(s => s.id === selectedStyleId) : undefined;
-
-  // Pick the best map/tilesets links for the current selection — prefer the style's own links if present.
-  const styleLinks = selectedStyle ? getStyleLinks(selectedStyle) : {};
-  const effectiveMapLink = styleLinks.mapLink ?? collectionLinks.mapLink;
-  const effectiveTilesetsLink = styleLinks.tilesetsLink ?? collectionLinks.tilesetsLink;
-
-  // Resolve the layer source once: prefer WebMercatorQuad tiles, else the dynamic /map endpoint.
-  const resolveSource = async (
-    auth: ReturnType<typeof getAuthCredentials>,
-  ): Promise<{ sourceType: 'tiles' | 'dynamic'; tileUrl?: string; dynamicEndpoint?: string } | null> => {
-    const tilesetsHref = normalizeHref(effectiveTilesetsLink?.href);
-    if (tilesetsHref) {
-      const tileUrl = await resolveWebMercatorTileTemplate(tilesetsHref, selectedFormat, auth);
-      if (tileUrl) return { sourceType: 'tiles', tileUrl };
+  // Tiles where they take every choice, else the map for each view, saying why
+  const drawnBy = async (params: Pairs, auth: ReturnType<typeof getAuthCredentials>): Promise<Drawn | null> => {
+    let because: string | null = choices?.styleId && !tilesHref ? `the style ${choices.styleId} has no tiles of its own` : null;
+    if (tilesHref) {
+      const templates = await resolveWebMercatorTileTemplates(tilesHref, auth);
+      const operation = templates[0] && index ? matchOperation(index, templates[0].href.replace('{z}', '0').replace('{y}', '0').replace('{x}', '0')) : null;
+      const apiDocs = operation ? operation.entry.params.filter(param => param.in === 'query').map(param => param.name) : null;
+      const tiles = tilesFor(params, { templates, apiDocs, datetimeClass: tilesDatetimeDeclared(conformsTo) });
+      if ('template' in tiles) return { sourceType: 'tiles', tileUrl: tiles.template, params: tiles.params };
+      because = tiles.refused;
     }
-    const mapHref = normalizeHref(effectiveMapLink?.href);
-    if (mapHref) return { sourceType: 'dynamic', dynamicEndpoint: mapHref };
-    return null;
+    return choices ? { sourceType: 'dynamic', params, because } : null;
   };
 
-  // Style as a `styles=` param — fallback only, when no style-specific /map link exists.
-  const styleQueryFallback = (): string | undefined =>
-    (selectedStyle && !styleLinks.mapLink && !styleLinks.tilesetsLink) ? selectedStyle.id : undefined;
+  // One layer per collection, source and choices, so that two parameters make two layers
+  const layerId = (drawn: Drawn, params: Pairs) =>
+    `${collection.id}::${drawn.sourceType}::${drawn.sourceType === 'tiles' ? drawn.tileUrl : choices!.endpoint}?${readableQuery(params)}`;
+  const layerOf = (drawn: Drawn, title: string, auth: ReturnType<typeof getAuthCredentials>): MapsLayer => ({
+    id: layerId(drawn, drawn.params),
+    collectionId: collection.id,
+    styleId: choices?.styleId || undefined,
+    title,
+    visible: true,
+    opacity: 1,
+    zIndex: 50,
+    sourceType: drawn.sourceType,
+    ...(drawn.sourceType === 'tiles' ? { tileUrl: drawn.tileUrl } : { dynamicEndpoint: choices!.endpoint, crs: mapCrsOf(collection).crs }),
+    params: drawn.params,
+    apiKey: auth?.apiKey,
+    apiKeyParam: auth?.apiKeyParam,
+  });
+
+  // How it was added, and in what CRS where the collection doesn't list the map's
+  const howDrawn = (drawn: Drawn) => (drawn.sourceType === 'tiles'
+    ? 'as tiles'
+    : `by ${choices!.styleId ? `the style's map` : 'its map'} for each view${drawn.because ? `, since ${drawn.because}` : ''}`
+      + `${mapCrsOf(collection).listed ? '' : ", in EPSG:3857, which the collection's crs doesn't list"}`);
 
   const handleAdd = async () => {
     setAdding(true);
@@ -150,39 +123,14 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
     setNotice(null);
     try {
       const auth = getAuthCredentials(apiUrl);
-      const src = await resolveSource(auth);
-      if (!src) {
-        setAddError('Collection advertises Maps but exposes no usable map or tileset link.');
+      const params = choices?.params ?? [];
+      const drawn = await drawnBy(params, auth);
+      if (!drawn) {
+        setAddError('The collection has no map, and no WebMercatorQuad tiles to draw.');
         return;
       }
-      const styleId = selectedStyle?.id;
-      const datetime = currentDatetime(queryState);
-      const elevation = currentElevation(queryState);
-      const dimensions = currentDimensions(queryState);
-      const extras = dimsKey(elevation, dimensions);
-      const dimLabel = dimensions ? ` · ${Object.entries(dimensions).map(([k, v]) => `${k}=${v}`).join(' ')}` : '';
-      const title = `${collection.title || collection.id}${styleId ? ` · ${styleId}` : ''}${datetime ? ` @ ${datetime}` : ''}${elevation ? ` · z=${elevation}` : ''}${dimLabel}`;
-
-      const layer: MapsLayer = {
-        id: layerIdFor(collection.id, styleId, src.sourceType, datetime, extras),
-        collectionId: collection.id,
-        styleId,
-        title,
-        visible: true,
-        opacity: 1,
-        zIndex: 50,
-        sourceType: src.sourceType,
-        tileUrl: src.tileUrl,
-        dynamicEndpoint: src.dynamicEndpoint,
-        styleQuery: src.sourceType === 'dynamic' ? styleQueryFallback() : undefined,
-        format: selectedFormat,
-        datetime,
-        elevation,
-        dimensions,
-        apiKey: auth?.apiKey,
-        apiKeyParam: auth?.apiKeyParam,
-      };
-
+      const title = layerTitle(collection.title || collection.id, { styleId: choices?.styleId ?? '', params });
+      const layer = layerOf(drawn, title, auth);
       setMapsLayers(prev => {
         const idx = prev.findIndex(l => l.id === layer.id);
         if (idx >= 0) {
@@ -192,6 +140,7 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
         }
         return [...prev, layer];
       });
+      setNotice(`Added ${howDrawn(drawn)}.`);
     } catch (err) {
       console.error('Add map layer failed:', err);
       setAddError(err instanceof Error ? err.message : 'Failed to add map layer.');
@@ -200,84 +149,36 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
     }
   };
 
-  // Add a time range as an animated bundle: one frame-layer per discrete instant in the window,
-  // each issued as its own /map request (OGC API Maps returns one image per request). The
-  // playback bar steps/animates by toggling which frame is visible.
+  // A series: one layer for each time, shown one at a time by the playback bar. Each asks for its own time, the rest as
+  // the form had it
   const handleAddSeries = async () => {
+    if (!series || 'error' in series) return;
     setAdding(true);
     setAddError(null);
     setNotice(null);
     try {
-      const temporal = collection.extent?.temporal;
-      if (!temporal) { setAddError('Collection has no temporal extent to animate.'); return; }
-
-      // Window: the selected range if set, else the full temporal extent.
-      const ends = intervalEnds(queryState.datetime);
-      const useRange = ends && ends.start && ends.end && ends.start !== '..' && ends.end !== '..';
-      const windowTemporal = useRange
-        ? { interval: [[ends.start, ends.end]] as (string | null)[][] }
-        : temporal;
-      let instants = expandTemporalValues(windowTemporal, 500);
-      if (instants.length < 2) {
-        setAddError('Select a time range with at least two steps to animate.');
-        return;
-      }
-
-      let truncated = false;
-      if (instants.length > MAX_FRAMES) {
-        const stride = instants.length / MAX_FRAMES;
-        const sampled: string[] = [];
-        for (let i = 0; i < MAX_FRAMES; i++) sampled.push(instants[Math.floor(i * stride)]);
-        sampled[sampled.length - 1] = instants[instants.length - 1];
-        instants = sampled;
-        truncated = true;
-      }
-
       const auth = getAuthCredentials(apiUrl);
-      const src = await resolveSource(auth);
-      if (!src) {
-        setAddError('Collection advertises Maps but exposes no usable map or tileset link.');
+      const params = choices?.params ?? [];
+      // Tiles only if they take the time as well as the rest
+      const drawn = await drawnBy(frameParams(params, series.times[0]), auth);
+      if (!drawn) {
+        setAddError('The collection has no map, and no WebMercatorQuad tiles to draw.');
         return;
       }
-      const styleId = selectedStyle?.id;
-      const elevation = currentElevation(queryState);
-      const dimensions = currentDimensions(queryState);
-      const extras = dimsKey(elevation, dimensions);
-      const styleQuery = src.sourceType === 'dynamic' ? styleQueryFallback() : undefined;
-      const bundleId = `bundle::${collection.id}::${styleId ?? 'default'}::${src.sourceType}::${extras}::${instants[0]}_${instants[instants.length - 1]}_${instants.length}`;
-      const collectionTitle = `${collection.title || collection.id}${styleId ? ` · ${styleId}` : ''}${elevation ? ` · z=${elevation}` : ''}`;
-
-      const frames: MapsLayer[] = instants.map((t, i) => ({
-        id: layerIdFor(collection.id, styleId, src.sourceType, t, `${extras}::${bundleId}#${i}`),
-        collectionId: collection.id,
-        styleId,
-        title: `${collectionTitle} @ ${t}`,
-        visible: true,
-        opacity: 1,
-        zIndex: 50,
-        sourceType: src.sourceType,
-        tileUrl: src.tileUrl,
-        dynamicEndpoint: src.dynamicEndpoint,
-        styleQuery,
-        format: selectedFormat,
-        datetime: t,
-        elevation,
-        dimensions,
-        apiKey: auth?.apiKey,
-        apiKeyParam: auth?.apiKeyParam,
-        bundleId,
-        frameIndex: i,
-        frameTime: t,
-      }));
+      const rest = params.filter(([name]) => name !== 'datetime');
+      const collectionTitle = layerTitle(collection.title || collection.id, { styleId: choices?.styleId ?? '', params: rest });
+      const bundleId = `bundle::${layerId(drawn, rest)}::${series.times[0]}_${series.times[series.times.length - 1]}_${series.times.length}`;
+      const frames: MapsLayer[] = series.times.map((time, i) => {
+        const frame = { ...drawn, params: frameParams(drawn.sourceType === 'tiles' ? drawn.params : params, time) };
+        return { ...layerOf(frame, `${collectionTitle} @ ${time}`, auth), id: `${bundleId}#${i}`, bundleId, frameIndex: i, frameTime: time };
+      });
 
       setMapsLayers(prev => [...prev.filter(l => l.bundleId !== bundleId), ...frames]);
       setMapsBundles(prev => ({
         ...prev,
         [bundleId]: { bundleId, collectionTitle, frameCount: frames.length, currentIndex: 0, isPlaying: false, fps: 2 },
       }));
-      setNotice(
-        `Added ${frames.length} frames${truncated ? ` (capped at ${MAX_FRAMES})` : ''}. Use the playback bar on the map.`,
-      );
+      setNotice(`Added ${frames.length} frames${series.of > frames.length ? ` of ${series.of} (at most ${MAX_FRAMES})` : ''}, ${howDrawn(drawn)}. Use the playback bar on the map.`);
     } catch (err) {
       console.error('Add animated series failed:', err);
       setAddError(err instanceof Error ? err.message : 'Failed to add animated series.');
@@ -286,74 +187,37 @@ export default function MapsPanel({ collection, apiUrl, queryState }: MapsPanelP
     }
   };
 
-  if (!supported) return null;
+  if (!hasMapsSupport(collection)) return null;
+
+  const seriesSaid = !series ? null
+    : 'error' in series ? series.error
+    : `A series steps through ${series.of > series.times.length ? `${series.times.length} of the ${series.of}` : `the ${series.of}`} times ${series.from === 'range' ? 'in the range chosen' : 'the collection lists'}${series.run ? ' from the run asked on' : ''}.`;
 
   return (
     // Apart from the form above it: these are layers on the map, not the request
-    <Box sx={{ mt: 2, mb: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>Map layers</Typography>
+    <Box id="map-layers" component="section" aria-labelledby="map-layers-title" sx={{ mt: 2, mb: 2 }}>
+      <Typography id="map-layers-title" variant="subtitle2" component="h2" sx={{ mb: 0.5 }}>Map layers</Typography>
+      <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary', overflowWrap: 'anywhere' }}>{sourceText(source)}</Typography>
 
-      {/* In a narrow pane Add layer goes on a line of its own, leaving the choices wide enough to read */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ mb: 1, flexWrap: 'wrap' }}>
-        <FormControl fullWidth size="small" sx={{ flex: { sm: '1 1 110px' } }}>
-          <InputLabel id={`maps-style-label-${collection.id}`}>Style</InputLabel>
-          <Select
-            labelId={`maps-style-label-${collection.id}`}
-            label="Style"
-            value={selectedStyleId}
-            onChange={(e) => setSelectedStyleId(String(e.target.value))}
-            disabled={stylesLoading}
-          >
-            <MenuItem value={DEFAULT_STYLE_ID}>
-              <em>Default</em>
-            </MenuItem>
-            {styles?.map(s => (
-              <MenuItem key={s.id} value={s.id}>
-                {s.title || s.id}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl fullWidth size="small" sx={{ flex: { sm: '1 1 110px' } }}>
-          <InputLabel id={`maps-format-label-${collection.id}`}>Format</InputLabel>
-          <Select
-            labelId={`maps-format-label-${collection.id}`}
-            label="Format"
-            value={selectedFormat}
-            onChange={(e) => setSelectedFormat(String(e.target.value))}
-          >
-            {FORMAT_OPTIONS.map(f => (
-              <MenuItem key={f} value={f}>{f}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAdd}
-          disabled={adding}
-          sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-        >
+      <Stack direction="row" spacing={1} useFlexGap sx={{ mb: 1, flexWrap: 'wrap' }}>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd} disabled={adding || waiting || !!blocked} sx={{ whiteSpace: 'nowrap' }}>
           Add layer
         </Button>
+        {series && (
+          <Button
+            variant="outlined"
+            startIcon={<SlideshowIcon />}
+            onClick={handleAddSeries}
+            disabled={adding || waiting || !!blocked || 'error' in series}
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            Add animated series
+          </Button>
+        )}
       </Stack>
 
-      {collection.extent?.temporal && (
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<SlideshowIcon />}
-          onClick={handleAddSeries}
-          disabled={adding}
-          sx={{ mb: 1 }}
-        >
-          Add animated series
-        </Button>
-      )}
-
-      {stylesError && <Alert severity="warning" sx={{ mb: 1 }}>{stylesError}</Alert>}
+      {blocked && <Typography variant="body2" sx={{ mb: 1, color: 'error.main', overflowWrap: 'anywhere' }}>No layer while the form's request has an error: {blocked}</Typography>}
+      {!blocked && seriesSaid && <Typography variant="caption" component="p" sx={{ mb: 1, color: 'text.secondary' }}>{seriesSaid}</Typography>}
       {addError && <Alert severity="error" sx={{ mb: 1 }}>{addError}</Alert>}
       {notice && <Alert severity="info" sx={{ mb: 1 }}>{notice}</Alert>}
     </Box>

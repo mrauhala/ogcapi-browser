@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useMemo, type ReactNode, type Dispatch, type SetStateAction } from 'react';
 
 export interface MapsLayer {
-  // Stable identity: collectionId + styleId + sourceType is unique per layer instance.
+  // One per collection, source and choices: two parameters make two layers
   id: string;
   collectionId: string;
   styleId?: string;
@@ -10,26 +10,20 @@ export interface MapsLayer {
   opacity: number;
   zIndex?: number;
   sourceType: 'tiles' | 'dynamic';
-  // Style id to send as a `styles=` query param — set only as a fallback when the server exposes
-  // no style-specific /map link (otherwise the style is applied via path routing, not a param).
-  styleQuery?: string;
   // For sourceType === 'tiles': tile URL template with {z}/{y}/{x} placeholders.
   tileUrl?: string;
-  // For sourceType === 'dynamic': base GET /map endpoint to which bbox/width/height get appended.
+  // For sourceType === 'dynamic': the map's URL without its query, the collection's /map or a style's, asked for each
+  // view with the view's bbox, width, height and crs
   dynamicEndpoint?: string;
-  format: string;
-  // OGC API Maps `datetime` parameter — instant ("2025-01-01T00:00:00Z") or interval ("a/b").
-  // Frozen onto the layer at "Add" time so the layer doesn't drift when the user moves the
-  // sidebar TimeControl elsewhere afterwards.
-  datetime?: string;
-  // Vertical dimension (OGC API Maps `elevation`) and additional (UAD) dimensions — frozen at
-  // Add time alongside datetime, for the same reason.
-  elevation?: string;
-  dimensions?: Record<string, string>;
+  // What every request asks besides the view or the tile, as the form had it when the layer was added: the parameter,
+  // the time, the subset, elevation, f. A layer keeps these whatever the form chooses afterwards
+  params: [string, string][];
+  // For sourceType === 'dynamic': the map's CRS, EPSG:3857, as the collection lists it
+  crs?: string;
   attribution?: string;
   apiKey?: string;
   apiKeyParam?: string;
-  // Animation bundle membership: frames sharing a bundleId differ only by datetime/frameTime.
+  // Animation bundle membership: frames sharing a bundleId differ only by their datetime, frameTime.
   // Exactly one frame is shown at a time (driven by the bundle's currentIndex); per-frame
   // requests are issued separately (OGC API Maps returns one image per request).
   bundleId?: string;

@@ -81,6 +81,7 @@ export interface MapStyle {
   title?: string;
   href: string | null; // the style's map link, as the server gives it, what it asks for included
   parameters: string[]; // the parameters the style is for, where the server says (MeteoCore's `parameters`)
+  tilesHref?: string; // the style's own tilesets link, where it has one
 }
 
 // The styles of a styles document's `styles`, or of a collection's own `styles` array: those with an id, in their order
@@ -91,11 +92,14 @@ export function mapStylesOf(styles: unknown): MapStyle[] {
     const id = String(style.id).trim();
     if (!id) return [];
     const parameters = Array.isArray(style.parameters) ? style.parameters.filter((each): each is string => typeof each === 'string') : [];
+    const links = getStyleLinks(style);
+    const tilesHref = normalizeHref(links.tilesetsLink?.href);
     return [{
       id,
       title: typeof style.title === 'string' && style.title.trim() ? style.title.trim() : undefined,
-      href: normalizeHref(getStyleLinks(style).mapLink?.href),
+      href: normalizeHref(links.mapLink?.href),
       parameters,
+      ...(tilesHref ? { tilesHref } : {}),
     }];
   });
 }

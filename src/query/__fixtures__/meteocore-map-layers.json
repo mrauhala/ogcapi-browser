@@ -1,0 +1,398 @@
+{
+  "_comment": "Trimmed from https://meteocore.app.meteo.fi, fetched 2026-11-13 05:17-05:26 UTC with User-Agent ogcapi-browser-check: /collections/ecmwf-ifs-pressure, /collections/fmi-radar-composite-dbz and /collections/opera-precipitation (id, title, crs, storageCrs, the links cut to the Maps ones, the extent without its spatial part, ecmwf-ifs-pressure's time grid cut to its first 8 coordinates with cellsCount and interval to match, three of its parameter_names), /collections/ecmwf-ifs-pressure/styles (as served), the WebMercatorQuad entry of /collections/ecmwf-ifs-pressure/map/tiles without its tileMatrixSetLimits, the Tiles classes of /conformance, and from /api the parameters (name and in) of /collections/ecmwf-ifs-pressure/map/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",
+  "collections": [
+    {
+      "id": "ecmwf-ifs-pressure",
+      "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+          "type": "application/json"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map/tiles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/tilesets-map",
+          "type": "application/json"
+        }
+      ],
+      "extent": {
+        "temporal": {
+          "interval": [
+            [
+              "2026-11-12T12:00:00+00:00",
+              "2026-11-13T09:00:00+00:00"
+            ]
+          ],
+          "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+          "grid": {
+            "cellsCount": 8,
+            "coordinates": [
+              "2026-11-12T12:00:00+00:00",
+              "2026-11-12T15:00:00+00:00",
+              "2026-11-12T18:00:00+00:00",
+              "2026-11-12T21:00:00+00:00",
+              "2026-11-13T00:00:00+00:00",
+              "2026-11-13T03:00:00+00:00",
+              "2026-11-13T06:00:00+00:00",
+              "2026-11-13T09:00:00+00:00"
+            ]
+          }
+        },
+        "vertical": {
+          "interval": [
+            [
+              10.0,
+              1000.0
+            ]
+          ],
+          "vrs": "VERTCRS[\"Atmospheric pressure\",VDATUM[\"Atmosphere\"],CS[vertical,1],AXIS[\"Pressure (hPa)\",down],UNIT[\"hPa\",100]]",
+          "values": [
+            1000.0,
+            925.0,
+            850.0,
+            700.0,
+            600.0,
+            500.0,
+            400.0,
+            300.0,
+            250.0,
+            200.0,
+            150.0,
+            100.0,
+            50.0,
+            10.0
+          ],
+          "unit": "hPa"
+        },
+        "reference_time": {
+          "interval": [
+            [
+              "2026-11-12T12:00:00Z",
+              "2026-11-12T18:00:00Z"
+            ]
+          ],
+          "description": "Model run (forecast reference time), as RFC 3339; the collection's EDR instance ids where it serves EDR",
+          "definition": "https://vocab.nerc.ac.uk/standard_name/forecast_reference_time/",
+          "grid": {
+            "cellsCount": 2,
+            "coordinates": [
+              "2026-11-12T12:00:00Z",
+              "2026-11-12T18:00:00Z"
+            ]
+          }
+        }
+      },
+      "parameter_names": {
+        "t": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Temperature"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "°C"
+            },
+            "symbol": {
+              "value": "°C",
+              "type": "https://qudt.org/vocab/unit/DEG_C"
+            }
+          }
+        },
+        "z": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "m2 s-2"
+            },
+            "symbol": {
+              "value": "m²/s²",
+              "type": "https://qudt.org/vocab/unit/M2-PER-SEC2"
+            }
+          }
+        },
+        "gh": {
+          "type": "Parameter",
+          "observedProperty": {
+            "label": {
+              "en": "Geopotential height"
+            }
+          },
+          "unit": {
+            "label": {
+              "en": "gpm"
+            },
+            "symbol": "gpm"
+          }
+        }
+      }
+    },
+    {
+      "id": "fmi-radar-composite-dbz",
+      "title": "Finnish Radar Reflectivity Composite (FMI)",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/3067",
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/styles",
+          "type": "application/json"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map/tiles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/tilesets-map",
+          "type": "application/json"
+        }
+      ],
+      "extent": {
+        "temporal": {
+          "interval": [
+            [
+              "2026-11-12T05:20:00+00:00",
+              "2026-11-13T05:15:00+00:00"
+            ]
+          ],
+          "trs": "http://www.opengis.net/def/uom/ISO-8601/0/Gregorian",
+          "grid": {
+            "cellsCount": 288,
+            "resolution": "PT5M",
+            "firstCoordinate": "2026-11-12T05:20:00+00:00"
+          }
+        }
+      }
+    },
+    {
+      "id": "opera-precipitation",
+      "title": "European Radar Precipitation, 1 h Accumulation (OPERA)",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/3857"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/opera-precipitation/map/tiles",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/tilesets-map",
+          "type": "application/json"
+        }
+      ]
+    }
+  ],
+  "styles": {
+    "styles": [
+      {
+        "id": "default",
+        "title": "Default",
+        "links": [
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/default/map",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+            "type": "image/png"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/default/legend",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/legend",
+            "type": "application/json"
+          }
+        ]
+      },
+      {
+        "id": "contours",
+        "title": "contours",
+        "links": [
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/contours/map?parameter-name=z",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+            "type": "image/png"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/contours/legend?parameter-name=z",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/legend",
+            "type": "application/json"
+          }
+        ],
+        "parameters": [
+          "z",
+          "gh",
+          "t",
+          "dpt"
+        ]
+      },
+      {
+        "id": "fmi-hires",
+        "title": "FMI HiRes temperature",
+        "links": [
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/fmi-hires/map?parameter-name=t",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+            "type": "image/png"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/fmi-hires/legend?parameter-name=t",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/legend",
+            "type": "application/json"
+          }
+        ],
+        "parameters": [
+          "t"
+        ]
+      }
+    ],
+    "links": [
+      {
+        "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles",
+        "rel": "self",
+        "type": "application/json"
+      }
+    ]
+  },
+  "tilesets": {
+    "tilesets": [
+      {
+        "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels (Google Maps Compatible for the World, map tiles)",
+        "dataType": "map",
+        "crs": "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "tileMatrixSetURI": "http://www.opengis.net/def/tilematrixset/OGC/1.0/WebMercatorQuad",
+        "links": [
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map/tiles/WebMercatorQuad",
+            "rel": "self",
+            "type": "application/json",
+            "title": "This tileset"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/tileMatrixSets/WebMercatorQuad",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/tiling-scheme",
+            "type": "application/json"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure",
+            "rel": "http://www.opengis.net/def/rel/ogc/1.0/geodata",
+            "type": "application/json",
+            "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels"
+          },
+          {
+            "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map/tiles/WebMercatorQuad/{tileMatrix}/{tileRow}/{tileCol}",
+            "rel": "item",
+            "type": "image/png",
+            "templated": true
+          }
+        ]
+      }
+    ]
+  },
+  "conformsTo": [
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/tileset",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/tilesets-list",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/geodata-tilesets",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/datetime",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/png",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/jpeg",
+    "http://www.opengis.net/spec/ogcapi-tiles-1/1.0/conf/mvt"
+  ],
+  "tileOperation": {
+    "path": "/collections/ecmwf-ifs-pressure/map/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",
+    "parameters": [
+      {
+        "name": "tileMatrixSetId",
+        "in": "path"
+      },
+      {
+        "name": "tileMatrix",
+        "in": "path"
+      },
+      {
+        "name": "tileRow",
+        "in": "path"
+      },
+      {
+        "name": "tileCol",
+        "in": "path"
+      },
+      {
+        "name": "datetime",
+        "in": "query"
+      },
+      {
+        "name": "subset",
+        "in": "query"
+      },
+      {
+        "name": "elevation",
+        "in": "query"
+      },
+      {
+        "name": "parameter-name",
+        "in": "query"
+      },
+      {
+        "name": "quality",
+        "in": "query"
+      },
+      {
+        "name": "width",
+        "in": "query"
+      },
+      {
+        "name": "height",
+        "in": "query"
+      },
+      {
+        "name": "scale-denominator",
+        "in": "query"
+      },
+      {
+        "name": "bgcolor",
+        "in": "query"
+      },
+      {
+        "name": "transparent",
+        "in": "query"
+      },
+      {
+        "name": "void-color",
+        "in": "query"
+      },
+      {
+        "name": "void-transparent",
+        "in": "query"
+      },
+      {
+        "name": "f",
+        "in": "query"
+      }
+    ]
+  }
+}
