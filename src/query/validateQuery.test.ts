@@ -324,6 +324,8 @@ describe('addApiDocsIssues', () => {
       ['openapi:coords:rule', 'coords', undefined],
       ['openapi:query:rule', 'query', undefined],
     ]);
+    // A map's subset and elevation are the form's fields too
+    expect(addApiDocsIssues(model(), [], { operation: null, issues: [apiIssue('subset'), apiIssue('elevation')] }).map(issue => issue.input)).toEqual(['form', 'form']);
   });
 
   it("leaves a field to EDR and the metadata when they already flag it, but not when they only note it", () => {

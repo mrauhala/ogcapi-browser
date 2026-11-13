@@ -39,7 +39,9 @@ import { paramOf, paramsIn } from './query/requestUrl';
 import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
 import { parametersOf } from './queryForm/pickerSearch';
 import ParameterRows from './queryForm/ParameterRows';
-import { hasParameterNames, mapOffer, parameterRows, styleDeclarers } from './query/mapOffer';
+import { hasParameterNames, mapOffer, mapProfileNames, parameterRows, styleDeclarers } from './query/mapOffer';
+import { axisBody, subsetIn } from './query/subsetText';
+import { ElevationValue, MapTimeValue, SubsetAxisValue, SubsetValue } from './queryForm/MapDimensionFields';
 
 interface CollectionQueryBuilderProps {
   collection: Collection;
@@ -163,6 +165,15 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
 
   // A field's control, and whether it's empty, for the Left out line
   const valueOf = (spec: FieldSpec): { control: React.ReactNode; empty: boolean } => {
+    // A map's level and model run are axes of its subset, each a field of its own
+    if (queryType === 'map' && spec.name === 'subset') {
+      const subset = subsetIn(requestUrl);
+      if (spec.axis) return { control: <SubsetAxisValue spec={spec} queryState={queryState} />, empty: axisBody(subset, spec.axis) === null };
+      return { control: <SubsetValue collection={collection} queryState={queryState} text={typed('subset', 'axis(low:high), axis(value)')} />, empty: !subset };
+    }
+    if (queryType === 'map' && spec.name === 'elevation') {
+      return { control: <ElevationValue spec={spec} queryState={queryState} text={typed('elevation', spec.options?.length ? 'Pick a level below, or type one' : 'A number')} />, empty: !sent('elevation') };
+    }
     switch (spec.name) {
       case 'coords':
         return { control: <CoordsValue error={hasError('coords')} warning={hasWarning('coords')} />, empty: !sent('coords') };
@@ -216,7 +227,8 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
                   label={<Typography variant="body2">Pick a time to filter {queryType === 'locations' ? 'locations' : collection.itemType === 'record' ? 'records' : 'items'} by</Typography>}
                 />
               )}
-              {(!timeIsFilter || filterByTime) && collection.extent?.temporal && (
+              {/* A map's lists only the times of the run asked */}
+              {queryType === 'map' ? <MapTimeValue collection={collection} queryState={queryState} /> : (!timeIsFilter || filterByTime) && collection.extent?.temporal && (
                 <Box sx={{ mt: 1 }}><TimeControl temporal={collection.extent.temporal} queryState={queryState} /></Box>
               )}
             </>
@@ -277,7 +289,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
         const grammar = spec.grammar && (empty || own.some(issue => issue.severity === 'error')) ? [spec.grammar] : [];
         return (
           <React.Fragment key={spec.id}>
-            <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} · ${spec.unit.name}` : spec.name} figure={spec.figure}
+            <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} · ${spec.unit.name}` : spec.axis ? `${spec.name}=${spec.axis}(…)` : spec.name} figure={spec.figure}
               requirement={spec.requirement} declaredBy={spec.declaredBy} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
               leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
               {spec.unit && unit ? (
@@ -381,7 +393,7 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
       {forMap && (
         <StyleField state={mapStyles} styleId={styleId} byLink={styleByLink} onChange={selectStyle} collection={target.collection} chosen={selectedParameters}
           held={{ 'parameter-name': selectedParameters.join(','), f: selectedFormat }} issues={issues.filter(issue => issue.field === 'style')} openDocs={openDocs}
-          declaredBy={styleDeclarers(mapOffer(hasParameterNames(target.collection), conformsTo, apiOperation?.params ?? null))} />
+          declaredBy={styleDeclarers(mapOffer(mapProfileNames(target.collection), conformsTo, apiOperation?.params ?? null))} />
       )}
       {target && <QueryFields collection={target.collection} queryKey={target.queryKey} queryState={queryState} specs={specs} />}
     </>

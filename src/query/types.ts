@@ -6,9 +6,9 @@ import type { ValidationError } from '../types/api';
 // no rule behind it, and a note ('info') is an observation.
 export type IssueSeverity = 'missing' | 'error' | 'warning' | 'info';
 
-// Where a rule comes from: the EDR standard, the collection's own metadata, or the server's
-// OpenAPI document
-export type IssueSource = 'edr' | 'metadata' | 'openapi';
+// Where a rule comes from: the EDR or the Maps standard, the collection's own metadata, or the
+// server's OpenAPI document
+export type IssueSource = 'edr' | 'maps' | 'metadata' | 'openapi';
 
 export interface QueryIssue {
   id: string; // `${source}:${field}:${rule}`, unique per query

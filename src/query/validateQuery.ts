@@ -10,9 +10,10 @@ import { intervalEnds, wholeValue } from './dimensionText';
 import { SEVERITY_ORDER } from './types';
 import { paramOf } from './requestUrl';
 import type { ApiDocsCheck } from '../validation/openapi/checkQueryUrl';
-import { EDR, FEATURES1 } from '../standards';
+import { EDR, FEATURES1, MAPS1 } from '../standards';
 import { apiDocsParams } from './declared';
 import { mapApiDocsIssues, mapQueryIssues } from './mapOffer';
+import { mapDimensionIssues } from './mapDimensions';
 
 // ── Collection extents, computed once per collection (validation runs on every slider tick) ──
 
@@ -266,7 +267,25 @@ function checkParameters(model: QueryModel, add: Add) {
 
 const formatTime = (time: number) => (isFinite(time) ? new Date(time).toISOString().replace(':00.000Z', 'Z') : '…');
 
-function checkDatetime(model: QueryModel, add: Add) {
+// What a datetime's checks rest on, by the standard the query is in. EDR: "The parameter value SHALL conform to the
+// following syntax", "The syntax of date-time is specified by RFC 3339, 5.6.", and the extent, which "SHALL provide
+// bounding boxes that include all spatial geometries". Maps 1.0: /req/datetime/datetime-definition B, the same syntax
+// under a SHALL, C, "an instant defined as specified by RFC 3339, 5.6", and outside the extent /per/datetime/closest A,
+// "the closest or last previous time for which data is available MAY be returned"
+interface DatetimeRules {
+  source: IssueSource;
+  syntax: QueryIssue['rule'];
+  instant: QueryIssue['rule'];
+  extent: QueryIssue['rule'];
+  outside: string; // what's said after a time outside the extent
+}
+const EDR_DATETIME: DatetimeRules = { source: 'metadata', syntax: EDR.datetimeSyntax, instant: [EDR.datetimeSyntax, EDR.datetimeRfc3339], extent: EDR.extent, outside: '' };
+const MAPS_DATETIME: DatetimeRules = {
+  source: 'maps', syntax: MAPS1.datetimeSyntax, instant: [MAPS1.datetimeSyntax, MAPS1.datetimeInstant], extent: MAPS1.datetimeClosest,
+  outside: ': the server may draw the closest time it has',
+};
+
+function checkDatetime(model: QueryModel, add: Add, rules: DatetimeRules = EDR_DATETIME) {
   if (!model.collection.extent?.temporal) return;
   // Left out, the server decides, or a list isn't filtered: the field says so (fieldSpecs)
   const text = model.datetime.trim();
@@ -274,7 +293,7 @@ function checkDatetime(model: QueryModel, add: Add) {
   const ends = intervalEnds(text);
   // "The parameter value SHALL conform to the following syntax": an interval has two ends, or `..` for an open one
   if (ends && (!ends.start || !ends.end)) {
-    add('missing', 'metadata', 'datetime', 'range', `Pick ${ends.start ? 'an end' : 'a start'} time for the range`, 'form', EDR.datetimeSyntax);
+    add('missing', rules.source, 'datetime', 'range', `Pick ${ends.start ? 'an end' : 'a start'} time for the range`, 'form', rules.syntax);
     return;
   }
   // `..` is an open end of an interval
@@ -282,7 +301,7 @@ function checkDatetime(model: QueryModel, add: Add) {
   const times = closed.map(time => Date.parse(time));
   closed.forEach((time, i) => {
     // "The syntax of date-time is specified by RFC 3339, 5.6.", under the syntax the value SHALL conform to
-    if (isNaN(times[i])) add('error', 'metadata', 'datetime', `parse-${i}`, `"${time}" isn't a valid date-time`, 'form', [EDR.datetimeSyntax, EDR.datetimeRfc3339]);
+    if (isNaN(times[i])) add('error', rules.source, 'datetime', `parse-${i}`, `"${time}" isn't a valid date-time`, 'form', rules.instant);
   });
   if (times.some(isNaN)) return;
   // Nothing in EDR or RFC 3339 orders an interval's ends: one running backwards only looks wrong
@@ -292,7 +311,7 @@ function checkDatetime(model: QueryModel, add: Add) {
   const extent = extentsOf(model.collection).time;
   if (extent && times.some(time => time < extent.min || time > extent.max)) {
     add('warning', 'metadata', 'datetime', 'extent',
-      `The selected time is outside the collection's time extent (${formatTime(extent.min)} – ${formatTime(extent.max)})`, 'form', EDR.extent);
+      `The selected time is outside the collection's time extent (${formatTime(extent.min)} – ${formatTime(extent.max)})${rules.outside}`, 'form', rules.extent);
   }
 }
 
@@ -356,10 +375,17 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
     issues.push({ id: `${source}:${field}:${key}`, severity, source, field, message, input, ...(rule ? { rule } : {}) });
 
   // Maps requires no parameter: a bare map is complete. Its parameter is checked against parameter_names, and its style
-  // against what the styles and parameters say of each other
+  // against what the styles and parameters say of each other; its time by Maps 1.0's grammar, and its subset, levels and
+  // run against that grammar and what the extent lists
   if (model.queryType === 'map') {
-    return mapQueryIssues(model.collection, model.parameters, model.styleId ?? '', model.styles ?? [])
-      .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+    checkDatetime(model, add, MAPS_DATETIME);
+    const subset = model.queryParams.subset ?? '';
+    const elevation = model.queryParams.elevation ?? '';
+    return [
+      ...mapQueryIssues(model.collection, model.parameters, model.styleId ?? '', model.styles ?? []),
+      ...issues,
+      ...mapDimensionIssues(model.collection, { subset, elevation, datetime: model.datetime }),
+    ].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   }
   checkGeometry(model, add);
   checkFormat(model, add);
@@ -375,7 +401,7 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   return issues.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 
-const FORM_FIELDS = new Set(['f', 'parameter-name', 'datetime', 'z']);
+const FORM_FIELDS = new Set(['f', 'parameter-name', 'datetime', 'z', 'subset', 'elevation']);
 
 // Add the API docs' view to the query's own issues. Their issues go under the builder's field names,
 // except on a field EDR or the metadata already flags: those are the stronger source, and one issue

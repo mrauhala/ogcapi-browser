@@ -3,11 +3,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { useQueryValidation } from './useQueryValidation';
 import type { QueryValidationState } from '../contexts/QueryValidationContext';
 import type { QueryIssue } from '../query/types';
+import type { Collection } from '../types/api';
 import { apiDocsParams } from '../query/declared';
 import { buildOperationIndex, matchOperation } from '../validation/openapi/operationIndex';
 import params from '../query/__fixtures__/meteocore-maps-params.json';
 
 const MAP = 'https://meteocore.app.meteo.fi/collections/ecmwf-aifs-single/map';
+const aifs = params.collections.find(collection => collection.id === 'ecmwf-aifs-single') as unknown as Collection;
+const bare = { ...aifs, parameter_names: undefined } as Collection;
 const index = buildOperationIndex({ url: 'https://meteocore.app.meteo.fi/api', doc: params.api as unknown as Record<string, unknown> });
 const operation = matchOperation(index, MAP)!.entry;
 const around = vi.hoisted(() => ({
@@ -28,7 +31,7 @@ const missing: QueryIssue = { id: 'openapi:parameter-name:required', severity: '
 const apiOperation = { template: '/collections/ecmwf-aifs-single/map', pointer: '/paths/~1collections~1ecmwf-aifs-single~1map/get', required: [], params: apiDocsParams(operation.params) };
 
 beforeEach(() => {
-  around.validation = { url: `${MAP}?parameter-name=2t`, issues: [], apiOperation, declaring: { query: 'map', parameterNames: true } };
+  around.validation = { url: `${MAP}?parameter-name=2t`, issues: [], apiOperation, declaring: { query: 'map', collection: aifs } };
   around.collectionUrl = `${MAP}?parameter-name=2t`;
   around.requestUrl = `${MAP}?parameter-name=2t&transparent=false&foo=bar&elevation=850`;
   around.conformsTo = params.conformsTo;
@@ -62,7 +65,7 @@ describe('useQueryValidation', () => {
     around.validation = { ...around.validation!, apiOperation: null };
     // elevation is MeteoCore's own, which only its API docs name
     expect(read().fields).toEqual(['warning foo', 'warning elevation']);
-    around.validation = { ...around.validation!, declaring: { query: 'map', parameterNames: false } };
+    around.validation = { ...around.validation!, declaring: { query: 'map', collection: bare } };
     expect(read().fields).toEqual(['warning parameter-name', 'warning foo', 'warning elevation']);
   });
 
@@ -72,6 +75,14 @@ describe('useQueryValidation', () => {
     expect(read().fields).toEqual(['missing parameter-name', 'warning foo']);
     around.requestUrl = `${MAP}?foo=bar&parameter-name=2t`;
     expect(read().fields).toEqual(['warning foo']);
+  });
+
+  it('reads a map’s subset with the rest of the line: an axis nobody declares, a spatial axis with bbox', () => {
+    around.requestUrl = `${MAP}?parameter-name=2t&subset=foo(1)&subset=Lon(19:32)&bbox=19,59,32,70`;
+    // bbox is spatial-subsetting's; foo nobody's; Lon with bbox an error
+    expect(read()).toEqual({ active: true, fields: ['error subset', 'warning subset'], warning: 1 });
+    around.conformsTo = null;
+    expect(read().fields).toEqual([]);
   });
 
   it('is nothing for a request the form didn’t build', () => {

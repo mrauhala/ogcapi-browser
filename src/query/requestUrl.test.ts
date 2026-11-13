@@ -9,6 +9,12 @@ describe('readableUrl', () => {
       .toBe(`${BASE}?coords=POINT(24.940 60.170)&parameter-name=a,b&datetime=2026-11-05T00:00:00Z/2026-11-06T00:00:00Z&f=CoverageJSON`);
   });
 
+  it('shows a map subset’s quotes as written, and the browser sends them encoded', () => {
+    const shown = readableUrl(`${BASE}?subset=reference_time%28%222026-11-12T00%3A00%3A00Z%22%29%2Cvertical%28850%29`);
+    expect(shown).toBe(`${BASE}?subset=reference_time("2026-11-12T00:00:00Z"),vertical(850)`);
+    expect(new URL(shown).search).toBe('?subset=reference_time(%222026-11-12T00:00:00Z%22),vertical(850)');
+  });
+
   it.each([
     ['plus', 'application/vnd.cov%2Bjson', 'application/vnd.cov%2Bjson'],
     ['ampersand', 'a%26b', 'a%26b'],

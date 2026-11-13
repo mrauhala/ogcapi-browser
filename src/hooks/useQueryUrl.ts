@@ -18,7 +18,6 @@ import { useInstances, type InstancesState } from './useInstances';
 import { instanceStep, type Instance } from '../query/instances';
 import { normalizeHref } from '../utils/href';
 import { styleLinkFills, withLinkQueries } from '../query/mapQuery';
-import { hasParameterNames } from '../query/mapOffer';
 import { apiDocsParams } from '../query/declared';
 import { getMapsLinks } from '../api/maps';
 import { useMapStyles, type MapStylesState } from './useMapStyles';
@@ -195,11 +194,20 @@ export function useQueryUrl(): UseQueryUrlReturn {
   // that field, in place of what the last style's link put there; a value chosen in the field stays
   const selectStyle = useCallback((styleId: string) => {
     const href = mapStyles.styles.find(each => each.id === styleId)?.href ?? '';
-    const { fills, linked } = styleLinkFills(href, { 'parameter-name': selectedParameters.join(','), f: selectedFormat }, style.linked);
+    const held = {
+      'parameter-name': selectedParameters.join(','), f: selectedFormat, datetime,
+      subset: queryParams.subset ?? '', elevation: queryParams.elevation ?? '',
+    };
+    const { fills, linked } = styleLinkFills(href, held, style.linked);
     if ('parameter-name' in fills) setSelectedParameters(fills['parameter-name'].split(',').map(id => id.trim()).filter(Boolean));
     if ('f' in fills) setSelectedFormat(fills.f);
+    if ('datetime' in fills && fills.datetime !== datetime) {
+      setDatetime(fills.datetime);
+      setDatetimeModeState(modeOf(fills.datetime));
+    }
+    for (const name of ['subset', 'elevation'] as const) if (name in fills) setQueryParam(name, fills[name]);
     setStyle({ id: styleId, href, linked });
-  }, [mapStyles.styles, style.linked, selectedParameters, selectedFormat]);
+  }, [mapStyles.styles, style.linked, selectedParameters, selectedFormat, datetime, queryParams.subset, queryParams.elevation, setQueryParam]);
 
   // Pick an instance, keeping the query if it has one too. A time from another run may lie outside
   // this one, so it goes.
@@ -409,7 +417,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
         required: operation.params.filter(param => param.in === 'query' && param.required).map(param => param.name),
         params: apiDocsParams(operation.params),
       } : null,
-      declaring: queryModel?.queryType === 'map' ? { query: 'map', parameterNames: hasParameterNames(queryModel.collection) } : null,
+      declaring: queryModel?.queryType === 'map' ? { query: 'map', collection: queryModel.collection } : null,
     });
   }, [queryModel, instancesHref, selectedInstance, apiIndex, setCollectionUrl, setQueryValidation]);
 

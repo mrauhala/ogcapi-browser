@@ -161,23 +161,33 @@ const urlOf = (model: QueryModelInput) => buildQueryUrl(buildQueryModel(model)!)
 
 describe('a map request', () => {
   // Nothing chosen for the map: what's left is another query's, which a map doesn't take
-  const bare = { format: '', parameters: [] };
+  const bare = { format: '', parameters: [], datetime: '' };
 
   it('is the collection’s map and nothing else: Maps requires nothing, and another query’s values aren’t sent', () => {
     expect(urlOf(input(radar(), bare))).toBe(`${ROOT}/fmi-radar-composite-dbz/map`);
   });
 
   it('sends the parameter and the format the form holds, and nothing else', () => {
-    expect(urlOf(input(ifs(), { parameters: ['gh'], format: 'image/webp' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh&f=image%2Fwebp`);
-    expect(urlOf(input(ifs(), { parameters: ['gh', 'd'], format: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh%2Cd`);
+    expect(urlOf(input(ifs(), { parameters: ['gh'], format: 'image/webp', datetime: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh&f=image%2Fwebp`);
+    expect(urlOf(input(ifs(), { parameters: ['gh', 'd'], format: '', datetime: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=gh%2Cd`);
+  });
+
+  it('sends the time, the subset and the elevation the form holds, before the format, and not EDR’s z', () => {
+    const queryParams = { crs: 'CRS84', subset: ' vertical(850),reference_time("2026-11-12T00:00:00Z") ', elevation: '500' };
+    expect(urlOf(input(ifs(), { parameters: ['t'], format: 'image/png', queryParams })))
+      .toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=t&datetime=2026-11-10T12%3A00%3A00Z&subset=vertical%28850%29%2Creference_time%28%222026-11-12T00%3A00%3A00Z%22%29&elevation=500&f=image%2Fpng`);
+    // A time switched from another query stays, as switching keeps it where the new query takes one
+    expect(urlOf(input(radar(), { format: '', parameters: [] }))).toBe(`${ROOT}/fmi-radar-composite-dbz/map?datetime=2026-11-10T12%3A00%3A00Z`);
+    // What's empty isn't sent
+    expect(urlOf(input(radar(), { ...bare, queryParams: { subset: ' ', elevation: '' } }))).toBe(`${ROOT}/fmi-radar-composite-dbz/map`);
   });
 
   it('is a style’s own map link for a style picked, what it asks for included, with the form’s parameter in place of the link’s', () => {
     const href = `${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh`;
     // As picking the style fills the field
-    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['gh'], format: '' }))).toBe(href);
+    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['gh'], format: '', datetime: '' }))).toBe(href);
     // Another chosen, and none: MeteoCore answers the last with 404, which is worth seeing
-    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['dpt'], format: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=dpt`);
+    expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, parameters: ['dpt'], format: '', datetime: '' }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=dpt`);
     expect(urlOf(input(ifs(), { styleId: 'contours', styleHref: href, ...bare }))).toBe(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map`);
   });
 
@@ -191,11 +201,14 @@ describe('a map request', () => {
     expect(model.baseHref).toBe(`${ROOT}/meteoalarm-finland/items`);
   });
 
-  it('has fields for its parameter and format only, and finds nothing wrong in another query’s values', () => {
+  it('has fields of its own, none for an EDR query’s, and finds nothing wrong in another query’s values', () => {
     const collection = withLinkQueries(ifs());
-    expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] }).map(spec => spec.name)).toEqual(['parameter-name']);
-    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['datetime', 'z', 'bbox'] })).toEqual([]);
-    expect(validateQuery(buildQueryModel(input(ifs(), { parameters: ['gh'], datetime: 'nonsense', vertical: '777' }))!)).toEqual([]);
+    // Its time, as the request has it, and its level and model run in subset, as its extent has them
+    expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] }).map(spec => spec.id))
+      .toEqual(['parameter-name', 'datetime', 'subset:vertical', 'subset:reference_time', 'subset']);
+    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['z', 'bbox'] })).toEqual([]);
+    // z is EDR's: a map's level is in subset
+    expect(validateQuery(buildQueryModel(input(ifs(), { parameters: ['gh'], vertical: '777' }))!)).toEqual([]);
   });
 });
 
@@ -220,12 +233,17 @@ describe('a map URL, read back', () => {
     expect(isForCollection(`${ROOT}/fmi-radar-composite-dbz/map/tiles`, radar())).toBe(false);
   });
 
-  it('gives the form its parameter and format, and nothing else: the rest stays in the line, as typed', () => {
-    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5`;
+  it('gives the form its parameter, time, subset, elevation and format, and nothing else: the rest stays in the line, as typed', () => {
+    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5&elevation=850`;
     expect(readQuerySelections(url, view(), 'map')).toEqual({
-      format: 'image/png', parameters: ['t', 'gh'], datetime: '', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
-      bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: {},
+      format: 'image/png', parameters: ['t', 'gh'], datetime: '2026-11-11T00:00:00Z', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
+      bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: { subset: '', elevation: '850' },
     });
+  });
+
+  it('reads several subset parameters as one, comma-separated, as Maps 1.0 has them', () => {
+    const url = `${ROOT}/ecmwf-ifs-pressure/map?subset=Lon(19:32)&subset=&subset=vertical(850)`;
+    expect(readQuerySelections(url, view(), 'map').queryParams).toEqual({ subset: 'Lon(19:32),vertical(850)', elevation: '' });
   });
 });
 
