@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.6.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.5.0...v0.6.0) (2026-11-13)
+
+
+### Features
+
+* a collection's map is a query in the Query row, and the Maps panel stops writing the request line ([#211](https://github.com/mrauhala/ogcapi-browser/issues/211)) ([a99ad81](https://github.com/mrauhala/ogcapi-browser/commit/a99ad8173912d182123b60e24a8a97de95c6efaa))
+* a data query's response is checked against what it asked for, its parameters and its format ([#208](https://github.com/mrauhala/ogcapi-browser/issues/208)) ([bfc00f7](https://github.com/mrauhala/ogcapi-browser/commit/bfc00f7f722654e6d0d7456d9f75d1139a125164))
+* a locations list sent is checked as locations, against the EDR version the API declares, and has a Data tab ([#203](https://github.com/mrauhala/ogcapi-browser/issues/203)) ([6b3a80a](https://github.com/mrauhala/ogcapi-browser/commit/6b3a80ae2561c987715ea971b357cb7815491633))
+* a map's parameter is chosen from parameter_names, only the styles possible for it are offered, and each field says who declared it ([#212](https://github.com/mrauhala/ogcapi-browser/issues/212)) ([1819723](https://github.com/mrauhala/ogcapi-browser/commit/1819723ab2a2dcb6f1fa392ada793c94627ba104))
+* a map's time, level, model run and subset are fields, with times from the extent's grid, and what each asks is checked before sending ([#213](https://github.com/mrauhala/ogcapi-browser/issues/213)) ([fbae155](https://github.com/mrauhala/ogcapi-browser/commit/fbae15550874a0ac3b1374a8e3773283888176ea))
+* Checks cites Features Parts 1 and 2, Records Part 1 and Maps Part 1 beside EDR and Common, and the shield menu wraps long paths ([#210](https://github.com/mrauhala/ogcapi-browser/issues/210)) ([6fc0d2a](https://github.com/mrauhala/ogcapi-browser/commit/6fc0d2ace4ccd165b3d9ef6c3f4dd32a53ea6713))
+* design a logo for ogcapi-browser, API's braces around a globe ([#195](https://github.com/mrauhala/ogcapi-browser/issues/195)) ([65b2c26](https://github.com/mrauhala/ogcapi-browser/commit/65b2c264fa75ee508d8b926302361377befceb94))
+* draw a path response as a section, distance along it by level, on the grid view's parts ([#192](https://github.com/mrauhala/ogcapi-browser/issues/192)) ([4cf429e](https://github.com/mrauhala/ogcapi-browser/commit/4cf429ecbc1de6cb0a6f3052c533b7a67ef7ebde))
+* every check cites the standard and statement it rests on, in the EDR version the API declares ([#201](https://github.com/mrauhala/ogcapi-browser/issues/201)) ([b5dabb6](https://github.com/mrauhala/ogcapi-browser/commit/b5dabb6b4d075b4f244432b421125f6c409dc17e))
+* every query parameter is a labelled field, with one status line in place of the issues box ([#204](https://github.com/mrauhala/ogcapi-browser/issues/204)) ([e1a449b](https://github.com/mrauhala/ogcapi-browser/commit/e1a449b0e31a47aa82a830f2051c28c3e986452f))
+* every value with a grammar is typed as it's sent, and More holds crs and the request's other parameters ([#206](https://github.com/mrauhala/ogcapi-browser/issues/206)) ([d39e93f](https://github.com/mrauhala/ogcapi-browser/commit/d39e93fe0cc6b87a756471ed1be5dc65ed8a2429))
+* items are a query like the others, with one item by its path, a time on every items query, and a Data tab ([#209](https://github.com/mrauhala/ogcapi-browser/issues/209)) ([771d540](https://github.com/mrauhala/ogcapi-browser/commit/771d540b457953f8df1d30f73ccfbd91fe8e7195))
+* open a link with its query in view, and zoom to the query from its card ([#197](https://github.com/mrauhala/ogcapi-browser/issues/197)) ([3fab138](https://github.com/mrauhala/ogcapi-browser/commit/3fab13805d86e6ba228d83153ba96869cfb169e9))
+
+
+### Bug Fixes
+
+* a custom dimension's range goes into the request only once both ends are picked, as z's does ([#199](https://github.com/mrauhala/ogcapi-browser/issues/199)) ([4a4d395](https://github.com/mrauhala/ogcapi-browser/commit/4a4d3957c5bb8675880353dc9147f8741fab9c66))
+* a grid's Table sorted while flipped lists each value beside the place it's drawn at ([#200](https://github.com/mrauhala/ogcapi-browser/issues/200)) ([5c66b8c](https://github.com/mrauhala/ogcapi-browser/commit/5c66b8c6efcd98efa5685ace5777397834eef5d3))
+* every finding's severity follows the standard's word, and the app's own faults count for nothing against the server ([#205](https://github.com/mrauhala/ogcapi-browser/issues/205)) ([8a6a49d](https://github.com/mrauhala/ogcapi-browser/commit/8a6a49d7c259552fc9a1d5070b73b7e0c3ae768d))
+* the query form cites the rule each finding rests on, and rates it by the rule's word ([#207](https://github.com/mrauhala/ogcapi-browser/issues/207)) ([b0bf384](https://github.com/mrauhala/ogcapi-browser/commit/b0bf3847bf3f71016e3a9b275c044f0207d3825d))
+* with no query the line is the collection itself, so a link to one no longer sticks ([#193](https://github.com/mrauhala/ogcapi-browser/issues/193)) ([ea05a02](https://github.com/mrauhala/ogcapi-browser/commit/ea05a02a28fd10e49d3b22081d0cc715cd17210b))
+* write paths as servers do, a landing page at {root}/ and an id's ':' as it is ([#202](https://github.com/mrauhala/ogcapi-browser/issues/202)) ([64649ed](https://github.com/mrauhala/ogcapi-browser/commit/64649ed8d82e98c43c89d61dcef12360c12ac5e4))
+
 ## [0.5.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.4.0...v0.5.0) (2026-11-08)
 
 
