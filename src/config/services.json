@@ -9,7 +9,7 @@
   { "label": "Meteogate Climate Observations", "url": "https://api.meteogate.eu/eu-eumetnet-climate-observations/v1", "type": "EDR" },
   { "label": "Meteogate Weather Radar", "url": "https://api.meteogate.eu/eu-eumetnet-weather-radar", "type": "EDR" },
   { "label": "DWD NWP (Beta)", "url": "https://nwp.opendata-api.dwd.de/v1beta1/", "type": "EDR" },
-  { "label": "MeteoCore", "url": "https://meteocore.app.meteo.fi/edr/", "type": "EDR" },
+  { "label": "MeteoCore EDR", "url": "https://meteocore.app.meteo.fi/edr/", "type": "EDR" },
   { "label": "DMI Forecast", "url": "https://opendataapi.dmi.dk/v1/forecastedr/", "type": "EDR" },
   { "label": "Instituto Hidrográfico (PT)", "url": "https://ogcapi.hidrografico.pt", "type": "EDR" },
   { "label": "WMO GDC WIS2 Germany", "url": "https://wis2.dwd.de/gdc/", "type": "Records" },
@@ -18,5 +18,6 @@
   { "label": "Copernicus Dataspace", "url": "https://stac.dataspace.copernicus.eu/v1/", "type": "STAC" },
   { "label": "MET Norway Radar", "url": "https://radar-stacapi.met.no/v1/", "type": "STAC" },
   { "label": "Swiss Federal Spatial Data", "url": "https://data.geo.admin.ch/api/stac/v1/", "type": "STAC" },
-  { "label": "MSC GeoMet", "url": "https://api.weather.gc.ca", "type": "Features" }
+  { "label": "MSC GeoMet", "url": "https://api.weather.gc.ca", "type": "Features" },
+  { "label": "MeteoCore", "url": "https://meteocore.app.meteo.fi", "type": "Maps" }
 ]
