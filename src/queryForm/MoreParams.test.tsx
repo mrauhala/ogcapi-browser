@@ -54,8 +54,10 @@ describe('MoreParams', () => {
     expect(html).not.toContain('id="query-field-other"');
   });
 
-  it('says nothing of crs where the query lists none', () => {
+  it('says nothing of crs where the query lists none, and stays closed for a crs the form holds elsewhere, as a map’s', () => {
     expect(header(render(withoutCrs(WITH_CRS, 'position')))).toBe('More: other parameters');
+    expect(render(withoutCrs(WITH_CRS, 'position'), 'position', 'http://www.opengis.net/def/crs/EPSG/0/3857')).toContain('aria-expanded="false"');
+    expect(render(WITH_CRS, 'position', 'OGC:CRS84')).toContain('aria-expanded="true"');
   });
 
   it('opens with a crs chosen, pressed among those the query lists', () => {

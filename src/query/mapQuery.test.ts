@@ -162,7 +162,7 @@ describe('mapStylesOf and linkQuery', () => {
 const input = (collection: Collection, overrides: Partial<QueryModelInput> = {}): QueryModelInput => ({
   collection: withLinkQueries(collection), queryKey: 'map', format: 'CoverageJSON', parameters: ['t'], datetime: '2026-11-10T12:00:00Z',
   vertical: '850', customDims: { member: '1' }, points: [[24, 60]], polygons: [], bbox: [19, 59, 32, 70], bboxAsCoords: false,
-  radius: { value: 10, units: 'km' }, queryParams: { crs: 'CRS84' }, locationFeature: null, ...overrides,
+  radius: { value: 10, units: 'km' }, queryParams: { 'corridor-width': '5', limit: '10' }, locationFeature: null, ...overrides,
 });
 const urlOf = (model: QueryModelInput) => buildQueryUrl(buildQueryModel(model)!);
 
@@ -180,13 +180,29 @@ describe('a map request', () => {
   });
 
   it('sends the time, the subset and the elevation the form holds, before the format, and not EDR’s z', () => {
-    const queryParams = { crs: 'CRS84', subset: ' vertical(850),reference_time("2026-11-12T00:00:00Z") ', elevation: '500' };
+    const queryParams = { limit: '10', subset: ' vertical(850),reference_time("2026-11-12T00:00:00Z") ', elevation: '500' };
     expect(urlOf(input(ifs(), { parameters: ['t'], format: 'image/png', queryParams })))
       .toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=t&datetime=2026-11-10T12%3A00%3A00Z&subset=vertical%28850%29%2Creference_time%28%222026-11-12T00%3A00%3A00Z%22%29&elevation=500&f=image%2Fpng`);
     // A time switched from another query stays, as switching keeps it where the new query takes one
     expect(urlOf(input(radar(), { format: '', parameters: [] }))).toBe(`${ROOT}/fmi-radar-composite-dbz/map?datetime=2026-11-10T12%3A00%3A00Z`);
     // What's empty isn't sent
     expect(urlOf(input(radar(), { ...bare, queryParams: { subset: ' ', elevation: '' } }))).toBe(`${ROOT}/fmi-radar-composite-dbz/map`);
+  });
+
+  it('sends the box, the size and the CRS the form holds, as typed, after the time and before the subset', () => {
+    const queryParams = {
+      bbox: ' 15.5,58.5,35.5,71 ', 'bbox-crs': '', width: '478', height: '721', crs: 'http://www.opengis.net/def/crs/EPSG/0/3857', subset: 'reference_time(*)',
+    };
+    expect(urlOf(input(ifs(), { parameters: ['t'], format: '', queryParams })))
+      .toBe(`${ROOT}/ecmwf-ifs-pressure/map?parameter-name=t&datetime=2026-11-10T12%3A00%3A00Z&bbox=15.5%2C58.5%2C35.5%2C71&width=478&height=721`
+        + '&crs=http%3A%2F%2Fwww.opengis.net%2Fdef%2Fcrs%2FEPSG%2F0%2F3857&subset=reference_time%28*%29');
+    // Each as typed, wrong or not: the checks say what's wrong
+    const wrong = { bbox: '1,2,3', 'bbox-crs': 'EPSG:3067', width: '0', height: '1.5', crs: 'EPSG:2393' };
+    expect(urlOf(input(radar(), { ...bare, queryParams: wrong })))
+      .toBe(`${ROOT}/fmi-radar-composite-dbz/map?bbox=1%2C2%2C3&bbox-crs=EPSG%3A3067&width=0&height=1.5&crs=EPSG%3A2393`);
+    expect(validateQuery(buildQueryModel(input(radar(), { ...bare, queryParams: wrong }))!).map(issue => issue.id)).toEqual([
+      'maps:bbox:numbers', 'maps:width:integer', 'maps:height:integer', 'maps:crs:listed', 'maps:bbox-crs:curie', 'maps:crs:curie',
+    ]);
   });
 
   it('is a style’s own map link for a style picked, what it asks for included, with the form’s parameter in place of the link’s', () => {
@@ -210,10 +226,10 @@ describe('a map request', () => {
 
   it('has fields of its own, none for an EDR query’s, and finds nothing wrong in another query’s values', () => {
     const collection = withLinkQueries(ifs());
-    // Its time, as the request has it, and its level and model run in subset, as its extent has them
+    // Its box and time, as the request has them, and its level and model run in subset, as its extent has them
     expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] }).map(spec => spec.id))
-      .toEqual(['parameter-name', 'datetime', 'subset:vertical', 'subset:reference_time', 'subset']);
-    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['z', 'bbox'] })).toEqual([]);
+      .toEqual(['bbox', 'parameter-name', 'datetime', 'subset:vertical', 'subset:reference_time', 'subset']);
+    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['z', 'bbox'] }).map(spec => spec.id)).toEqual(['bbox']);
     // z is EDR's: a map's level is in subset
     expect(validateQuery(buildQueryModel(input(ifs(), { parameters: ['gh'], vertical: '777' }))!)).toEqual([]);
   });
@@ -240,17 +256,21 @@ describe('a map URL, read back', () => {
     expect(isForCollection(`${ROOT}/fmi-radar-composite-dbz/map/tiles`, radar())).toBe(false);
   });
 
-  it('gives the form its parameter, time, subset, elevation and format, and nothing else: the rest stays in the line, as typed', () => {
-    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5&elevation=850`;
+  it('gives the form its parameter, time, box, size, CRS, subset, elevation and format, and nothing else: the rest stays in the line, as typed', () => {
+    const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5&elevation=850`
+      + '&bbox-crs=EPSG:4326&width=256&height=0';
     expect(readQuerySelections(url, view(), 'map')).toEqual({
       format: 'image/png', parameters: ['t', 'gh'], datetime: '2026-11-11T00:00:00Z', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
-      bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: { subset: '', elevation: '850' },
+      bboxAsCoords: false, radius: null, radiusUnits: null,
+      queryParams: { bbox: '19,59,32,70', 'bbox-crs': 'EPSG:4326', width: '256', height: '0', crs: 'CRS84', subset: '', elevation: '850' },
     });
   });
 
   it('reads several subset parameters as one, comma-separated, as Maps 1.0 has them', () => {
     const url = `${ROOT}/ecmwf-ifs-pressure/map?subset=Lon(19:32)&subset=&subset=vertical(850)`;
-    expect(readQuerySelections(url, view(), 'map').queryParams).toEqual({ subset: 'Lon(19:32),vertical(850)', elevation: '' });
+    expect(readQuerySelections(url, view(), 'map').queryParams).toEqual({
+      bbox: '', 'bbox-crs': '', width: '', height: '', crs: '', subset: 'Lon(19:32),vertical(850)', elevation: '',
+    });
   });
 });
 

@@ -27,6 +27,16 @@ describe('apiDocsParams', () => {
     expect(params.find(param => param.name === 'bbox')).toMatchObject({ isArray: true });
   });
 
+  it('reads the schema’s maximum, as MeteoCore gives width, height and its quality', () => {
+    const params = paramsOf('/collections/ecmwf-aifs-single/map');
+    expect(params.filter(param => 'maximum' in param).map(param => [param.name, param.maximum])).toEqual([['width', 8000], ['height', 8000], ['quality', 100]]);
+    const made = apiDocsParams([
+      { name: 'a', in: 'query', required: false, schema: { type: 'integer', maximum: 0 }, enumValues: null, isArray: false, pointer: '/a' },
+      { name: 'b', in: 'query', required: false, schema: { type: 'integer', maximum: '9' }, enumValues: null, isArray: false, pointer: '/b' },
+    ]);
+    expect(made.map(param => param.maximum)).toEqual([0, undefined]);
+  });
+
   it('leaves out the path’s parameters, and reads a default of any plain kind', () => {
     expect(paramsOf('/collections/ecmwf-aifs-single/styles/contours/map').some(param => param.name === 'styleId')).toBe(false);
     const made = apiDocsParams([

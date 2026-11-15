@@ -22,6 +22,23 @@ describe('buildOperationIndex', () => {
   });
 });
 
+describe('a map’s limits', () => {
+  const limitsOf = (info: unknown) => buildOperationIndex({ url: 'https://a.example/api', doc: { info, paths: {} } }).mapLimits;
+
+  it('are x-OGC-limits.maps in the info, as Maps 1.0’s example has them, each where it’s a positive number', () => {
+    expect(limitsOf({ title: 'My Web API', 'x-OGC-limits': { maps: { maxWidth: 2048, maxHeight: 2048, maxPixels: 10000000 } } }))
+      .toEqual({ maxWidth: 2048, maxHeight: 2048, maxPixels: 10000000, pointer: '/info/x-OGC-limits/maps' });
+    expect(limitsOf({ 'x-OGC-limits': { maps: { maxWidth: 0, maxHeight: '2048', maxPixels: 5 } } })).toEqual({ maxWidth: null, maxHeight: null, maxPixels: 5, pointer: '/info/x-OGC-limits/maps' });
+  });
+
+  it('are none without x-OGC-limits.maps, as MeteoCore’s info has none', async () => {
+    expect(limitsOf({ title: 'MeteoCore - OGC API', version: '1.0.0' })).toBeNull();
+    expect(limitsOf({ 'x-OGC-limits': { tiles: {} } })).toBeNull();
+    expect(limitsOf(undefined)).toBeNull();
+    expect((await indexFor('meteocore')).mapLimits).toBeNull();
+  });
+});
+
 describe('matchOperation against the real data_queries', () => {
   // Met Office's document lacks most model collections' paths (only their instance paths exist)
   it.each([

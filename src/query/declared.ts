@@ -16,6 +16,7 @@ export interface ApiDocsParam {
   isArray: boolean; // its schema takes several values
   enumValues: string[] | null;
   defaultValue: string | null; // the schema's default, what the server does unasked
+  maximum?: number; // the schema's maximum, as a map's width and height may have: /rec/scaling/max-width-height B
   pointer: string;
   description?: string; // what the API docs say of it: a map's subset names its axes there
 }
@@ -24,11 +25,13 @@ export interface ApiDocsParam {
 export function apiDocsParams(params: readonly ResolvedParam[]): ApiDocsParam[] {
   return params.filter(param => param.in === 'query').map(param => {
     const given = param.schema?.default;
+    const maximum = param.schema?.maximum;
     return {
       name: param.name,
       isArray: param.isArray,
       enumValues: param.enumValues,
       defaultValue: typeof given === 'string' || typeof given === 'number' || typeof given === 'boolean' ? String(given) : null,
+      ...(typeof maximum === 'number' && Number.isFinite(maximum) ? { maximum } : {}),
       pointer: param.pointer,
       ...(param.description ? { description: param.description } : {}),
     };

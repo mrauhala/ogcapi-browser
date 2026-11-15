@@ -733,6 +733,49 @@ export const MAPS1 = {
   // convenience, some implementations can implement an f= parameter for circumstances where content negotiation is not
   // possible or available (e.g., testing the API in a web browser, or using a URL embedded in an HTML IMG SRC tag)."
   formatNegotiation: { label: 'Maps 1 7.2.3 NOTE 2', url: `${MAPS_1}#_1fd4c9a7-9f1c-3741-456d-8168aa6aea24` } as Rule,
+  // ---- What a map request's box, size and CRS are checked against ----
+  // A: "The map operation SHALL support a parameter bbox with a comma-separated list of four or six floating point
+  // numbers. If the bounding box consists of six numbers, the first three numbers are the coordinates of the lower bound
+  // corner of a three-dimensional bounding box and the last three are the coordinates of the upper bound corner. The axis
+  // order is determined by the bbox-crs parameter value or longitude and latitude if the parameter is missing …"
+  bboxNumbers: maps1('/req/spatial-subsetting/bbox-definition A', '_22a33a29-8b58-259f-5862-a3f47f9215de'),
+  // A: "The map retrieval operation SHALL support a query parameter bbox-crs with the characteristics defined in the
+  // OpenAPI Specification 3.0 fragment bbox-crs: … description: A URI (or safe CURIE) of the coordinate reference system
+  // for the coordinates specified in the `bbox` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if
+  // different), or the output `crs` (if specified)."
+  bboxCrs: maps1('/req/spatial-subsetting/bbox-crs A', '_67941faa-90a9-8292-32ae-e136f0b44013'),
+  // C: "If the bbox-crs is not indicated https://www.opengis.net/def/crs/OGC/1.3/CRS84 SHALL be assumed."
+  bboxCrsDefault: maps1('/req/spatial-subsetting/bbox-crs C', '_65f81f7a-7a77-9fed-e3a3-5182446725dd'),
+  // F: "If the bbox parameter is not used, the bbox-crs SHALL be ignored."
+  bboxCrsAlone: maps1('/req/spatial-subsetting/bbox-crs F', '_4d0f2dcb-30e7-f4f5-8de5-0c64e1484ebf'),
+  // A: "For the center-crs, bbox-crs and subset-crs query parameters, an unsafe CURIE without square brackets MAY be
+  // supported by the implementation."
+  subsettingCrsCurie: maps1('/per/spatial-subsetting/crs-curie A', '_b154a1a2-a7b0-dcaf-eca8-3b18b2a15229'),
+  // F: "For a CRS where an axis can wrap around, such as subsetting across the dateline (anti-meridian) in a geographic
+  // CRS, a low value greater than high SHALL be supported to indicate an extent crossing that wrapping point."
+  subsetAntimeridian: maps1('/req/spatial-subsetting/subset-definition F', '_84adcc86-ca4d-6c1d-53e5-85e5a11cb438'),
+  // A: "In the absence of subsetting parameters, the server SHOULD return the entire map."
+  wholeMap: maps1('/rec/core/map-op A', '_b4a11d57-bf11-81b5-cf87-288c92e1b315'),
+  // H: "When the width parameter is omitted, the implementation SHALL use an appropriate width which accurately reflects
+  // the default or requested scale …, specifically for the local subset (bounding box) of the map being returned …"
+  widthDefinitionH: maps1('/req/scaling/width-definition H', '_2da5a1e8-8c62-d5e8-e0b7-e4e809b723ca'),
+  // H: "When the height parameter is omitted, the implementation SHALL use an appropriate height which accurately
+  // reflects the default or requested scale …, specifically for the local subset (bounding box) of the map being returned."
+  heightDefinitionH: maps1('/req/scaling/height-definition H', '_2ffbc90c-1c04-83a1-62d5-2ec717b12040'),
+  // A: "The service metadata may include a maximum width, maximum height and maximum product of both indicating what are
+  // the maximum values that the server will accept to create the map. Clients should not request a map subset with a
+  // width or a height greater than these limits and if they do, they should expect that the server will not be able to
+  // create a map. These characteristics are defined as …: x-OGC-limits: … maxWidth … maxHeight … maxPixels"
+  maxSizeLimits: maps1('/rec/scaling/max-width-height A', '_517d0398-d54c-110f-7846-c220bea5c37e'),
+  // B: "A Maps API implementation instance may specify the maximum width and height by adding a maximum property to the
+  // width and height parameter definition in the OpenAPI definition document …"
+  maxSizeApiDocs: maps1('/rec/scaling/max-width-height B', '_893b9713-d374-1018-b159-2e0f8f51f481'),
+  // B: "Any of the CRSs listed in the collection (or collections) description SHALL be supported. If the list of
+  // supported CRS is not present, only https://www.opengis.net/def/crs/OGC/1.3/CRS84 SHALL be supported."
+  crsListed: maps1('/req/crs/crs-definition B', '_6dbc2c39-2bde-1a79-915a-eeacff1b5848'),
+  // C: "If the spatial subsetting requirements class is supported, the bbox-crs and the subset-crs SHALL additionally
+  // support the value specified in the crs parameter."
+  crsForBbox: maps1('/req/crs/crs-definition C', '_28508c96-8a54-81ae-44ca-e87d092de316'),
   // ---- The collection's description ----
   // A, in the general-subsetting class: "Wherever applicable (e.g., the collection or dataset description), the extent
   // of any additional dimension(s) beyond temporal and spatial SHALL be described in a way similar to the temporal

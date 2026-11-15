@@ -75,3 +75,11 @@ export function buildQueryModel(input: QueryModelInput): QueryModel | null {
 export function timeIsOnlyAFilter(queryType: string, hasLocation: boolean): boolean {
   return !!EDR_QUERY_RULES[queryType]?.featureList || (queryType === 'locations' && !hasLocation);
 }
+
+// Whether a switch to items filters them by the time the last request sent: items take a time as a filter, as
+// Features and Records servers SHALL. A time the last request held only in the form, as a list not filtered by it, isn't
+// one it sent. A locations list stays without, as MeteoCore answers one with a time with 400
+export function filtersByTimeSent(from: string, to: string, time: { datetime: string; filterByTime: boolean; hasLocation: boolean }): boolean {
+  if (to !== 'items' || !time.datetime.trim()) return false;
+  return !timeIsOnlyAFilter(from, time.hasLocation) || time.filterByTime;
+}

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type View from 'ol/View';
 import { fromLonLat } from 'ol/proj';
-import { zoomToExtents, zoomToLocations, zoomToOverview, zoomToPoint, zoomToQuery } from './mapView';
+import { LINK_ZOOM_MS, linkZoomWaits, zoomToExtents, zoomToLocations, zoomToOverview, zoomToPoint, zoomToQuery } from './mapView';
 
 const fakeView = () => {
   const view = { fit: vi.fn(), setCenter: vi.fn(), setZoom: vi.fn() };
@@ -151,5 +151,23 @@ describe('zoomToQuery', () => {
     const { view, olView } = fakeView();
     zoomToQuery(olView, [NaN, 60, 25, 61]);
     untouched(view);
+  });
+});
+
+describe('a link’s zoom', () => {
+  const LINK = 'https://meteocore.app.meteo.fi/edr/collections/ecmwf-ifs-pressure/cube?bbox=-61,-31,-59,-29';
+  const asked = { url: LINK, at: 1000 };
+
+  it('waits for the link’s geometry for a few seconds, while the request is the link’s', () => {
+    expect(linkZoomWaits(asked, 1000, LINK)).toBe(true);
+    expect(linkZoomWaits(asked, 1000 + LINK_ZOOM_MS, LINK)).toBe(true);
+    expect(linkZoomWaits(asked, 1001 + LINK_ZOOM_MS, LINK)).toBe(false);
+    expect(LINK_ZOOM_MS).toBe(5000);
+  });
+
+  it('stops once the request changes, as Match the map view, a typed or drawn box or any field changes it, and with none asked', () => {
+    expect(linkZoomWaits(asked, 1200, `${LINK}&datetime=2026-11-16T12:00:00Z`)).toBe(false);
+    expect(linkZoomWaits(asked, 1200, 'https://meteocore.app.meteo.fi/edr/collections/ecmwf-ifs-pressure/cube?bbox=24,60,25,61')).toBe(false);
+    expect(linkZoomWaits(null, 1200, LINK)).toBe(false);
   });
 });

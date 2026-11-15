@@ -10,6 +10,8 @@ import fmiEcmwf from './query/__fixtures__/fmi-ecmwf.json';
 import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
 import mapsParams from './query/__fixtures__/meteocore-maps-params.json';
 import mapsDims from './query/__fixtures__/meteocore-maps-dimensions.json';
+import mapsBox from './query/__fixtures__/meteocore-maps-box.json';
+import { MAPS1 } from './standards';
 import { mapStylesOf, withLinkQueries } from './query/mapQuery';
 import { apiDocsParams } from './query/declared';
 import { buildOperationIndex, matchOperation } from './validation/openapi/operationIndex';
@@ -18,18 +20,21 @@ import { buildOperationIndex, matchOperation } from './validation/openapi/operat
 // each form their text can take. What they need from around them is stood in for
 const issues = vi.hoisted(() => ({ list: [] as QueryIssue[], apiOperation: null as unknown }));
 // The request line, and what the form built: the same unless a test types something the form can't hold
-const around = vi.hoisted(() => ({ requestUrl: 'https://a.example/edr/collections/ifs/position', collectionUrl: null as string | null, radius: null as number | null, radiusUnits: '', mobile: false, conformsTo: undefined as string[] | undefined }));
+const around = vi.hoisted(() => ({
+  requestUrl: 'https://a.example/edr/collections/ifs/position', collectionUrl: null as string | null, radius: null as number | null, radiusUnits: '', mobile: false,
+  conformsTo: undefined as string[] | undefined, viewExtent: null as number[] | null, viewSize: null as number[] | null, docsIndex: null as unknown,
+}));
 vi.mock('./contexts/CollectionContext', () => ({ useCollection: () => ({ selectedFeature: null, collectionUrl: around.collectionUrl ?? around.requestUrl, locationFeatures: [] }) }));
 vi.mock('./contexts/PanesContext', () => ({ usePanes: () => ({ showMap: () => {}, isMobile: around.mobile }) }));
 vi.mock('./contexts/OpenCollectionContext', () => ({ useOpenCollection: () => ({ leaveQuery: () => {} }) }));
 vi.mock('./contexts/RequestUrlContext', () => ({ useRequestUrl: () => ({ requestUrl: around.requestUrl, editUrl: () => {} }) }));
 vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
 vi.mock('./contexts/ApiContext', () => ({ useApi: () => ({ apiUrl: 'https://a.example/edr/', conformsTo: around.conformsTo }) }));
-vi.mock('./contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: 'none', description: null }) }));
+vi.mock('./contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: 'none', description: null, index: around.docsIndex }) }));
 vi.mock('./contexts/MapInteractionContext', () => ({
   useMapInteraction: () => ({
     radius: around.radius, setRadius: () => {}, radiusUnits: around.radiusUnits, setRadiusUnits: () => {},
-    selectedBbox: null, setSelectedBbox: () => {}, viewExtent: null,
+    selectedBbox: null, setSelectedBbox: () => {}, viewExtent: around.viewExtent, viewSize: around.viewSize, boxDrawer: null, drawBox: () => {},
   }),
 }));
 vi.mock('./hooks/useQueryValidation', () => ({ useQueryValidation: () => ({ issues: issues.list, active: true, apiOperation: issues.apiOperation }) }));
@@ -45,6 +50,9 @@ beforeEach(() => {
   around.radius = null;
   around.radiusUnits = '';
   around.mobile = false;
+  around.viewExtent = null;
+  around.viewSize = null;
+  around.docsIndex = null;
 });
 
 const LEVELS = ['1000', '925', '850', '700', '500'];
@@ -381,6 +389,15 @@ describe('the form’s blocks', () => {
     expect(shown(time)).not.toContain('Pick a time to filter');
   });
 
+  it('says, while the box is empty, that a map’s box a switch couldn’t take across was left behind', () => {
+    const note = "The map's bbox wasn't kept: it's in EPSG:3067, which the form can't turn into CRS84, the box items takes";
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items';
+    expect(shown(field(form(METEOCORE, 'items', { itemId: '', setItemId: () => {}, leftBehind: note }), 'bbox'))).toContain(note);
+    expect(shown(field(form(METEOCORE, 'items', { itemId: '', setItemId: () => {}, leftBehind: '' }), 'bbox'))).not.toContain("wasn't kept");
+    around.requestUrl = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/items?bbox=19,59,32,70';
+    expect(shown(field(form(METEOCORE, 'items', { itemId: '', setItemId: () => {}, leftBehind: note }), 'bbox'))).not.toContain("wasn't kept");
+  });
+
   it('asks to filter records by a time where a Records collection has times', () => {
     const timed = withItemsQuery({ ...GDC, extent: { temporal: { interval: [['2025-01-01T00:00:00Z', null]] } } } as unknown as Collection);
     around.requestUrl = 'https://wis2-gdc.weather.gc.ca/collections/wis2-discovery-metadata/items';
@@ -421,8 +438,9 @@ describe('a map’s form', () => {
     around.conformsTo = mapsParams.conformsTo;
     issues.apiOperation = operationFor('/collections/ecmwf-aifs-single/map');
     const html = form(collectionOf('ecmwf-aifs-single'), 'map', { ...mapState('ecmwf-aifs-single'), selectedParameters: ['2t'] });
-    // Its time, level and subset between them: see 'a map’s time, levels, run and subset'
-    expect(blockIds(html)).toEqual(['query', 'style', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
+    // Its box, size and CRS first, and its time, level and subset between: see 'a map’s box, size and CRS' and 'a map’s time,
+    // levels, run and subset'
+    expect(blockIds(html)).toEqual(['query', 'style', 'bbox', 'bbox-crs', 'width', 'height', 'crs', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
     expect(tagsOf(field(html, 'style'))).toEqual(['styled-map']);
     expect(tagsOf(field(html, 'parameter-name'))).toEqual(['MetOcean Maps (draft)', 'API docs']);
     expect(tagsOf(field(html, 'f'))).toEqual(['API docs']);
@@ -444,7 +462,7 @@ describe('a map’s form', () => {
     around.requestUrl = `${ROOT}/collections/fmi-radar-composite-dbz/map`;
     issues.apiOperation = operationFor('/collections/fmi-radar-composite-dbz/map');
     const html = form(collectionOf('fmi-radar-composite-dbz'), 'map', mapState('fmi-radar-composite-dbz', { mapStyles: { status: 'ready', styles: [], source: null } }));
-    expect(blockIds(html)).toEqual(['query', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
+    expect(blockIds(html)).toEqual(['query', 'bbox', 'bbox-crs', 'width', 'height', 'crs', 'parameter-name', 'datetime', 'elevation', 'subset', 'f', 'more']);
     expect(html).toContain('placeholder="Type a parameter"');
     expect(typedValue(html, 'parameter-name')).toBe('');
     // Without the API's conformance, no class is named
@@ -478,7 +496,7 @@ describe('a map’s time, levels, run and subset', () => {
     around.conformsTo = mapsDims.conformsTo;
     issues.apiOperation = { template: '/collections/ecmwf-ifs-pressure/map', pointer: '/paths/x', required: [], params: docs };
     const html = form(ifs(), 'map', state);
-    expect(blockIds(html)).toEqual(['query', 'datetime', 'subset:vertical', 'elevation', 'subset:reference_time', 'subset', 'more']);
+    expect(blockIds(html)).toEqual(['query', 'bbox', 'bbox-crs', 'width', 'height', 'crs', 'datetime', 'subset:vertical', 'elevation', 'subset:reference_time', 'subset', 'more']);
     expect(shown(field(html, 'subset:vertical'))).toContain('Level subset=vertical(…) hPa · optional MetOcean Maps (draft) 1000 925 850');
     expect(shown(field(html, 'subset:reference_time'))).toContain('Model run subset=reference_time(…) 2 listed · optional MetOcean Maps (draft) API docs Latest 2026-11-12T00:00:00Z 2026-11-11T18:00:00Z');
     expect(shown(field(html, 'elevation'))).toContain('Level elevation hPa · optional API docs');
@@ -503,3 +521,78 @@ describe('a map’s time, levels, run and subset', () => {
   });
 });
 
+// A radar's map on MeteoCore: its box, size and CRS, each a block holding both its names, typed as sent, with what the
+// map writes into them
+describe('a map’s box, size and CRS', () => {
+  const ROOT = 'https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map';
+  const radar = () => withLinkQueries(structuredClone(mapsBox.collections[0]) as unknown as Collection);
+  const index = buildOperationIndex({ url: 'https://meteocore.app.meteo.fi/api', doc: { paths: { [mapsBox.mapPath]: { get: { parameters: mapsBox.parameters } } } } });
+  const operation = { template: mapsBox.mapPath, pointer: '/paths/x', required: [], params: apiDocsParams(index.entries[0].params) };
+  const state = { styleId: '', styleByLink: false, selectStyle: () => {}, mapStyles: { status: 'ready', styles: [], source: null } };
+  // A block from its id to the next block's head, its second name's id inside it
+  const block = (html: string, id: string, next: string) => html.slice(html.lastIndexOf('<', html.indexOf(`id="query-field-${id}"`)), html.lastIndexOf('<', html.indexOf(`id="query-field-${next}"`)));
+  const URI = 'http://www.opengis.net/def/crs/EPSG/0/3857';
+
+  beforeEach(() => {
+    around.conformsTo = mapsBox.conformsTo;
+    issues.apiOperation = operation;
+    around.viewExtent = [-310358.74, 7222220.35, 5854403.34, 12391910.26];
+    around.viewSize = [954, 800];
+  });
+
+  it('names each by what’s sent, tags who declares it, and says, citing it, what the server does while it’s left out', () => {
+    around.requestUrl = ROOT;
+    const html = form(radar(), 'map', state);
+    expect(blockIds(html).slice(0, 6)).toEqual(['query', 'bbox', 'bbox-crs', 'width', 'height', 'crs']);
+    const box = shown(block(html, 'bbox', 'width'));
+    expect(box.startsWith('Box bbox · bbox-crs optional spatial-subsetting API docs')).toBe(true);
+    expect(box).toContain(`Left out: the whole map: the collection's extent ${MAPS1.wholeMap.label}`);
+    expect(box).toContain('Typed: west,south,east,north in CRS84');
+    expect(block(html, 'bbox', 'width')).toContain('placeholder="west,south,east,north"');
+    expect(block(html, 'bbox', 'width')).toContain('placeholder="CRS84"');
+    const size = shown(block(html, 'width', 'crs'));
+    expect(size.startsWith('Size width × height pixels · optional scaling spatial-subsetting API docs')).toBe(true);
+    expect(size).toContain("Use the map's size, 954 × 800");
+    expect(size).toContain('Left out: the server picks one. The API docs: Omitted over an area');
+    expect(block(html, 'width', 'crs')).toContain(`href="${MAPS1.widthDefinitionH.url}"`);
+    const crs = shown(block(html, 'crs', 'datetime'));
+    expect(crs.startsWith('Coordinate system crs 5 listed · optional crs API docs')).toBe(true);
+    expect(crs).toContain('CRS84 EPSG:4326 EPSG:3857 EPSG:3067 EPSG:3035');
+    expect(crs).toContain(`Left out: the storage CRS, storageCrs EPSG:3067 ${MAPS1.mapResponseB.label}`);
+    // Not under More
+    expect(shown(field(html, 'more'))).toBe('More: other parameters');
+    // The service's x-OGC-limits.maps, where its API docs' info has them
+    expect(size).not.toContain('x-OGC-limits');
+    around.docsIndex = { mapLimits: { maxWidth: 2048, maxHeight: null, maxPixels: null, pointer: '/info/x-OGC-limits/maps' } };
+    expect(shown(block(form(radar(), 'map', state), 'width', 'crs'))).toContain('x-OGC-limits.maps allows up to 2048 wide');
+  });
+
+  it('holds what the request has, typed, and shows each one’s issue in its block, a spatial subset’s clash in the box’s too', () => {
+    around.requestUrl = `${ROOT}?bbox=19,59,32&bbox-crs=EPSG:3035&width=0&height=9000&crs=${URI}&subset=Lon(19:32)`;
+    issues.list = [
+      { id: 'maps:subset:with-bbox', severity: 'error', source: 'maps', field: 'subset', message: 'Lon in subset with bbox: Maps 1.0 asks a 4xx for a spatial axis with either' },
+      { id: 'maps:bbox:numbers', severity: 'error', source: 'maps', field: 'bbox', message: 'bbox has 3 numbers' },
+      { id: 'maps:bbox-crs:valid', severity: 'warning', source: 'maps', field: 'bbox-crs', message: "EPSG:3035 isn't one of bbox-crs's valid values" },
+      { id: 'maps:width:integer', severity: 'error', source: 'maps', field: 'width', message: "width 0 isn't a positive integer" },
+      { id: 'openapi:height:maximum', severity: 'error', source: 'openapi', field: 'height', message: "height 9000 is past the API docs' maximum, 8000" },
+      { id: 'maps:crs:listed', severity: 'warning', source: 'maps', field: 'crs', message: 'not listed' },
+    ];
+    const html = form(radar(), 'map', state);
+    expect(['bbox', 'bbox-crs', 'width', 'height', 'crs'].map(name => typedValue(html, name))).toEqual(['19,59,32', 'EPSG:3035', '0', '9000', URI]);
+    const box = shown(block(html, 'bbox', 'width'));
+    expect(box).toContain('bbox has 3 numbers');
+    expect(box).toContain("EPSG:3035 isn't one of bbox-crs's valid values");
+    expect(box).toContain('Lon in subset with bbox');
+    expect(count(html, 'Lon in subset with bbox')).toBe(2);
+    expect(box).not.toContain('Left out');
+    // The grammar again while it's wrong
+    expect(box).toContain('Typed: west,south,east,north');
+    const size = shown(block(html, 'width', 'crs'));
+    expect(size).toContain("width 0 isn't a positive integer");
+    expect(size).toContain("height 9000 is past the API docs' maximum, 8000");
+    expect(shown(block(html, 'crs', 'datetime'))).toContain('not listed');
+    // The crs asked is pressed, and doesn't open More
+    expect(count(block(html, 'crs', 'datetime'), 'aria-pressed="true"')).toBe(1);
+    expect(field(html, 'more')).toContain('aria-expanded="false"');
+  });
+});

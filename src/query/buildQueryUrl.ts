@@ -6,8 +6,8 @@ import { wholeValue } from './dimensionText';
 export const TYPE_PARAMS: Readonly<Record<string, string[]>> = {
   corridor: ['corridor-width', 'width-units', 'corridor-height', 'height-units'],
   items: ['limit'],
-  // A map's subset, which its level and model run are written into, and the API docs' elevation
-  map: ['subset', 'elevation'],
+  // A map's box, size and CRS, its subset, which its level and model run are written into, and the API docs' elevation
+  map: ['bbox', 'bbox-crs', 'width', 'height', 'crs', 'subset', 'elevation'],
 };
 export const DATA_PARAMS: readonly string[] = ['crs'];
 
@@ -31,9 +31,9 @@ export function buildQueryUrl(model: QueryModel): string | null {
     let url = new URL(model.baseHref);
     const { queryType } = model;
     // A map is its link, styled or not, with what that link asks for, and what the form holds, which takes the place of
-    // the link's: a style's link fills those fields when it's picked. The parameter, the time, the subset and the API
-    // docs' elevation, then the format. Maps requires nothing more, and the form has no field for any other parameter
-    // yet: those typed in the line stay there, and are sent
+    // the link's: a style's link fills those fields when it's picked. The parameter, the time, the box, size and CRS, the
+    // subset and the API docs' elevation, then the format, each as typed. Maps requires nothing more, and the form has no
+    // field for any other parameter yet: those typed in the line stay there, and are sent
     if (queryType === 'map') {
       if (model.parameters.length > 0) url.searchParams.set('parameter-name', model.parameters.join(','));
       else url.searchParams.delete('parameter-name');

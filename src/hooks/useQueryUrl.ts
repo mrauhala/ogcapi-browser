@@ -10,8 +10,9 @@ import { intervalEnds, modeOf, switchMode, withEnd, type DimMode } from '../quer
 import { buildQueryUrl } from '../query/buildQueryUrl';
 import { matchDataQuery, matchInstance, readQuerySelections, type QuerySelections } from '../query/parseQueryUrl';
 import { readableUrl } from '../query/requestUrl';
-import { effectiveOutputFormats, keptFormat, queryTypeOf, queryVariables, unitsFor } from '../query/queryTypes';
+import { effectiveOutputFormats, queryTypeOf, queryVariables, unitsFor } from '../query/queryTypes';
 import { keptUnit } from '../query/units';
+import { querySwitch } from '../query/querySwitch';
 import { addApiDocsIssues, validateQuery } from '../query/validateQuery';
 import { checkQueryUrlAgainstOpenApi } from '../validation/openapi/checkQueryUrl';
 import { useInstances, type InstancesState } from './useInstances';
@@ -71,6 +72,9 @@ export interface UseQueryUrlReturn {
   selectedInstance: Instance | null;
   selectInstance: (id: string) => void;
   instanceQueryKey: string;
+  // What a switch of query couldn't take across, said where it would have gone: a map's box in a CRS the form can't
+  // turn into CRS84. '' for nothing
+  leftBehind: string;
   // One item of an items query, a part of its path: '' for the list
   itemId: string;
   setItemId: (item: string) => void;
@@ -115,6 +119,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [selectedInstanceId, setSelectedInstanceId] = useState('');
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
   const [itemId, setItemId] = useState('');
+  const [leftBehind, setLeftBehind] = useState('');
   // The style picked, and its own map link: '' to go by the path Maps gives a style, as for one from a typed URL. And
   // what its link put in the form's fields, by name, as text: the next style's link replaces those, unless they changed
   const [style, setStyle] = useState<{ id: string; href: string; linked: Record<string, string> }>(NO_STYLE);
@@ -151,22 +156,30 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setInstanceQueryKey('');
     setItemId('');
     setStyle(NO_STYLE);
+    setLeftBehind('');
   }, []);
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
 
   // What a newly picked query starts from: nothing that wasn't chosen, not even the format the query
-  // names as its default. The output format and the radius's unit stay if the new query offers them.
-  // Another query type's sizes and units go (a radius goes with the map's query type), and the map
-  // hears the query type, which drops geometry the new type can't use. The query is a collection's,
-  // or an instance's.
+  // names as its default, and of what was, what the new query takes (querySwitch). The radius's unit
+  // stays if the new query offers it. The map hears the query type, which drops geometry the new type
+  // can't use, and then takes a map query's box carried across. The query is a collection's, or an
+  // instance's.
   const applyQueryDefaults = useCallback((collection: Collection, queryKey: string) => {
-    setSelectedFormat(current => keptFormat(collection, queryKey, current));
-    const queryType = queryKey ? queryTypeOf(collection, queryKey) : '';
-    if (queryType !== dataQuery) setQueryParams({});
-    if (queryType === 'radius') setRadiusUnits(keptUnit(unitsFor(queryVariables(collection, queryKey), 'within'), radiusUnits));
-    setDataQuery(queryType);
-  }, [dataQuery, setDataQuery, setRadiusUnits, radiusUnits]);
+    const next = querySwitch(collection, queryKey, dataQuery, {
+      format: selectedFormat, parameters: selectedParameters, queryParams, drawn: selectedBbox, datetime, filterByTime, hasLocation: !!selectedFeature,
+    });
+    setSelectedFormat(next.format);
+    if (next.parameters !== selectedParameters) setSelectedParameters(next.parameters);
+    if (next.queryParams !== queryParams) setQueryParams(next.queryParams);
+    setLeftBehind(next.leftBehind);
+    setFilterByTime(next.filterByTime);
+    if (next.queryType === 'radius') setRadiusUnits(keptUnit(unitsFor(queryVariables(collection, queryKey), 'within'), radiusUnits));
+    setDataQuery(next.queryType);
+    // After the map's own clearing of the geometry the new kind of query can't use
+    if (next.carried) setSelectedBbox(next.carried);
+  }, [dataQuery, setDataQuery, setRadiusUnits, radiusUnits, selectedFormat, selectedParameters, queryParams, selectedBbox, setSelectedBbox, datetime, filterByTime, selectedFeature]);
 
   // Switch the collection's data query, leaving any instance
   const selectDataQuery = useCallback((collection: Collection, queryKey: string) => {
@@ -445,6 +458,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     instances, selectedInstance, selectInstance,
     instanceQueryKey, selectInstanceQuery,
     itemId, setItemId,
+    leftBehind,
     styleId: style.id, styleByLink: !!style.href, selectStyle, mapStyles,
     queryTarget: target,
     resetQueryState,

@@ -23,6 +23,7 @@ import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useMapInteraction } from './contexts/MapInteractionContext';
 import { useOpenCollection } from './contexts/OpenCollectionContext';
 import { useApi } from './contexts/ApiContext';
+import { useOpenApi } from './contexts/OpenApiContext';
 import { usePanes } from './contexts/PanesContext';
 import { useQueryValidation } from './hooks/useQueryValidation';
 import ParamField from './queryForm/ParamField';
@@ -42,6 +43,7 @@ import ParameterRows from './queryForm/ParameterRows';
 import { hasParameterNames, mapOffer, mapProfileNames, parameterRows, styleDeclarers } from './query/mapOffer';
 import { axisBody, subsetIn } from './query/subsetText';
 import { ElevationValue, MapTimeValue, SubsetAxisValue, SubsetValue } from './queryForm/MapDimensionFields';
+import { MapBoxValue, MapCrsValue, MapSizeValue } from './queryForm/MapBoxFields';
 
 interface CollectionQueryBuilderProps {
   collection: Collection;
@@ -143,7 +145,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     queryParams, setQueryParam,
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,
-    mapStyles,
+    mapStyles, leftBehind,
   } = queryState;
   const { radiusUnits, setRadiusUnits } = useMapInteraction();
   const { issues, apiOperation } = useQueryValidation();
@@ -174,6 +176,22 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     if (queryType === 'map' && spec.name === 'elevation') {
       return { control: <ElevationValue spec={spec} queryState={queryState} text={typed('elevation', spec.options?.length ? 'Pick a level below, or type one' : 'A number')} />, empty: !sent('elevation') };
     }
+    // A map's box, size and CRS: each block holds both its names, typed as sent
+    if (queryType === 'map' && spec.name === 'bbox') {
+      return {
+        control: <MapBoxValue collection={collection} queryState={queryState} bboxText={typed('bbox', 'west,south,east,north')} bboxCrsText={typed('bbox-crs', 'CRS84')} />,
+        empty: !sent('bbox'),
+      };
+    }
+    if (queryType === 'map' && spec.name === 'width') {
+      return {
+        control: <MapSizeValue collection={collection} queryState={queryState} widthText={typed('width', 'width', 128)} heightText={typed('height', 'height', 128)} />,
+        empty: !sent('width') && !sent('height'),
+      };
+    }
+    if (queryType === 'map' && spec.name === 'crs') {
+      return { control: <MapCrsValue options={spec.options ?? []} queryState={queryState} crsText={typed('crs', 'A URI from the list, or its safe CURIE')} />, empty: !sent('crs') };
+    }
     switch (spec.name) {
       case 'coords':
         return { control: <CoordsValue error={hasError('coords')} warning={hasWarning('coords')} />, empty: !sent('coords') };
@@ -184,6 +202,10 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
               <ParamText name="bbox" placeholder="west,south,east,north" error={hasError('bbox')} warning={hasWarning('bbox')} />
               <BoxPickers collection={collection} requiredByApiDocs={!!apiOperation?.required.includes('coords')}
                 bboxAsCoords={queryType === 'cube' && bboxAsCoords} setBboxAsCoords={setBboxAsCoords} />
+              {/* A map's box the switch here couldn't take across, while there's none */}
+              {leftBehind && !sent('bbox') && (
+                <Typography component="div" sx={{ fontSize: 12, lineHeight: '16px', mt: 0.5, color: 'text.secondary' }}>{leftBehind}</Typography>
+              )}
             </>
           ),
           empty: !sent('bbox'),
@@ -283,16 +305,19 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
       {specs.map(spec => {
         const { control, empty } = valueOf(spec);
         const unit = spec.unit ? valueOf(spec.unit) : null;
-        // A size's issues, then its unit's
-        const own = [...issuesOf(spec.id), ...(spec.unit ? issuesOf(spec.unit.id) : [])];
+        // A size's issues, then its unit's. A map's box also shows a spatial subset's clash with it, which is the subset's
+        const own = [
+          ...issuesOf(spec.id), ...(spec.unit ? issuesOf(spec.unit.id) : []),
+          ...(queryType === 'map' && spec.id === 'bbox' ? issues.filter(issue => issue.id === 'maps:subset:with-bbox') : []),
+        ];
         // How to type it, while there's nothing to read or what's there is wrong
         const grammar = spec.grammar && (empty || own.some(issue => issue.severity === 'error')) ? [spec.grammar] : [];
         return (
           <React.Fragment key={spec.id}>
-            <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} · ${spec.unit.name}` : spec.axis ? `${spec.name}=${spec.axis}(…)` : spec.name} figure={spec.figure}
+            <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} ${spec.unitJoin ?? '·'} ${spec.unit.name}` : spec.axis ? `${spec.name}=${spec.axis}(…)` : spec.name} figure={spec.figure}
               requirement={spec.requirement} declaredBy={spec.declaredBy} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
               leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
-              {spec.unit && unit ? (
+              {spec.unit && unit?.control ? (
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
                   <Box sx={{ width: 128, flexShrink: 0 }}>{control}</Box>
                   {/* Its own id, for the status line's within-units to jump to */}
@@ -349,6 +374,7 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
   const { leaveQuery } = useOpenCollection();
   const { apiOperation, issues } = useQueryValidation();
   const { conformsTo } = useApi();
+  const { index: docsIndex } = useOpenApi();
   const openDocs = useOpenDocs();
   const { selectedFeature } = useCollection();
   const { requestUrl } = useRequestUrl();
@@ -361,6 +387,7 @@ const CollectionQueryBuilder: React.FC<CollectionQueryBuilderProps> = ({ collect
   const specs = target
     ? fieldSpecs(target.collection, target.queryKey, { parameters: selectedParameters.length }, {
       apiRequired: apiOperation?.required, hasLocation: !!selectedFeature, hasItem: !!itemId, inRequest, conformsTo, apiDocs: apiOperation?.params ?? null,
+      mapLimits: docsIndex?.mapLimits,
     })
     : [];
   const forLocations = !!target && queryTypeOf(target.collection, target.queryKey) === 'locations';

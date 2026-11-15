@@ -22,10 +22,20 @@ export interface OperationEntry {
   params: ResolvedParam[];
 }
 
+// The service's limits on a map's size, from the API docs' info, x-OGC-limits.maps: Maps 1.0 /rec/scaling/max-width-height
+// A, "If absent the server imposes no limit"
+export interface MapLimits {
+  maxWidth: number | null;
+  maxHeight: number | null;
+  maxPixels: number | null;
+  pointer: string;
+}
+
 export interface OperationIndex {
   docUrl: string;
   basePaths: string[]; // path prefixes from `servers`, '' for the host root
   entries: OperationEntry[];
+  mapLimits?: MapLimits | null; // x-OGC-limits.maps, where the info gives it
 }
 
 export interface OperationMatch {
@@ -123,7 +133,16 @@ export function buildOperationIndex(description: { url: string; doc: Json }): Op
       params: resolveParams(doc, pathItem, pathPointer, get, `${pathPointer}/get`),
     });
   }
-  return { docUrl: description.url, basePaths: serverBasePaths(doc, description.url), entries };
+  return { docUrl: description.url, basePaths: serverBasePaths(doc, description.url), entries, mapLimits: mapLimitsOf(doc) };
+}
+
+// x-OGC-limits.maps in the API docs' info: "Service metadata may be provided as an extension of the info section of the
+// OpenAPI document". A limit that isn't a positive number is none
+function mapLimitsOf(doc: Json): MapLimits | null {
+  const maps = asObject(asObject(asObject(doc.info)?.['x-OGC-limits'])?.maps);
+  if (!maps) return null;
+  const limit = (name: string) => (typeof maps[name] === 'number' && (maps[name] as number) > 0 ? maps[name] as number : null);
+  return { maxWidth: limit('maxWidth'), maxHeight: limit('maxHeight'), maxPixels: limit('maxPixels'), pointer: '/info/x-OGC-limits/maps' };
 }
 
 function matchSegments(entry: OperationEntry, segments: string[]): Record<string, string> | null {

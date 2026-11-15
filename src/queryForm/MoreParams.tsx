@@ -70,7 +70,8 @@ const MoreParams: React.FC<{
   const others = paramsIn(requestUrl).filter(([name]) => !held.has(name));
   const [toggled, setToggled] = useState<boolean | null>(null);
   const [adding, setAdding] = useState<{ name: string; value: string } | null>(null);
-  const open = toggled ?? (!!crs || others.length > 0 || !!adding);
+  // A map's crs has a field of its own: only crs_details' opens More
+  const open = toggled ?? ((offered.length > 0 && !!crs) || others.length > 0 || !!adding);
 
   // A name the form has a field for goes to that field: the form reads the line again
   const edit = (url: string, follow: boolean) => {

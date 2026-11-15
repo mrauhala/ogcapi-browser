@@ -87,13 +87,13 @@ export interface View {
 }
 
 // The box's decimals: a tenth of a pixel, and at least 3
-function boxDecimals({ bbox: [west, south, east, north], width, height }: View): number {
+export function boxDecimals({ bbox: [west, south, east, north], width, height }: View): number {
   const perPixel = Math.min(Math.abs(east - west) / Math.max(1, width), Math.abs(north - south) / Math.max(1, height));
   // A hair less, so that a tenth of a pixel of 0.00001° is 6 decimals, not 7 from rounding
   return perPixel > 0 && isFinite(perPixel) ? Math.max(3, Math.ceil(-Math.log10(perPixel / 10) - 1e-6)) : 3;
 }
 
-const rounded = (value: number, decimals: number) => String(Number(value.toFixed(decimals)));
+export const rounded = (value: number, decimals: number) => String(Number(value.toFixed(decimals)));
 
 // The map for one view: the view's box, size and CRS, then the choices
 export function viewUrl(endpoint: string, params: Pairs, view: View): string {
