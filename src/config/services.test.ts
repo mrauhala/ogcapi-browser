@@ -21,6 +21,11 @@ describe('service presets', () => {
     expect(services).toContainEqual({ label: 'DMI Forecast', url: 'https://opendataapi.dmi.dk/v1/forecastedr/', type: 'EDR' });
   });
 
+  it("include MeteoCore's root, for its Maps, Tiles and Features, beside its EDR", () => {
+    expect(services).toContainEqual({ label: 'MeteoCore', url: 'https://meteocore.app.meteo.fi', type: 'Maps' });
+    expect(services).toContainEqual({ label: 'MeteoCore EDR', url: 'https://meteocore.app.meteo.fi/edr/', type: 'EDR' });
+  });
+
   it('include Instituto Hidrográfico', () => {
     expect(services).toContainEqual({ label: 'Instituto Hidrográfico (PT)', url: 'https://ogcapi.hidrografico.pt', type: 'EDR' });
   });
