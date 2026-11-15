@@ -27,7 +27,7 @@ export function useMapsAnimation(): UseMapsAnimationReturn {
     const m: Record<string, string[]> = {};
     for (const l of mapsLayers) {
       if (!l.bundleId) continue;
-      (m[l.bundleId] ||= [])[l.frameIndex ?? 0] = l.frameTime ?? l.datetime ?? '';
+      (m[l.bundleId] ||= [])[l.frameIndex ?? 0] = l.frameTime ?? '';
     }
     return m;
   }, [mapsLayers]);

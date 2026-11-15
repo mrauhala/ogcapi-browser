@@ -143,6 +143,13 @@ describe('mapStylesOf and linkQuery', () => {
     expect(mapStylesOf({ styles: [] })).toEqual([]);
   });
 
+  it('keeps a style’s own tilesets link, where it has one, which MeteoCore’s styles don’t', () => {
+    const tilesRel = 'http://www.opengis.net/def/rel/ogc/1.0/tilesets-map';
+    const [night] = mapStylesOf([{ id: 'night', links: [{ href: `${ROOT}/one/styles/night/map/tiles`, rel: tilesRel }] }]);
+    expect(night.tilesHref).toBe(`${ROOT}/one/styles/night/map/tiles`);
+    expect(mapStylesOf(meteocore.styles['ecmwf-ifs-pressure'].styles).every(style => !('tilesHref' in style))).toBe(true);
+  });
+
   it('says what a link asks for besides its path', () => {
     expect(linkQuery(`${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh`)).toEqual(['parameter-name=gh']);
     expect(linkQuery(`${ROOT}/one/map`)).toEqual([]);

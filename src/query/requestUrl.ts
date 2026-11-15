@@ -9,12 +9,15 @@ const readable = (text: string) => encodeURIComponent(text)
 
 const pairOf = (name: string, value: string) => `${readable(name)}=${readable(value)}`;
 
+// Name and value pairs as a query, written as readableUrl writes one
+export const readableQuery = (pairs: Iterable<[string, string]>): string => [...pairs].map(([name, value]) => pairOf(name, value)).join('&');
+
 // Query values show their ( ) , : / " and spaces as themselves, as a map's subset=time("…") is written. What would
 // change the URL's meaning (+ & = # %) stays encoded, and the browser sends the spaces and quotes encoded.
 export function readableUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    const query = [...parsed.searchParams].map(([name, value]) => pairOf(name, value)).join('&');
+    const query = readableQuery(parsed.searchParams);
     const { hash } = parsed;
     parsed.search = '';
     parsed.hash = '';

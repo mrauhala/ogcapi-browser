@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { encodedUrl, isSendableUrl, mergeEditedUrl, paramOf, paramsIn, readableUrl, renameParam, shortUrl, urlTokens, withParam } from './requestUrl';
+import { encodedUrl, isSendableUrl, mergeEditedUrl, paramOf, paramsIn, readableQuery, readableUrl, renameParam, shortUrl, urlTokens, withParam } from './requestUrl';
 
 const BASE = 'https://api.test/edr/collections/c/position';
 
@@ -43,6 +43,15 @@ describe('readableUrl', () => {
 
   it('returns what it can\'t parse as it came', () => {
     expect(readableUrl('not a url')).toBe('not a url');
+  });
+});
+
+describe('readableQuery', () => {
+  it('writes pairs as readableUrl writes a query: ( ) , : / " as themselves, & = + # % encoded', () => {
+    expect(readableQuery([['subset', 'reference_time("2026-11-12T18:00:00Z"),vertical(850)'], ['crs', 'http://www.opengis.net/def/crs/EPSG/0/3857']]))
+      .toBe('subset=reference_time("2026-11-12T18:00:00Z"),vertical(850)&crs=http://www.opengis.net/def/crs/EPSG/0/3857');
+    expect(readableQuery([['a&b', 'c=d+e#f%']])).toBe('a%26b=c%3Dd%2Be%23f%25');
+    expect(readableQuery([])).toBe('');
   });
 });
 

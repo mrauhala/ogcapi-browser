@@ -122,94 +122,32 @@ export function isWebMercatorQuad(uriOrId?: string): boolean {
   return uriOrId === 'WebMercatorQuad';
 }
 
-// Pick a WebMercatorQuad entry from a tilesets list and resolve its tile-URL template.
-// Returns the XYZ template (with {z}/{x}/{y} placeholders) if discoverable; otherwise null.
-export async function resolveWebMercatorTileTemplate(
-  tilesetsUrl: string,
-  format: string,
-  auth?: AuthCredentials,
-  signal?: AbortSignal,
-): Promise<string | null> {
+// A tile URL template, with {z}, {y} and {x}, and its media type where the link gives one
+export interface TileTemplate {
+  href: string;
+  type?: string;
+}
+
+// The tile URL templates of a link list: Tiles' "tile" relation, or `item` as MeteoCore's list has them, with
+// {tileMatrix}, {tileRow} and {tileCol} as OpenLayers' XYZ writes them, {z}, {y} and {x}, each with its type
+export function tileTemplatesOf(links?: Link[]): TileTemplate[] {
+  return (links ?? []).flatMap(link => {
+    if (link.rel !== 'item' && link.rel !== 'http://www.opengis.net/def/rel/ogc/1.0/tile') return [];
+    const href = normalizeHref(link.href);
+    if (!href || !(href.includes('{tileMatrix}') || href.includes('{z}'))) return [];
+    const xyz = href.replace('{tileMatrix}', '{z}').replace('{tileRow}', '{y}').replace('{tileCol}', '{x}');
+    return [{ href: xyz, ...(link.type ? { type: link.type } : {}) }];
+  });
+}
+
+// The tile URL templates of a tilesets list's WebMercatorQuad tileset: on its entry in the list, else in the tileset's
+// own document. Empty where there's none
+export async function resolveWebMercatorTileTemplates(tilesetsUrl: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<TileTemplate[]> {
   const list = await fetchTilesetsList(tilesetsUrl, auth, signal);
-  if (!list) return null;
-
-  // Find WebMercatorQuad tileset
-  const wmq = list.tilesets.find(t => isWebMercatorQuad(t.tileMatrixSetURI) || isWebMercatorQuad(t.tileMatrixSetId));
-  if (!wmq) return null;
-
-  // The tileset entry usually has rel="item" link with the tileset metadata URL,
-  // and the metadata document carries the actual `tileMatrixSetLimits` and the templated tile URL.
-  // The spec's "tile" link relation carries the URI template, on either the list entry or the tileset metadata.
-  const findTileTemplate = (links?: Link[]): string | null => {
-    if (!links) return null;
-    for (const link of links) {
-      const isTile = link.rel === 'item' || link.rel === 'http://www.opengis.net/def/rel/ogc/1.0/tile';
-      if (!isTile) continue;
-      if (link.type && format && !link.type.includes(format.split('/').pop() ?? format)) continue;
-      const href = normalizeHref(link.href);
-      if (href && (href.includes('{tileMatrix}') || href.includes('{z}'))) return href;
-    }
-    return null;
-  };
-
-  // 1. Try templated tile URL on the list entry itself.
-  let template = findTileTemplate(wmq.links);
-
-  // 2. Otherwise, fetch the tileset metadata via its self link and look there.
-  if (!template) {
-    const selfLink = wmq.links?.find(l => l.rel === 'self' || l.rel === 'item');
-    const metaUrl = normalizeHref(selfLink?.href);
-    if (metaUrl) {
-      const meta = await fetchTileset(metaUrl, auth, signal);
-      template = findTileTemplate(meta?.links);
-    }
-  }
-
-  if (!template) return null;
-  // OGC API - Tiles uses {tileMatrix}/{tileRow}/{tileCol}; OpenLayers XYZ wants {z}/{y}/{x}.
-  return template
-    .replace('{tileMatrix}', '{z}')
-    .replace('{tileRow}', '{y}')
-    .replace('{tileCol}', '{x}');
-}
-
-export interface DynamicMapParams {
-  bbox?: [number, number, number, number];
-  bboxCrs?: string;
-  width?: number;
-  height?: number;
-  crs?: string;
-  styleId?: string;
-  format?: string;
-  datetime?: string;
-  // Vertical dimension (OGC API Maps `elevation`) — instant ("500") or interval ("500/850").
-  elevation?: string;
-  // Additional (UAD) dimensions, each serialized as its own query param named by dimension id.
-  dimensions?: Record<string, string>;
-  transparent?: boolean;
-  bgcolor?: string;
-}
-
-// Build a GET /map URL with the given params. Omits unset values.
-export function buildDynamicMapUrl(endpoint: string, params: DynamicMapParams): string {
-  const url = new URL(endpoint);
-  if (params.bbox) url.searchParams.set('bbox', params.bbox.join(','));
-  if (params.bboxCrs) url.searchParams.set('bbox-crs', params.bboxCrs);
-  if (params.width !== undefined) url.searchParams.set('width', String(params.width));
-  if (params.height !== undefined) url.searchParams.set('height', String(params.height));
-  if (params.crs) url.searchParams.set('crs', params.crs);
-  if (params.datetime) url.searchParams.set('datetime', params.datetime);
-  if (params.elevation) url.searchParams.set('elevation', params.elevation);
-  if (params.dimensions) {
-    for (const [name, value] of Object.entries(params.dimensions)) {
-      if (value) url.searchParams.set(name, value);
-    }
-  }
-  // Fallback only: style is normally applied via path routing (a style's own /map link). This is
-  // used when a style is selected but the server exposes only a generic /map endpoint.
-  if (params.styleId) url.searchParams.set('styles', params.styleId);
-  if (params.transparent !== undefined) url.searchParams.set('transparent', String(params.transparent));
-  if (params.bgcolor) url.searchParams.set('bgcolor', params.bgcolor);
-  if (params.format) url.searchParams.set('f', params.format);
-  return url.toString();
+  const wmq = list?.tilesets.find(t => isWebMercatorQuad(t.tileMatrixSetURI) || isWebMercatorQuad(t.tileMatrixSetId));
+  if (!wmq) return [];
+  const templates = tileTemplatesOf(wmq.links);
+  if (templates.length) return templates;
+  const metaUrl = normalizeHref(wmq.links?.find(l => l.rel === 'self' || l.rel === 'item')?.href);
+  return metaUrl ? tileTemplatesOf((await fetchTileset(metaUrl, auth, signal))?.links) : [];
 }
