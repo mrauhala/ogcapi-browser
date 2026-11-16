@@ -31,6 +31,13 @@ interface MapInteractionContextValue {
   setViewExtent: (extent: [number, number, number, number] | null) => void;
   viewSize: [number, number] | null;
   setViewSize: (size: [number, number] | null) => void;
+  // The view is changing, as while it's dragged or animates to a collection or a query: viewExtent is the last it settled at
+  viewMoving: boolean;
+  setViewMoving: (moving: boolean) => void;
+  // A box to draw once, for a field that takes one: the map draws it as it does a cube's and hands it over, lon/lat.
+  // Null while none is asked for. drawBox(null) stops asking
+  boxDrawer: ((box: BBox) => void) | null;
+  drawBox: (take: ((box: BBox) => void) | null) => void;
 }
 
 const MapInteractionContext = createContext<MapInteractionContextValue | null>(null);
@@ -46,9 +53,13 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
   const dataQueryRef = useRef('');
   const [viewExtent, setViewExtent] = useState<[number, number, number, number] | null>(null);
   const [viewSize, setViewSize] = useState<[number, number] | null>(null);
+  const [viewMoving, setViewMoving] = useState(false);
   const [queryZoom, setQueryZoom] = useState(0);
   const zoomToQueryWhenPlaced = useCallback(() => setQueryZoom(count => count + 1), []);
   const [responseLocation, showResponseLocation] = useState<GeoJsonFeature | null>(null);
+  const [boxDrawer, setBoxDrawer] = useState<((box: BBox) => void) | null>(null);
+  // A function in state is set through an updater
+  const drawBox = useCallback((take: ((box: BBox) => void) | null) => setBoxDrawer(() => take), []);
 
   // Points stay when switching position ↔ radius, a line trajectory ↔ corridor
   const setDataQuery = useCallback((queryType: string) => {
@@ -96,7 +107,11 @@ export function MapInteractionProvider({ children }: { children: ReactNode }) {
     setViewExtent,
     viewSize,
     setViewSize,
-  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize, queryZoom, zoomToQueryWhenPlaced, responseLocation]);
+    viewMoving,
+    setViewMoving,
+    boxDrawer,
+    drawBox,
+  }), [clickedCoords, selectedArea, selectedBbox, radius, radiusUnits, setRadiusUnits, dataQuery, setDataQuery, viewExtent, viewSize, viewMoving, queryZoom, zoomToQueryWhenPlaced, responseLocation, boxDrawer, drawBox]);
 
   return (
     <MapInteractionContext.Provider value={value}>

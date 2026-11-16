@@ -60,8 +60,8 @@ describe('the Maps classes', () => {
 describe('a map’s fields', () => {
   it('are its parameter, from parameter_names, and its format, from the API docs, each tagged by who declared it', () => {
     const fields = specs(aifs(), AIFS_DOCS);
-    // Its time, level and subset between them: see mapDimensions.test.ts
-    expect(fields.map(field => field.name)).toEqual(['parameter-name', 'datetime', 'elevation', 'subset', 'f']);
+    // Its box, size and CRS first, and its time, level and subset between: see mapBox.test.ts and mapDimensions.test.ts
+    expect(fields.map(field => field.name)).toEqual(['bbox', 'width', 'crs', 'parameter-name', 'datetime', 'elevation', 'subset', 'f']);
     const parameter = one(fields, 'parameter-name');
     expect(parameter).toMatchObject({ title: 'Parameter', requirement: 'optional', figure: '18 listed', choice: 'one' });
     expect(tags(parameter)).toEqual(['MetOcean Maps (draft)', 'API docs']);
@@ -95,10 +95,11 @@ describe('a map’s fields', () => {
 
   it('without API docs: the parameter on the draft’s word, one at a time, and no format', () => {
     const fields = specs(ifs(), null);
-    expect(fields.map(field => field.name)).toEqual(['parameter-name', 'datetime', 'subset']);
-    expect(tags(fields[0])).toEqual(['MetOcean Maps (draft)']);
-    expect(fields[0].declaredBy?.[0]).toBe(METOCEAN_MAPS_DRAFT);
-    expect(fields[0].hints).toEqual(["From the collection's `parameter_names`. One at a time: nothing says it takes several"]);
+    expect(fields.map(field => field.name)).toEqual(['bbox', 'width', 'crs', 'parameter-name', 'datetime', 'subset']);
+    const parameter = one(fields, 'parameter-name');
+    expect(tags(parameter)).toEqual(['MetOcean Maps (draft)']);
+    expect(parameter.declaredBy?.[0]).toBe(METOCEAN_MAPS_DRAFT);
+    expect(parameter.hints).toEqual(["From the collection's `parameter_names`. One at a time: nothing says it takes several"]);
   });
 
   it('for a collection without parameter_names, the API docs’ parameter, typed', () => {
@@ -112,7 +113,7 @@ describe('a map’s fields', () => {
   it('show what the request has though nobody declares it, untagged, and nothing for what isn’t there', () => {
     expect(specs(radar(), null, { conformsTo: null })).toEqual([]);
     const fields = specs(radar(), null, { inRequest: ['parameter-name', 'f', 'bbox'], conformsTo: null });
-    expect(fields.map(field => [field.name, tags(field)])).toEqual([['parameter-name', []], ['f', []]]);
+    expect(fields.map(field => [field.name, tags(field)])).toEqual([['bbox', []], ['parameter-name', []], ['f', []]]);
     expect(one(fields, 'parameter-name').hints).toEqual(['The collection has no `parameter_names` to pick from']);
     expect(one(fields, 'f')).toMatchObject({ options: [], marked: undefined, leftOut: "by `Accept`, which the app sends as `*/*`: the server's default" });
   });

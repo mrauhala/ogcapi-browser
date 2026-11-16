@@ -151,20 +151,26 @@ const NOTHING_HELD: QuerySelections = {
   bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: {},
 };
 
+// What a map's form holds as typed, one text each
+const MAP_TEXTS = ['bbox', 'bbox-crs', 'width', 'height', 'crs', 'elevation'];
+
 export function readQuerySelections(url: string, collection: Collection, queryKey: string): QuerySelections {
   const params = new URL(url).searchParams;
   const queryType = queryTypeOf(collection, queryKey);
-  // Of a map's parameters, the form holds its parameter, time, subset, elevation and format. The rest stay in the line
-  // as typed, and are sent. Several subset parameters are read as one, comma-separated, as Maps 1.0 has them:
-  // /req/spatial-subsetting/subset-definition I, "Multiple subset parameters SHALL be interpreted, as if all dimension
-  // subsetting values were provided in a single subset parameter (comma separated)"
+  // Of a map's parameters, the form holds its parameter, time, box, size, CRS, subset, elevation and format, as typed. The
+  // rest stay in the line as typed, and are sent. Several subset parameters are read as one, comma-separated, as Maps 1.0
+  // has them: /req/spatial-subsetting/subset-definition I, "Multiple subset parameters SHALL be interpreted, as if all
+  // dimension subsetting values were provided in a single subset parameter (comma separated)"
   if (queryType === 'map') {
     return {
       ...NOTHING_HELD, customDims: {}, points: [], polygons: [],
       format: params.get('f') ?? '',
       parameters: parameterNames(params),
       datetime: params.get('datetime') ?? '',
-      queryParams: { subset: params.getAll('subset').filter(value => value.trim()).join(','), elevation: params.get('elevation') ?? '' },
+      queryParams: {
+        ...Object.fromEntries(MAP_TEXTS.map(name => [name, params.get(name) ?? ''])),
+        subset: params.getAll('subset').filter(value => value.trim()).join(','),
+      },
     };
   }
   const kind = geometryKindOf(queryType);

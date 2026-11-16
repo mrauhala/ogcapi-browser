@@ -157,7 +157,10 @@ describe('the axes to pick', () => {
 
 describe('a map’s fields for time, levels, runs and subset', () => {
   it('are the time, the level, the API docs’ elevation, the model run and subset, each tagged by who declared it', () => {
-    const fields = specsOf(ifs());
+    // After the box, the size and the CRS: see mapBox.test.ts
+    const all = specsOf(ifs());
+    expect(all.slice(0, 3).map(field => field.id)).toEqual(['bbox', 'width', 'crs']);
+    const fields = all.slice(3);
     expect(fields.map(field => field.id)).toEqual(['datetime', 'subset:vertical', 'elevation', 'subset:reference_time', 'subset']);
     expect(fields.map(tags)).toEqual([['datetime', 'API docs'], ['MetOcean Maps (draft)'], ['API docs'], ['MetOcean Maps (draft)', 'API docs'], ['spatial-subsetting', 'datetime', 'MetOcean Maps (draft)', 'API docs']]);
     // Nothing is filled in: each says what the server does without it

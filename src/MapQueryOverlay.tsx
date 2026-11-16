@@ -25,6 +25,8 @@ const PROMPTS: Record<string, QueryPrompt> = {
     title: 'Draw the Corridor on Map', text: 'Click to add points along the centre line; double-click to finish', clear: 'Clear Corridor', accent: 'red',
   },
   cube: { title: 'Draw a Box on Map', text: 'Click one corner of the box, then the opposite corner', clear: 'Clear Box', accent: 'red' },
+  // A field's one box, as a map query's bbox: drawn as a cube's, and stopping leaves the field as it is
+  'one-box': { title: 'Draw a Box on Map', text: 'Click one corner of the box, then the opposite corner: it goes into bbox', clear: 'Stop Drawing', accent: 'red' },
   items: { clear: 'Clear Box', accent: 'red' },
   locations: { clear: 'Clear Location', accent: 'red' },
   area: { title: 'Draw Areas on Map', text: 'Click to add vertices, double-click to complete each polygon', clear: 'Clear Polygons', accent: 'red' },

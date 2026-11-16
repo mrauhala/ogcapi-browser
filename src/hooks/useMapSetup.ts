@@ -61,7 +61,7 @@ export interface UseMapSetupReturn {
 export function useMapSetup(zoomLevel: number): UseMapSetupReturn {
   const { setSelectedGeoJsonFeature } = useGeoJsonLayers();
   const { locationFeatures, selectedFeature, setSelectedFeature } = useCollection();
-  const { dataQuery, setViewExtent, setViewSize } = useMapInteraction();
+  const { dataQuery, setViewExtent, setViewSize, setViewMoving } = useMapInteraction();
 
   const [map, setMap] = useState<Map | null>(null);
   const [vectorLayer, setVectorLayer] = useState<VectorLayer<VectorSource> | null>(null);
@@ -220,6 +220,9 @@ export function useMapSetup(zoomLevel: number): UseMapSetupReturn {
     };
     openLayersMap.on('moveend', publishView);
     openLayersMap.once('postrender', publishView);
+    // While the view changes, the extent last published isn't what the map will show
+    openLayersMap.on('movestart', () => setViewMoving(true));
+    openLayersMap.on('moveend', () => setViewMoving(false));
 
     // A marker is small, so near one counts as on it, and the nearest wins
     const locationAt = (pixel: Pixel) => openLayersMap.getFeaturesAtPixel(pixel, {
@@ -306,7 +309,7 @@ export function useMapSetup(zoomLevel: number): UseMapSetupReturn {
       openLayersMap.un('moveend', publishView);
       openLayersMap.setTarget(undefined);
     };
-  }, [zoomLevel, setSelectedGeoJsonFeature, setViewExtent, setViewSize]);
+  }, [zoomLevel, setSelectedGeoJsonFeature, setViewExtent, setViewSize, setViewMoving]);
 
   // Zoom in on a location selected in the list or search. One picked on the map is already in view,
   // and zooming in would mean zooming back out to pick another

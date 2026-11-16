@@ -52,6 +52,13 @@ describe('ParamField', () => {
     expect(words(render({ leftOut: "the server's default", empty: false }))).toBe('Output format f');
   });
 
+  it('cites the rule that says what the server does while it’s left out, where one does', () => {
+    const html = render({ leftOut: { text: "the whole map: the collection's `extent`", rule: FEATURES1.timeDefinition }, empty: true });
+    expect(words(html)).toBe(`Output format f Left out: the whole map: the collection's extent ${FEATURES1.timeDefinition.label}`);
+    expect(html).toContain(`href="${FEATURES1.timeDefinition.url}"`);
+    expect(count(html, '<code')).toBe(1);
+  });
+
   it('lists its issues, with a way into the API docs on theirs', () => {
     const html = render({ issues: [issue('missing', 'Pick a format'), issue('error', 'Not offered', 'openapi')], openDocs: () => {} });
     expect(words(html)).toBe('Output format f Pick a format Not offered API docs');

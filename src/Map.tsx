@@ -1,5 +1,5 @@
 // ...existing imports...
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import 'ol/ol.css';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
@@ -11,6 +11,7 @@ import ResponseCellsBar from './ResponseCellsBar';
 import { useGeoJsonLayers } from './contexts/GeoJsonLayerContext';
 import { useMapInteraction } from './contexts/MapInteractionContext';
 import { useQueryBuilder } from './contexts/QueryBuilderContext';
+import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useApi } from './contexts/ApiContext';
 import { useCollection } from './contexts/CollectionContext';
 import { usePanes } from './contexts/PanesContext';
@@ -25,9 +26,10 @@ import { useMapInteractions } from './hooks/useMapInteractions';
 import { useLayerManagerSync } from './hooks/useLayerManagerSync';
 import MapQueryOverlay from './MapQueryOverlay';
 import RadiusUnits from './RadiusUnits';
-import { zoomToOverview, zoomToQuery } from './mapView';
+import { linkZoomWaits, zoomToOverview, zoomToQuery, type LinkZoom } from './mapView';
 import { queryExtent } from './query/queryExtent';
-import { geometryKindOf } from './query/queryTypes';
+import { geometryKindOf, queryTypeOf } from './query/queryTypes';
+import { boxLonLat } from './query/mapBox';
 import { rangeFor, unitToMeters } from './query/units';
 
 
@@ -54,10 +56,18 @@ const overviewButtonSx = {
 const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   // Context values for JSX rendering
   const { geoJsonLayers, setGeoJsonLayers, selectedGeoJsonFeature, setSelectedGeoJsonFeature } = useGeoJsonLayers();
-  const { clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, queryZoom } = useMapInteraction();
+  const {
+    clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, setRadius, radiusUnits, setRadiusUnits, dataQuery, queryZoom,
+    boxDrawer, drawBox,
+  } = useMapInteraction();
   // The radius query, for the card's units (its within_units), as the form offers them
-  const { queryTarget } = useQueryBuilder();
+  const { queryTarget, queryParams } = useQueryBuilder();
   const geometryKind = geometryKindOf(dataQuery);
+  // A map query's box, as its form has it, drawn where the map can: in CRS84, EPSG:4326 or EPSG:3857
+  const forMap = !!queryTarget && queryTypeOf(queryTarget.collection, queryTarget.queryKey) === 'map';
+  const askedBbox = forMap ? queryParams.bbox ?? '' : '';
+  const askedBboxCrs = forMap ? queryParams['bbox-crs'] ?? '' : '';
+  const askedBox = useMemo(() => boxLonLat(askedBbox, askedBboxCrs), [askedBbox, askedBboxCrs]);
   const radiusRange = rangeFor(radiusUnits);
   // Nothing is chosen for a radius until it is, unit included
   const radiusText = radius === null ? 'not set yet' : radiusUnits ? `${radius} ${radiusUnits}` : `${radius}, its unit not set yet`;
@@ -98,7 +108,7 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   const responseCells = useResponseCellsLayer(map, mapShown);
   useResponseLocation(map);
 
-  const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer);
+  const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer, askedBox);
 
   // The query in view: its points or path, polygons or box, and a radius around its points. False if it has nothing
   // on the map yet
@@ -114,15 +124,15 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
     return true;
   }, [map, geometryKind, clickedCoords, selectedArea, selectedBbox, dataQuery, radius, radiusUnits]);
 
-  // A link's query, once its geometry is in place, which can be a render or two after the request is applied. Only
-  // for a few seconds, so that drawing later never moves the map
-  const zoomAsked = useRef({ count: 0, at: 0 });
+  // A link's query, once its geometry is in place: for a few seconds, and only while the request is the link's
+  // (linkZoomWaits). Once it's in view, or the request has changed, the window closes for good
+  const { requestUrl } = useRequestUrl();
+  const zoomAsked = useRef<{ count: number; zoom: LinkZoom | null }>({ count: 0, zoom: null });
   useEffect(() => {
     if (queryZoom === 0) return;
-    if (zoomAsked.current.count !== queryZoom) zoomAsked.current = { count: queryZoom, at: Date.now() };
-    if (zoomAsked.current.at === 0 || Date.now() - zoomAsked.current.at > 5000) return;
-    if (zoomToTheQuery()) zoomAsked.current.at = 0;
-  }, [queryZoom, zoomToTheQuery]);
+    if (zoomAsked.current.count !== queryZoom) zoomAsked.current = { count: queryZoom, zoom: { url: requestUrl, at: Date.now() } };
+    if (!linkZoomWaits(zoomAsked.current.zoom, Date.now(), requestUrl) || zoomToTheQuery()) zoomAsked.current.zoom = null;
+  }, [queryZoom, zoomToTheQuery, requestUrl]);
 
   useLayerManagerSync(
     vectorLayer, locationLayer, markerLayer, areaLayer, radiusLayer,
@@ -185,15 +195,20 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
           {/* What the query needs from the map, and clearing it */}
           <MapQueryOverlay
-            queryType={dataQuery}
+            // A field asking for one box: the prompt and a way to stop, which leaves the field as it is
+            queryType={boxDrawer ? 'one-box' : dataQuery}
             hasGeometry={
-              dataQuery === 'locations' ? !!selectedFeature
-                : geometryKind === 'polygon' ? selectedArea.length > 0
-                  : geometryKind === 'bbox' ? selectedBbox !== null
-                    : clickedCoords.length > 0
+              boxDrawer ? false
+                : dataQuery === 'locations' ? !!selectedFeature
+                  : geometryKind === 'polygon' ? selectedArea.length > 0
+                    : geometryKind === 'bbox' ? selectedBbox !== null
+                      : clickedCoords.length > 0
             }
-            isDrawing={isDrawing}
-            onClear={() => {
+            isDrawing={isDrawing || !!boxDrawer}
+            onClear={boxDrawer ? () => {
+              abortDrawing();
+              drawBox(null);
+            } : () => {
               abortDrawing();
               setClickedCoords([]);
               setSelectedArea([]);

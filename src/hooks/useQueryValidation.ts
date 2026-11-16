@@ -8,6 +8,7 @@ import { summarizeIssues, typedIssues, type IssueSummary } from '../query/valida
 import { undeclaredIssues } from '../query/declared';
 import { mapOffer, mapProfileNames } from '../query/mapOffer';
 import { subsetAxisIssues } from '../query/mapDimensions';
+import { mapLineIssues } from '../query/mapBox';
 import { paramsIn } from '../query/requestUrl';
 import { SEVERITY_ORDER, type QueryIssue } from '../query/types';
 import type { QueryValidationState } from '../contexts/QueryValidationContext';
@@ -27,14 +28,15 @@ export function useQueryValidation(): QueryValidation {
   const { collectionUrl } = useCollection();
   const { requestUrl } = useRequestUrl();
   const { conformsTo } = useApi();
-  const { status: docsStatus } = useOpenApi();
+  const { status: docsStatus, index: docsIndex } = useOpenApi();
   const active = !!queryValidation && queryValidation.url === collectionUrl;
   const apiOperation = active ? queryValidation.apiOperation : null;
   const declaring = active ? queryValidation.declaring : null;
   // A value typed in the line isn't missing, though the form may not have read it yet, or can't. And of a map's, each
   // parameter and each axis of subset that no Maps class the API declares, nor the draft profile, nor the API docs name,
   // typed ones included: not while the API docs are still being read, as they may name it. Its subset is also read
-  // with the rest of the line: a spatial axis with bbox, a time with datetime where the API docs say they don't go
+  // with the rest of the line: a spatial axis with bbox, a time with datetime where the API docs say they don't go. And
+  // its box and size: bbox with center, a size with an area and scale-denominator, and a size past the API docs' limits
   const issues = useMemo(() => {
     if (!active) return NO_ISSUES;
     const typed = typedIssues(queryValidation.issues, requestUrl);
@@ -45,8 +47,11 @@ export function useQueryValidation(): QueryValidation {
     const axes = subsetAxisIssues(declaring.collection, offer, {
       subset: line('subset'), datetime: line('datetime'), bbox: line('bbox'), center: line('center'), subsetCrs: line('subset-crs'),
     });
-    const more = [...undeclared, ...axes];
+    const box = mapLineIssues(offer, {
+      bbox: line('bbox'), center: line('center'), width: line('width'), height: line('height'), scaleDenominator: line('scale-denominator'), subset: line('subset'),
+    }, docsIndex?.mapLimits);
+    const more = [...undeclared, ...axes, ...box];
     return more.length ? [...typed, ...more].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]) : typed;
-  }, [active, queryValidation, requestUrl, declaring, docsStatus, conformsTo, apiOperation]);
+  }, [active, queryValidation, requestUrl, declaring, docsStatus, docsIndex, conformsTo, apiOperation]);
   return useMemo(() => ({ active, issues, summary: summarizeIssues(issues), apiOperation }), [active, issues, apiOperation]);
 }

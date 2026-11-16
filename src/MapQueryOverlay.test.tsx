@@ -92,6 +92,17 @@ describe('MapQueryOverlay', () => {
     expect(render('metadata', { hasGeometry: true })).toBe('');
   });
 
+  it('asks for a field’s one box with a way to stop, clickable beside the prompt, and nothing for a map query otherwise', () => {
+    // As the map passes it while a map query's Box asks for one: drawing, and nothing to list
+    const html = render('one-box', { isDrawing: true, selection: { title: 'Selected Points', items: [] } });
+    expect(html).toContain('Draw a Box on Map');
+    expect(html).toContain('Click one corner of the box, then the opposite corner: it goes into bbox');
+    expect(html).toContain('Stop Drawing');
+    expect(html).toContain('pointer-events:auto');
+    expect(html).not.toContain('Selected Points');
+    expect(render('map')).toBe('');
+  });
+
   it('names the selected location, with its information a tap away and the clear button beside it', () => {
     const location = { name: 'Savukoski Tulppio', onInfo: () => {} };
     const html = render('locations', { hasGeometry: true, isMobile: true, selection: { title: 'Selected Points', items: [] }, location });

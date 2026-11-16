@@ -19,12 +19,13 @@ const around = vi.hoisted(() => ({
   collectionUrl: '',
   conformsTo: null as string[] | null,
   docs: 'ready',
+  index: null as { mapLimits: unknown } | null,
 }));
 vi.mock('../contexts/QueryValidationContext', () => ({ useQueryValidationContext: () => ({ queryValidation: around.validation }) }));
 vi.mock('../contexts/CollectionContext', () => ({ useCollection: () => ({ collectionUrl: around.collectionUrl }) }));
 vi.mock('../contexts/RequestUrlContext', () => ({ useRequestUrl: () => ({ requestUrl: around.requestUrl }) }));
 vi.mock('../contexts/ApiContext', () => ({ useApi: () => ({ conformsTo: around.conformsTo }) }));
-vi.mock('../contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: around.docs }) }));
+vi.mock('../contexts/OpenApiContext', () => ({ useOpenApi: () => ({ status: around.docs, index: around.index }) }));
 
 // As if the API docs required parameter-name
 const missing: QueryIssue = { id: 'openapi:parameter-name:required', severity: 'missing', source: 'openapi', field: 'parameter-name', message: 'Choose one' };
@@ -36,6 +37,7 @@ beforeEach(() => {
   around.requestUrl = `${MAP}?parameter-name=2t&transparent=false&foo=bar&elevation=850`;
   around.conformsTo = params.conformsTo;
   around.docs = 'ready';
+  around.index = null;
 });
 
 function Probe() {
@@ -82,6 +84,18 @@ describe('useQueryValidation', () => {
     // bbox is spatial-subsetting's; foo nobody's; Lon with bbox an error
     expect(read()).toEqual({ active: true, fields: ['error subset', 'warning subset'], warning: 1 });
     around.conformsTo = null;
+    expect(read().fields).toEqual([]);
+  });
+
+  it('reads a map’s box and size with the rest of the line: bbox with center, a size past the API docs’ maximum or x-OGC-limits', () => {
+    around.requestUrl = `${MAP}?parameter-name=2t&bbox=19,59,32,70&center=25,62&width=9000`;
+    expect(read()).toEqual({ active: true, fields: ['error bbox', 'error width'], warning: 0 });
+    // The service's x-OGC-limits.maps, from its API docs
+    around.index = { mapLimits: { maxWidth: null, maxHeight: 100, maxPixels: null, pointer: '/info/x-OGC-limits/maps' } };
+    around.requestUrl = `${MAP}?parameter-name=2t&height=101`;
+    expect(read().fields).toEqual(['error height']);
+    // Not while the API docs are read
+    around.docs = 'loading';
     expect(read().fields).toEqual([]);
   });
 

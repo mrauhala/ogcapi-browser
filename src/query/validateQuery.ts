@@ -14,6 +14,7 @@ import { EDR, FEATURES1, MAPS1 } from '../standards';
 import { apiDocsParams } from './declared';
 import { mapApiDocsIssues, mapQueryIssues } from './mapOffer';
 import { mapDimensionIssues } from './mapDimensions';
+import { mapBoxIssues } from './mapBox';
 
 // ── Collection extents, computed once per collection (validation runs on every slider tick) ──
 
@@ -375,14 +376,17 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
     issues.push({ id: `${source}:${field}:${key}`, severity, source, field, message, input, ...(rule ? { rule } : {}) });
 
   // Maps requires no parameter: a bare map is complete. Its parameter is checked against parameter_names, and its style
-  // against what the styles and parameters say of each other; its time by Maps 1.0's grammar, and its subset, levels and
-  // run against that grammar and what the extent lists
+  // against what the styles and parameters say of each other; its box, size and CRS by Maps 1.0 and the collection's
+  // crs list; its time by Maps 1.0's grammar, and its subset, levels and run against that grammar and what the extent
+  // lists
   if (model.queryType === 'map') {
     checkDatetime(model, add, MAPS_DATETIME);
     const subset = model.queryParams.subset ?? '';
     const elevation = model.queryParams.elevation ?? '';
+    const text = (name: string) => model.queryParams[name] ?? '';
     return [
       ...mapQueryIssues(model.collection, model.parameters, model.styleId ?? '', model.styles ?? []),
+      ...mapBoxIssues(model.collection, { bbox: text('bbox'), bboxCrs: text('bbox-crs'), width: text('width'), height: text('height'), crs: text('crs') }),
       ...issues,
       ...mapDimensionIssues(model.collection, { subset, elevation, datetime: model.datetime }),
     ].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
@@ -401,7 +405,7 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   return issues.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 
-const FORM_FIELDS = new Set(['f', 'parameter-name', 'datetime', 'z', 'subset', 'elevation']);
+const FORM_FIELDS = new Set(['f', 'parameter-name', 'datetime', 'z', 'subset', 'elevation', 'bbox', 'bbox-crs', 'width', 'height', 'crs']);
 
 // Add the API docs' view to the query's own issues. Their issues go under the builder's field names,
 // except on a field EDR or the metadata already flags: those are the stronger source, and one issue

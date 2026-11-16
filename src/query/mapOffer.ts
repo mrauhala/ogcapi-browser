@@ -11,6 +11,7 @@ import { parameterIdsOf } from './queryTypes';
 import { distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageTimeSeries';
 import { MAPS1 } from '../standards';
 import { extentDimensions, mapDimensionSpecs } from './mapDimensions';
+import { mapBoxSpecs } from './mapBox';
 
 // Where a Maps conformance class's URI names it: …/spec/ogcapi-maps-1/1.0/conf/{class}
 export const MAPS_CONF = '/spec/ogcapi-maps-1/1.0/conf/';
@@ -182,14 +183,15 @@ export function parameterRows(collection: Collection, styles: readonly MapStyle[
 
 const DEFAULT_FIELDS = 'defaultFields';
 
-// The fields of a map query that this form has, in order: the parameter, its time, level, model run and subset, then
-// the output format. Each shows where it's declared or the request has it, and says who declared it
+// The fields of a map query that this form has, in order: the box, the size and the CRS, the parameter, its time, level,
+// model run and subset, then the output format. Each shows where it's declared or the request has it, and says who
+// declared it
 export function mapFieldSpecs(collection: Collection, chosen: { parameters: number }, context: FieldContext): FieldSpec[] {
   const offer = mapOffer(mapProfileNames(collection), context.conformsTo, context.apiDocs ?? null);
   const inRequest = new Set(context.inRequest ?? []);
   const requirementOf = (name: string) => (context.apiRequired?.includes(name) ? 'required by the API docs' as const : 'optional' as const);
   const docs = (name: string) => context.apiDocs?.find(param => param.name === name);
-  const fields: FieldSpec[] = [];
+  const fields: FieldSpec[] = [...mapBoxSpecs(collection, offer, inRequest, requirementOf, context.mapLimits)];
 
   const parameterBy = declarersOf('parameter-name', offer);
   if (parameterBy.length || inRequest.has('parameter-name')) {

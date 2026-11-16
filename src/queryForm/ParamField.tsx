@@ -90,7 +90,7 @@ export interface ParamFieldProps {
   missing?: boolean; // required and still empty: the requirement turns orange
   hints?: Hint[];
   link?: { label: string; href: string };
-  leftOut?: string; // said while empty
+  leftOut?: Hint; // said while empty, with the rule that says so where one does
   empty?: boolean;
   issues?: QueryIssue[];
   openDocs?: (pointer: string) => void; // opens the API docs where an issue's rule is
@@ -139,7 +139,8 @@ const ParamField: React.FC<ParamFieldProps> = ({
         )}
         {empty && leftOut && (
           <Typography component="div" sx={{ ...SMALL, mt: 0.5, color: 'text.secondary' }}>
-            <Box component="span" sx={{ color: 'text.disabled' }}>Left out: </Box><Said text={leftOut} />
+            <Box component="span" sx={{ color: 'text.disabled' }}>Left out: </Box>
+            {typeof leftOut === 'string' ? <Said text={leftOut} /> : <><Said text={leftOut.text} /><RuleLinks rule={leftOut.rule} /></>}
           </Typography>
         )}
         {issues.map(issue => <IssueLine key={issue.id} issue={issue} openDocs={openDocs} />)}

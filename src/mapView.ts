@@ -85,6 +85,18 @@ export function zoomToOverview(view: View, extents: Bbox[] | null, locationExten
   else zoomToWorld(view);
 }
 
+// A link's query is put in view once its geometry is in place, which can be a render or two after the link is applied:
+// for a few seconds, and only while the request is still the one the link made. The request line is the one place every
+// change to the query shows (Match the map view, a box typed or drawn, any field), so a request that differs from the
+// link's is the user's doing, and the map then stays where they have it
+export const LINK_ZOOM_MS = 5000;
+export interface LinkZoom {
+  url: string; // the request as the link made it
+  at: number;
+}
+export const linkZoomWaits = (asked: LinkZoom | null, now: number, requestUrl: string): boolean =>
+  !!asked && now - asked.at <= LINK_ZOOM_MS && requestUrl === asked.url;
+
 // What the query covers, with room above for the collection's card and below for the query's. A single point gets
 // about 110 km around it
 export function zoomToQuery(view: View, [west, south, east, north]: [number, number, number, number]): void {

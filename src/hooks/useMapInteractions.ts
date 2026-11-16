@@ -14,18 +14,25 @@ import { useCollection } from '../contexts/CollectionContext';
 import { withoutLastCorner, withoutLastPoint } from '../query/mapGeometry';
 import { geometryKindOf } from '../query/queryTypes';
 import { unitToMeters } from '../query/units';
+import type { BBox } from '../query/types';
 
+// askedBox: a box a query asks for that it doesn't take from the map, as a map query's bbox, drawn as a cube's is
 export function useMapInteractions(
   map: Map | null,
   markerLayer: VectorLayer<VectorSource> | null,
   areaLayer: VectorLayer<VectorSource> | null,
   radiusLayer: VectorLayer<VectorSource> | null,
+  askedBox: BBox | null = null,
 ): { abortDrawing: () => void; undoLast: () => void; isDrawing: boolean } {
   const {
-    clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, radiusUnits, dataQuery,
+    clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, radiusUnits, dataQuery, boxDrawer, drawBox,
   } = useMapInteraction();
   // dataQuery is the query type; the geometry kind decides what the map collects
   const geometryKind = geometryKindOf(dataQuery);
+  // A box asked for once, by a field, is drawn as a cube's and handed to it
+  const drawsOneBox = !!boxDrawer;
+  const boxDrawerRef = useRef(boxDrawer);
+  useEffect(() => { boxDrawerRef.current = boxDrawer; }, [boxDrawer]);
   const { selectedCollection } = useCollection();
   const [drawInteraction, setDrawInteraction] = useState<Draw | null>(null);
   // True while an area/trajectory sketch is in progress (between drawstart and drawend/abort).
@@ -173,8 +180,9 @@ export function useMapInteractions(
       setDrawInteraction(null);
     }
 
-    // Cube and items queries: a box from two opposite corners, replacing the previous box
-    if (geometryKind === 'bbox' && areaLayer) {
+    // Cube and items queries: a box from two opposite corners, replacing the previous box. And one box for a field that
+    // asks for it, which takes it, and then the map stops drawing
+    if ((geometryKind === 'bbox' || drawsOneBox) && areaLayer) {
       const draw = new Draw({
         type: 'Circle',
         geometryFunction: createBox(),
@@ -182,10 +190,15 @@ export function useMapInteractions(
       });
       draw.on('drawend', (event: DrawEvent) => {
         const [minX, minY, maxX, maxY] = event.feature.getGeometry()!.getExtent();
-        const round = (value: number) => Math.round(value * 1000) / 1000;
-        const [west, south] = toLonLat([minX, minY]).map(round);
-        const [east, north] = toLonLat([maxX, maxY]).map(round);
-        setSelectedBbox([west, south, east, north]);
+        const drawn = [...toLonLat([minX, minY]), ...toLonLat([maxX, maxY])] as BBox;
+        const take = boxDrawerRef.current;
+        if (take) {
+          // As drawn: the field writes it at its own decimals, in its own CRS
+          take(drawn);
+          drawBox(null);
+          return;
+        }
+        setSelectedBbox(drawn.map(value => Math.round(value * 1000) / 1000) as BBox);
       });
       draw.on('drawstart', () => setIsDrawing(true));
       draw.on('drawend', () => setIsDrawing(false));
@@ -296,10 +309,11 @@ export function useMapInteractions(
     // Geometry another kind of query can't use is cleared by MapInteractionContext.setDataQuery,
     // and the layers redraw from state
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, geometryKind, areaLayer, markerLayer]);
+  }, [map, geometryKind, drawsOneBox, areaLayer, markerLayer]);
 
-  // Display selected areas and the cube's box
+  // Display selected areas and the cube's box, or the box a query asks for
   useEffect(() => {
+    const shownBox = selectedBbox ?? askedBox;
     if (areaLayer && selectedArea) {
       const source = areaLayer.getSource();
       if (source) {
@@ -311,14 +325,14 @@ export function useMapInteractions(
           const feature = new Feature({ geometry: polygon });
           source.addFeature(feature);
         });
-        if (selectedBbox) {
-          const [west, south, east, north] = selectedBbox;
+        if (shownBox) {
+          const [west, south, east, north] = shownBox;
           const corners = [[west, south], [west, north], [east, north], [east, south], [west, south]];
           source.addFeature(new Feature({ geometry: new Polygon([corners.map(corner => fromLonLat(corner))]) }));
         }
       }
     }
-  }, [selectedArea, selectedBbox, areaLayer]);
+  }, [selectedArea, selectedBbox, askedBox, areaLayer]);
 
   // Abort an in-progress sketch (the half-drawn line/polygon lives on the Draw
   // interaction's own overlay, not in our vector layers, so clearing the layer

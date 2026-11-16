@@ -11,6 +11,7 @@ import { expandTemporalValues, getOverallTemporalExtent, gridStepMs, listedTimes
 import { getVerticalUnit } from '../utils/extents/vertical';
 import { expandCustomDimensionValues, getEffectiveCustomDimensions } from '../utils/extents/custom';
 import type { ApiDocsParam, Declarer } from './declared';
+import type { MapLimits } from '../validation/openapi/operationIndex';
 import { mapFieldSpecs } from './mapOffer';
 
 export type Requirement = 'required' | 'optional' | 'required by the API docs';
@@ -26,9 +27,10 @@ export interface FieldSpec {
   figure?: string; // what the metadata says, at the right of the name: 13 listed, hPa
   hints: Hint[]; // what the collection allows, then how to fill it in
   link?: { label: string; href: string }; // a custom dimension's reference
-  leftOut?: string; // what the server does while the field is empty
+  leftOut?: Hint; // what the server does while the field is empty, and the rule that says so where one does
   grammar?: string; // the forms a typed value takes, said while the field is empty or wrong
   unit?: FieldSpec; // a size's unit, in the same block and on the same row: within-units with within
+  unitJoin?: string; // what joins the two names in the head, where it isn't ·: width × height
   marked?: string; // the value the metadata names as the default, as default_output_format: marked, not sent
   options?: string[]; // the values to pick from where the API docs list them, as a map's f
   choice?: 'one' | 'several'; // how many values it takes, where the form can tell: a map's parameter-name
@@ -43,6 +45,7 @@ export interface FieldContext {
   inRequest?: string[]; // the parameters the request line has: a field shows for one the metadata has nothing for
   conformsTo?: readonly string[] | null; // the API's conformance classes, which declare a map's parameters
   apiDocs?: ApiDocsParam[] | null; // the API docs' operation's query parameters, where there's one to read
+  mapLimits?: MapLimits | null; // the API docs' x-OGC-limits.maps, which limit a map's size
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
