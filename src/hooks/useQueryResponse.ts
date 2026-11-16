@@ -7,6 +7,7 @@ import { useGeoJsonLayers } from '../contexts/GeoJsonLayerContext';
 import { useMapInteraction } from '../contexts/MapInteractionContext';
 import { useService } from '../contexts/ServiceContext';
 import { locationsSchemaOf, validateQueryResponse } from '../locations/locationsList';
+import { notAnImage, readImageBytes, type ImageBytes } from '../query/mapResponse';
 import type { ValidationError } from '../types/api';
 
 // The latest request and what came back for it, shown in the response pane, which each one opens.
@@ -24,6 +25,8 @@ export function useQueryResponse(showResponse: () => void) {
   const [data, setData] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const imageUrlRef = useRef<string | null>(null);
+  // What an image's bytes say: its format and size from its header, and what it starts with
+  const [image, setImage] = useState<ImageBytes | null>(null);
   const [contentType, setContentType] = useState<string | null>(null);
   // Status, time, size and headers of what was fetched; null for a stored copy, which has none of them
   const [response, setResponse] = useState<ResponseDetails | null>(null);
@@ -106,6 +109,10 @@ export function useQueryResponse(showResponse: () => void) {
         const objectUrl = URL.createObjectURL(blob);
         imageUrlRef.current = objectUrl;
         setImageUrl(objectUrl);
+        const bytes = readImageBytes(new Uint8Array(body, 0, Math.min(body.byteLength, 64 * 1024)));
+        setImage(bytes);
+        // Bytes that aren't the image their type says, such as a server's JSON error sent as image/png: Raw shows them
+        if (notAnImage(responseType, bytes)) setData(new TextDecoder('utf-8').decode(body));
         return;
       }
 
@@ -191,6 +198,7 @@ export function useQueryResponse(showResponse: () => void) {
       url,
       data,
       imageUrl,
+      image,
       contentType,
       response,
       isLoading,

@@ -15,6 +15,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { GeoJsonLayerProvider } from './contexts/GeoJsonLayerContext';
 import { MapsLayerProvider } from './contexts/MapsLayerContext';
 import { ResponseCellsProvider } from './contexts/ResponseCellsContext';
+import { MapImageProvider } from './contexts/MapImageContext';
 import { LayerManagerProvider } from './contexts/LayerManagerContext';
 import { ValidationProvider } from './contexts/ValidationContext';
 import { OpenApiProvider } from './contexts/OpenApiContext';
@@ -71,6 +72,7 @@ function App() {
             <GeoJsonLayerProvider>
               <MapsLayerProvider>
                 <ResponseCellsProvider>
+                <MapImageProvider>
                 <LayerManagerProvider>
                   <ValidationProvider>
                     <OpenApiProvider>
@@ -89,6 +91,7 @@ function App() {
                     </OpenApiProvider>
                   </ValidationProvider>
                 </LayerManagerProvider>
+                </MapImageProvider>
                 </ResponseCellsProvider>
               </MapsLayerProvider>
             </GeoJsonLayerProvider>

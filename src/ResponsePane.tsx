@@ -27,6 +27,9 @@ import { findingMessage, findingPath } from './findingText';
 import ResponseHeaders from './ResponseHeaders';
 import ResponseSizes from './ResponseSizes';
 import ResponseStatusLine from './ResponseStatusLine';
+import ResponseImage from './ResponseImage';
+import { usePublishMapImage, type MapImage } from './contexts/mapImage';
+import { isMapRequest, notAnImage, readMapResponse, type ImageBytes } from './query/mapResponse';
 import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useCollection } from './contexts/CollectionContext';
 import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
@@ -60,6 +63,8 @@ interface ResponsePaneProps {
   data: string | null;
   // For image/* responses: a blob: URL the pane renders via <img>. data stays null in that case.
   imageUrl?: string | null;
+  // What the image's bytes say: its format, size and what it starts with
+  image?: ImageBytes | null;
   contentType: string | null;
   // Null without a response (a network failure) and for a stored response, which wasn't sent just now
   response?: ResponseDetails | null;
@@ -93,6 +98,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   onClose,
   data,
   imageUrl = null,
+  image = null,
   contentType,
   response = null,
   isLoading,
@@ -160,11 +166,24 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
     };
   }, [answered, url, checkedAgainst, bodyJson, contentType, apiUrl, conformsTo]);
 
+  // A map's image, read against what was asked of it. Only a success's: an error's body isn't the map asked for
+  const mapReading = useMemo(
+    () => (imageUrl && image && response && answered && isMapRequest(url)
+      ? readMapResponse({ url, headers: response.headers, contentType: contentType ?? '', image, collection: checkedAgainst })
+      : null),
+    [imageUrl, image, response, answered, url, contentType, checkedAgainst],
+  );
+  // The map draws what this pane holds, and clears the moment a new request is sent, which takes the response away
+  const mapImage = useMemo((): MapImage | null => (imageUrl && mapReading ? { imageUrl, reading: mapReading } : null), [imageUrl, mapReading]);
+  usePublishMapImage(mapImage);
+  // Bytes that aren't the image their Content-Type says are text for Raw
+  const bodyNotImage = imageUrl !== null && notAnImage(contentType ?? '', image);
+
   const tabs = responseTabs({
     hasResponse: response !== null && !isLoading,
     // A response the app failed to read opens there too, on the line that says so
     hasDataView: coverage !== null || coverageFault !== null || isIWXXM() || imageUrl !== null || locations !== null || items !== null,
-    hasImage: imageUrl !== null,
+    hasImage: imageUrl !== null && !bodyNotImage,
   });
   const tab = shownTab(preferredTab, tabs);
 
@@ -360,34 +379,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
         )}
 
         {!isLoading && tab === 'data' && imageUrl && (
-          <Box sx={{
-            flex: 1,
-            minHeight: 0,
-            overflow: 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: 'background.default',
-            backgroundImage:
-              'linear-gradient(45deg, rgba(127,127,127,0.15) 25%, transparent 25%),' +
-              'linear-gradient(-45deg, rgba(127,127,127,0.15) 25%, transparent 25%),' +
-              'linear-gradient(45deg, transparent 75%, rgba(127,127,127,0.15) 75%),' +
-              'linear-gradient(-45deg, transparent 75%, rgba(127,127,127,0.15) 75%)',
-            backgroundSize: '16px 16px',
-            backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0',
-            p: 2,
-          }}>
-            <img
-              src={imageUrl}
-              alt="API response"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '100%',
-                objectFit: 'contain',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-              }}
-            />
-          </Box>
+          <ResponseImage imageUrl={imageUrl} image={image} contentType={contentType ?? ''} reading={mapReading} />
         )}
 
         {!isLoading && tab === 'data' && coverage && (
@@ -406,7 +398,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           </Alert>
         )}
 
-        {!isLoading && tab === 'data' && data && !coverage && !coverageFault && !locations && !items && (
+        {!isLoading && tab === 'data' && data && !imageUrl && !coverage && !coverageFault && !locations && !items && (
           <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', backgroundColor: 'background.paper' }}>
             {transformedHtml && !isTransforming ? (
               <iframe
