@@ -30,6 +30,11 @@ import ResponseStatusLine from './ResponseStatusLine';
 import ResponseImage from './ResponseImage';
 import { usePublishMapImage, type MapImage } from './contexts/mapImage';
 import { isMapRequest, notAnImage, readMapResponse, type ImageBytes } from './query/mapResponse';
+import { mapFindings } from './query/mapFindings';
+import { apiDocsParams } from './query/declared';
+import { useOpenApi } from './contexts/OpenApiContext';
+import { belongsToApi } from './hooks/useCitedEdr';
+import { checkQueryUrlAgainstOpenApi } from './validation/openapi/checkQueryUrl';
 import { useRequestUrl } from './contexts/RequestUrlContext';
 import { useCollection } from './contexts/CollectionContext';
 import { usePublishResponseCells, useResponseCells } from './contexts/responseCells';
@@ -173,6 +178,22 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
       : null),
     [imageUrl, image, response, answered, url, contentType, checkedAgainst],
   );
+  // A map's checks: what came back against what was asked, the API's conformance and its API docs, for a response of the
+  // loaded API. A success's image, and an error's message, which its body has
+  const { index: docsIndex } = useOpenApi();
+  const mapChecks = useMemo(() => {
+    if (!response || !isMapRequest(url)) return null;
+    const own = belongsToApi(url, apiUrl);
+    const docs = own && docsIndex ? checkQueryUrlAgainstOpenApi(url, docsIndex) : null;
+    return {
+      success: response.status >= 200 && response.status < 300,
+      findings: mapFindings({
+        url, status: response.status, headers: response.headers, contentType: contentType ?? response.contentType,
+        image: imageUrl ? image : null, body: data, collection: checkedAgainst, conformsTo: own ? conformsTo : null,
+        apiDocs: docs?.operation ? apiDocsParams(docs.operation.entry.params) : null, apiDocsIssues: docs?.issues ?? [], limits: own ? docsIndex?.mapLimits ?? null : null,
+      }),
+    };
+  }, [response, url, apiUrl, docsIndex, contentType, imageUrl, image, data, checkedAgainst, conformsTo]);
   // The map draws what this pane holds, and clears the moment a new request is sent, which takes the response away
   const mapImage = useMemo((): MapImage | null => (imageUrl && mapReading ? { imageUrl, reading: mapReading } : null), [imageUrl, mapReading]);
   usePublishMapImage(mapImage);
@@ -233,7 +254,11 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
     ],
     [locations, validationSchemaName, contentType, parsedJson, asked],
   );
-  const allFindings = useMemo(() => [...validationErrors, ...formatFindings, ...coverageNotes], [validationErrors, formatFindings, coverageNotes]);
+  // A map's findings about the request count for nothing
+  const allFindings = useMemo(
+    () => [...validationErrors, ...formatFindings, ...coverageNotes, ...(mapChecks ? [...mapChecks.findings.map, ...mapChecks.findings.browser] : [])],
+    [validationErrors, formatFindings, coverageNotes, mapChecks],
+  );
   // Only when they're asked for: each is a walk through the whole of the text
   const showingChecks = tab === 'checks';
   const asNotes = useCallback((found: ValidationError[]) => found.map(note => ({
@@ -371,6 +396,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
             dataNotes={dataNotes}
             collectionId={checkedAgainst ? String(checkedAgainst.id) : null}
             url={url}
+            map={mapChecks}
             onGoToNote={line => {
               setNoteLine(line);
               setPreferredTab('raw');

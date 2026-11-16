@@ -106,8 +106,8 @@ export const notAnImage = (contentType: string, image: ImageBytes | null): boole
 // ---- CRSs ----
 
 // What the app knows of a CRS: the order of its axes, and their unit. Others' axes are taken as written, east first
-interface KnownCrs { northFirst: boolean; unit: string; name?: string }
-const KNOWN: Record<string, KnownCrs> = {
+export interface KnownCrs { northFirst: boolean; unit: string; name?: string }
+export const KNOWN: Record<string, KnownCrs> = {
   CRS84: { northFirst: false, unit: '°' },
   'EPSG:4326': { northFirst: true, unit: '°' },
   'EPSG:4258': { northFirst: true, unit: '°' },
@@ -116,9 +116,9 @@ const KNOWN: Record<string, KnownCrs> = {
   'EPSG:3035': { northFirst: true, unit: 'm' },
 };
 // The CRSs the map can lie an image in: OpenLayers knows them without proj4, and the app registers no other
-type Placeable = 'CRS84' | 'EPSG:4326' | 'EPSG:3857';
+export type Placeable = 'CRS84' | 'EPSG:4326' | 'EPSG:3857';
 const PLACEABLE: readonly string[] = ['CRS84', 'EPSG:4326', 'EPSG:3857'];
-const placeable = (crs: string): Placeable | null => {
+export const placeable = (crs: string): Placeable | null => {
   const code = crsCode(crs);
   return code && PLACEABLE.includes(code) ? code as Placeable : null;
 };
@@ -128,7 +128,7 @@ export const readContentCrs = (value: string): string => value.trim().replace(/^
 
 // ---- Boxes ----
 
-type Box = [number, number, number, number];
+export type Box = [number, number, number, number];
 // A box's two dimensions, from four numbers or six with heights
 const flat = (n: number[]): Box => (n.length === 6 ? [n[0], n[1], n[3], n[4]] : n) as Box;
 
@@ -140,18 +140,18 @@ export function readContentBbox(value: string): Box | null {
 }
 
 // A box as east, then north, from the CRS's own order: EPSG:4326's latitude-first box swapped
-const eastFirst = (box: Box, crs: string): Box => (KNOWN[crsCode(crs) ?? '']?.northFirst ? [box[1], box[0], box[3], box[2]] : box);
+export const eastFirst = (box: Box, crs: string): Box => (KNOWN[crsCode(crs) ?? '']?.northFirst ? [box[1], box[0], box[3], box[2]] : box);
 // And back: swapping is its own inverse
 const ownOrder = eastFirst;
 
 // A box in CRS84, EPSG:4326 or EPSG:3857, east first, as lon/lat
-function lonLatOf([x0, y0, x1, y1]: Box, crs: Placeable): BBox {
+export function lonLatOf([x0, y0, x1, y1]: Box, crs: Placeable): BBox {
   if (crs !== 'EPSG:3857') return [x0, y0, x1, y1];
   return [...toLonLat([x0, y0]), ...toLonLat([x1, y1])] as BBox;
 }
 
 // And back
-function fromLonLatIn([west, south, east, north]: BBox, crs: Placeable): Box {
+export function fromLonLatIn([west, south, east, north]: BBox, crs: Placeable): Box {
   if (crs !== 'EPSG:3857') return [west, south, east, north];
   return [...fromLonLat([west, south]), ...fromLonLat([east, north])] as Box;
 }
@@ -161,10 +161,10 @@ export type Edge = typeof EDGES[number];
 export type Edges = Record<Edge, boolean>;
 
 // How far each edge of one box is from another's, in pixels of the image: both east first, in the same CRS
-const edgePixels = (a: Box, b: Box, pixel: [number, number]): number[] => a.map((value, i) => (value - b[i]) / pixel[i % 2]);
-const meets = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+export const edgePixels = (a: Box, b: Box, pixel: [number, number]): number[] => a.map((value, i) => (value - b[i]) / pixel[i % 2]);
+export const meets = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 // Equal edges: within a tenth of a pixel
-const SAME = 0.1;
+export const SAME = 0.1;
 
 // The edges of the box asked that aren't Content-Bbox's, both lon/lat: a tenth of a pixel apart or more
 export function differingEdges(asked: BBox, content: BBox, pixel: [number, number]): Edges {
@@ -172,7 +172,7 @@ export function differingEdges(asked: BBox, content: BBox, pixel: [number, numbe
   return Object.fromEntries(EDGES.map((edge, i) => [edge, !(Math.abs(apart[i]) < SAME)])) as Edges;
 }
 
-const figure = (value: number): string => (Math.abs(value) >= 1000 ? Math.round(value).toLocaleString('en-US') : String(Number(value.toPrecision(4))));
+export const figure = (value: number): string => (Math.abs(value) >= 1000 ? Math.round(value).toLocaleString('en-US') : String(Number(value.toPrecision(4))));
 const pixelsSaid = (value: number) => `${figure(value)} px`;
 
 // ---- Times ----
@@ -191,9 +191,9 @@ export function instantMs(text: string): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-interface Span { start: number; end: number; instant: boolean }
+export interface Span { start: number; end: number; instant: boolean }
 // An instant, or an interval with '..' or an empty end for an open one
-function readSpan(text: string): Span | null {
+export function readSpan(text: string): Span | null {
   const parts = text.trim().split('/');
   if (parts.length === 1) {
     const at = instantMs(parts[0]);
@@ -207,7 +207,7 @@ function readSpan(text: string): Span | null {
 
 // The time a request asks for: datetime, else subset's time axis, as Maps 1.0's /req/datetime has both. Written as
 // datetime writes it, an instant or an interval, with '..' for subset's *
-function askedTime(url: string): { text: string; from: 'datetime' | 'subset' } | null {
+export function askedTime(url: string): { text: string; from: 'datetime' | 'subset' } | null {
   const datetime = paramOf(url, 'datetime');
   if (datetime?.trim()) return { text: datetime.trim(), from: 'datetime' };
   const part = subsetParts(subsetIn(url)).find(each => axisOfPart(each) === 'time');
@@ -266,7 +266,7 @@ export interface MapResponseInput {
   collection: Collection | null;
 }
 
-const headerOf = (headers: ResponseHeader[], name: string): string | null =>
+export const headerOf = (headers: ResponseHeader[], name: string): string | null =>
   headers.find(header => header.name.toLowerCase() === name.toLowerCase())?.value ?? null;
 
 const storageCrsOf = (collection: Collection | null): string => {
@@ -329,9 +329,9 @@ function crsRow(url: string, received: string | null, collection: Collection | n
 }
 
 // A box the response is compared with, in its own CRS's order, and where it came from
-interface Compared { box: Box; crs: string; said: string }
+export interface Compared { box: Box; crs: string; said: string }
 
-function comparedBox(url: string, collection: Collection | null, crs: string): Compared | { none: string } {
+export function comparedBox(url: string, collection: Collection | null, crs: string): Compared | { none: string } {
   const bbox = paramOf(url, 'bbox')?.trim() ?? '';
   if (bbox) {
     const read = readBox(bbox);

@@ -13,6 +13,7 @@ import { isAppFault } from './validation/severity';
 import RuleLinks, { EdrVersionNote } from './RuleLinks';
 import { useCitedEdr } from './hooks/useCitedEdr';
 import { findingMessage, findingPath } from './findingText';
+import type { MapFindings } from './query/mapFindings';
 import type { ValidationError } from './types/api';
 
 // A long list says little more, and every finding is flagged in Raw anyway
@@ -95,12 +96,21 @@ interface ResponseChecksProps {
   collectionId?: string | null;
   // Where the response came from: the loaded API's EDR version is cited only for a response of that API
   url?: string | null;
+  // A map's checks, and whether it was a success, whose map they're about, or a refusal
+  map?: { findings: MapFindings; success: boolean } | null;
 }
 
 // What was checked about this response, and what that found
-export default function ResponseChecks({ schemaName, schemaRule, checkedAs, findings, lines, onGoToLine, formatNotes = [], dataNotes = [], onGoToNote, collectionId, url }: ResponseChecksProps) {
+export default function ResponseChecks({ schemaName, schemaRule, checkedAs, findings, lines, onGoToLine, formatNotes = [], dataNotes = [], onGoToNote, collectionId, url, map }: ResponseChecksProps) {
   const edr = useCitedEdr(url);
-  if (!schemaName && findings.length === 0 && formatNotes.length === 0 && dataNotes.length === 0) {
+  // A map's, each under its heading: the response against Maps 1.0, what's about the request and counts for nothing, and
+  // what the browser could read
+  const mapSections = map ? [
+    { heading: map.success ? 'The map, against OGC API – Maps 1.0' : 'The answer, against OGC API – Maps 1.0 and the API', notes: worstFirst(map.findings.map) },
+    { heading: 'About the request, not the server', notes: worstFirst(map.findings.request) },
+    { heading: 'What the browser could read', notes: worstFirst(map.findings.browser) },
+  ].filter(section => section.notes.length > 0) : [];
+  if (!schemaName && findings.length === 0 && formatNotes.length === 0 && dataNotes.length === 0 && mapSections.length === 0) {
     return (
       <Typography variant="body2" sx={{ color: 'text.secondary', p: 2 }}>
         No schema applies to this response, so there was nothing to check it against.
@@ -122,7 +132,15 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', p: 2 }}>
       <EdrVersionNote edr={edr} rules={[schemaRule, ...findings.map(finding => finding.rule), ...formatNotes.map(note => note.rule), ...dataNotes.map(note => note.rule)]} />
-      {hasFormat && <Heading>The format</Heading>}
+      {mapSections.map((section, index) => (
+        <Box key={section.heading}>
+          <Heading sx={{ mt: index > 0 ? 2 : 0 }}>{section.heading}</Heading>
+          <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
+            {section.notes.map(noteItem)}
+          </Box>
+        </Box>
+      ))}
+      {hasFormat && <Heading sx={{ mt: mapSections.length ? 2 : 0 }}>The format</Heading>}
       <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
         {schemaName && (
           <Item icon={appNotices.length > 0 ? APP_ICON : count ? SEVERITY_ICON[count.color] : <CheckIcon fontSize="inherit" color="success" aria-label="Passed" />}>
@@ -171,7 +189,7 @@ export default function ResponseChecks({ schemaName, schemaRule, checkedAs, find
         { heading: `Against the collection${collectionId ? `: ${collectionId}` : ''}`, notes: worstFirst(dataNotes.filter(note => note.source === 'collection')) },
       ].filter(section => section.notes.length > 0).map((section, index) => (
         <Box key={section.heading}>
-          <Heading sx={{ mt: index > 0 || hasFormat ? 2 : 0 }}>{section.heading}</Heading>
+          <Heading sx={{ mt: index > 0 || hasFormat || mapSections.length ? 2 : 0 }}>{section.heading}</Heading>
           <Box component="ul" sx={{ listStyle: 'none', m: 0, p: 0 }}>
             {section.notes.map(noteItem)}
           </Box>
