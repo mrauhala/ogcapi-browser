@@ -30,6 +30,9 @@ import { linkZoomWaits, zoomToOverview, zoomToQuery, type LinkZoom } from './map
 import { queryExtent } from './query/queryExtent';
 import { geometryKindOf, queryTypeOf } from './query/queryTypes';
 import { boxLonLat } from './query/mapBox';
+import { differingEdges } from './query/mapResponse';
+import { useMapImageLayer } from './hooks/useMapImageLayer';
+import Paper from '@mui/material/Paper';
 import { rangeFor, unitToMeters } from './query/units';
 
 
@@ -106,9 +109,17 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
   const { geoJsonMetadata } = useGeoJsonOverlays(map);
   useMapsOverlays(map);
   const responseCells = useResponseCellsLayer(map, mapShown);
+  const responseImage = useMapImageLayer(map);
   useResponseLocation(map);
+  // Once the response's image is on the map, its Content-Bbox is drawn, and the box asked stays, dotted, only where
+  // they differ
+  const imagePlace = responseImage.place;
+  const askedEdges = useMemo(
+    () => (askedBox && imagePlace?.pixelDegrees ? differingEdges(askedBox, imagePlace.lonLat, imagePlace.pixelDegrees) : null),
+    [askedBox, imagePlace],
+  );
 
-  const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer, askedBox);
+  const { abortDrawing, undoLast, isDrawing } = useMapInteractions(map, markerLayer, areaLayer, radiusLayer, askedBox, askedEdges);
 
   // The query in view: its points or path, polygons or box, and a radius around its points. False if it has nothing
   // on the map yet
@@ -273,6 +284,16 @@ const OpenLayersMap: React.FC<MapProps> = ({ zoomLevel }) => {
         </div>
 
         <ResponseCellsBar shows={responseCells.shows} outOfView={responseCells.outOfView} onGoToData={responseCells.goToData} />
+        {responseImage.notPlaced && (
+          <Paper
+            elevation={6}
+            role="status"
+            // Clear of the attribution button at the map's corner
+            sx={{ alignSelf: 'flex-start', ml: '10px', mb: '6px', maxWidth: 'calc(100% - 62px)', px: 1.25, py: 0.75, fontSize: '0.8125rem', pointerEvents: 'auto', opacity: 0.97 }}
+          >
+            {responseImage.notPlaced}
+          </Paper>
+        )}
         <MapsAnimationBar />
       </div>
     </div>

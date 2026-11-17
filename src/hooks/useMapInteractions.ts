@@ -15,14 +15,22 @@ import { withoutLastCorner, withoutLastPoint } from '../query/mapGeometry';
 import { geometryKindOf } from '../query/queryTypes';
 import { unitToMeters } from '../query/units';
 import type { BBox } from '../query/types';
+import type { Edges } from '../query/mapResponse';
+import { differingEdgeLines } from './useMapImageLayer';
 
-// askedBox: a box a query asks for that it doesn't take from the map, as a map query's bbox, drawn as a cube's is
+// The box asked where it isn't the response's Content-Bbox: dotted, in the box's red
+const ASKED_DOTTED = new Style({ stroke: new Stroke({ color: 'rgba(255, 0, 0, 0.8)', width: 3, lineDash: [1, 6], lineCap: 'round' }) });
+
+// askedBox: a box a query asks for that it doesn't take from the map, as a map query's bbox, drawn as a cube's is.
+// askedEdges: once the response is on the map with its own box, the edges of the box asked that differ from it, which
+// are drawn dotted, and only they
 export function useMapInteractions(
   map: Map | null,
   markerLayer: VectorLayer<VectorSource> | null,
   areaLayer: VectorLayer<VectorSource> | null,
   radiusLayer: VectorLayer<VectorSource> | null,
   askedBox: BBox | null = null,
+  askedEdges: Edges | null = null,
 ): { abortDrawing: () => void; undoLast: () => void; isDrawing: boolean } {
   const {
     clickedCoords, setClickedCoords, selectedArea, setSelectedArea, selectedBbox, setSelectedBbox, radius, radiusUnits, dataQuery, boxDrawer, drawBox,
@@ -325,14 +333,19 @@ export function useMapInteractions(
           const feature = new Feature({ geometry: polygon });
           source.addFeature(feature);
         });
-        if (shownBox) {
+        if (askedBox && askedEdges) {
+          differingEdgeLines(askedBox, askedEdges).forEach(line => {
+            line.setStyle(ASKED_DOTTED);
+            source.addFeature(line);
+          });
+        } else if (shownBox) {
           const [west, south, east, north] = shownBox;
           const corners = [[west, south], [west, north], [east, north], [east, south], [west, south]];
           source.addFeature(new Feature({ geometry: new Polygon([corners.map(corner => fromLonLat(corner))]) }));
         }
       }
     }
-  }, [selectedArea, selectedBbox, askedBox, areaLayer]);
+  }, [selectedArea, selectedBbox, askedBox, askedEdges, areaLayer]);
 
   // Abort an in-progress sketch (the half-drawn line/polygon lives on the Draw
   // interaction's own overlay, not in our vector layers, so clearing the layer

@@ -9,6 +9,8 @@ import { INITIAL_CHOICES, ResponseCellsContext, createHoverStore, pictureOf } fr
 import { readCells } from './coverage/coverageCells';
 import { grid, words } from './coverage/cellsTestData';
 import knmi from './locations/__fixtures__/knmi-tg1-oper-locations.json';
+import maps from './query/__fixtures__/meteocore-map-responses.json';
+import { readImageBytes } from './query/mapResponse';
 
 // The open collection, which each test can set
 const open = vi.hoisted(() => ({ collection: null as Partial<Collection> | null }));
@@ -415,6 +417,53 @@ describe('ResponsePane', () => {
     expect(tabNames(html)).toEqual(['Data', 'Headers', 'Sizes', 'Checks']);
     expect(selectedTab(html)).toBe('Data');
     expect(html).toContain('blob:abc');
+  });
+
+  describe('a map response', () => {
+    const MATCH = maps.responses.matchView;
+    const bytes = (base64: string) => readImageBytes(Uint8Array.from(atob(base64), char => char.charCodeAt(0)));
+    const map = (props: Partial<ComponentProps<typeof ResponsePane>> = {}, url = MATCH.url) => renderToStaticMarkup(
+      <RequestUrlContext.Provider value={{ requestUrl: url, isEdited: false, editUrl: () => {}, discardEdits: () => {}, pinUrl: () => {}, unpinUrl: () => {} }}>
+        <ResponsePane open onClose={() => {}} url={url} data={null} imageUrl="blob:map" image={bytes(MATCH.start)} contentType="image/png" isLoading={false} error={null}
+          response={{ ...OK, contentType: 'image/png', headers: MATCH.headers }} {...props} />
+      </RequestUrlContext.Provider>,
+    );
+
+    it('shows the image with what its headers say against what was asked, against the open collection', () => {
+      open.collection = maps.collection as unknown as Collection;
+      const html = map();
+      expect(tabNames(html)).toEqual(['Data', 'Headers', 'Sizes', 'Checks']);
+      expect(html).toContain('src="blob:map"');
+      expect(words(html)).toContain('Content-Crs EPSG:3857 = crs asked');
+      expect(words(html)).toContain('Content-Datetime 2026-11-16T15:25:00Z none asked: the server chose');
+      expect(html).toContain('On the map');
+      // The storage CRS is the open collection's: a bare map is compared with it
+      const bare = maps.responses.bare;
+      const bareHtml = map({ image: bytes(bare.start), response: { ...OK, contentType: 'image/png', headers: bare.headers } }, bare.url);
+      expect(words(bareHtml)).toContain('Content-Crs EPSG:3067 = storageCrs, as none was asked');
+      open.collection = null;
+      expect(words(map({ image: bytes(bare.start), response: { ...OK, contentType: 'image/png', headers: bare.headers } }, bare.url))).toContain('Content-Crs EPSG:3067 none asked');
+    });
+
+    it("reads no rows for an image that isn't a map's, or a failure's, or while loading", () => {
+      expect(map({}, 'https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/styles/radar_fmi/legend')).not.toContain('What the headers say');
+      const failed = map({ response: { ...BAD_REQUEST, contentType: 'image/png', headers: MATCH.headers } });
+      expect(failed).toContain('src="blob:map"');
+      expect(failed).not.toContain('What the headers say');
+      expect(failed).not.toContain('On the map');
+      expect(map({ isLoading: true })).not.toContain('What the headers say');
+    });
+
+    it("bytes that aren't the image their Content-Type says: Data says so, and Raw is there for them", () => {
+      const json = maps.responses.widthZero.body;
+      const html = map({ image: bytes(maps.responses.widthZero.start), data: json });
+      expect(tabNames(html)).toEqual(['Data', 'Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(selectedTab(html)).toBe('Data');
+      expect(words(html)).toContain('The body isn\'t the image its Content-Type says: it starts with {"code":"BadRequest","de. Raw shows it.');
+      expect(html).not.toContain('<img');
+      // Not as a page of its own, as text would be
+      expect(html).not.toContain('Transforming XSLT');
+    });
   });
 
   it("offers the text's copy button beside the tabs, in no row of its own", () => {
