@@ -788,6 +788,90 @@ export const MAPS1 = {
   // C: "If the spatial subsetting requirements class is supported, the bbox-crs and the subset-crs SHALL additionally
   // support the value specified in the crs parameter."
   crsForBbox: maps1('/req/crs/crs-definition C', '_28508c96-8a54-81ae-44ca-e87d092de316'),
+  // ---- What a map request's background, centre, scale and subset CRS are checked against ----
+  // A: "The map operation SHALL support an optional parameter transparent specifying whether to use or not a transparent
+  // background with the characteristics defined in the OpenAPI Specification 3.0 fragment: name: transparent in: query
+  // description: '(defaults to `true` without a `bgcolor` specified, but to `false` when a `bgcolor` is used).' required:
+  // false style: form explode: false schema: type: boolean default: true"
+  transparentDefinition: maps1('/req/background/transparent-definition A', '_a8548a38-18bc-3152-7b07-dc58c3274499'),
+  // B: "The server SHALL interpret transparent as a Boolean indicating whether the background of the map should be
+  // transparent."
+  transparentBoolean: maps1('/req/background/transparent-definition B', '_b07c77fe-28e9-2ee0-dc18-431e55045bce'),
+  // C: "If transparent is not specified and a bgcolor is not specified, the server SHALL assume a value of true."
+  transparentDefault: maps1('/req/background/transparent-definition C', '_8ac08cbe-1c82-1b17-6e78-22c2f6e786dd'),
+  // D: "If transparent is not specified and a bgcolor is specified, the server SHALL assume a value of false."
+  transparentWithBgcolor: maps1('/req/background/transparent-definition D', '_19183e9d-470a-5700-6e67-507308d0f65c'),
+  // E: "If transparent is true and a bgcolor is specified, the server SHALL use 0 for the background’s opacity."
+  transparentOpacity: maps1('/req/background/transparent-definition E', '_92b37ee3-bae5-06a7-5423-08b124ede7e4'),
+  // B: "The map operation SHALL support a bgcolor parameter which can be a hexadecimal red-green-blue color value (from
+  // 00 to FF, FF representing 255) or a case-insensitive W3C web color name for the background color of the map
+  // (default=0xFFFFFF). For a six-digit hexadecimal value, the first and second digits specify the intensity of red. The
+  // third and fourth digits specify the intensity of green. The fifth and sixth digits specify the intensity of blue."
+  bgcolorDefinitionB: maps1('/req/background/bgcolor-definition B', '_40571e51-0d0d-fdba-7d9d-8e780c4aec19'),
+  // C: "If bgcolor is not specified, and either transparent is set to false or the output format cannot encode
+  // transparency, the server SHALL use the background color specified by the requested style."
+  bgcolorStyle: maps1('/req/background/bgcolor-definition C', '_edb78a9c-f29a-9a28-df1e-405aa6fad8ba'),
+  // A: "If bgcolor is not specified, and either transparent is set to false or the output format cannot encode
+  // transparency and the style applied to the map does not specify a background color, the server SHOULD use a neutral
+  // default color such as white or a light shade of gray."
+  bgcolorNeutral: maps1('/rec/background/bgcolor-definition A', '_83ad466a-20c8-0109-9685-93cfa97778d9'),
+  // A: "The implementation MAY support a bgcolor parameter with eight hexadecimal digits where the first two represent an
+  // alpha value, to be used as the opacity value for no data areas (where “FF” is completely opaque and “00” is fully
+  // transparent)."
+  bgcolorAlpha: maps1('/per/background/bgcolor-alpha A', '_49836d19-4389-8382-182d-8fc779df6f7d'),
+  // B: "The map operation SHALL support a void-color parameter which can be a hexadecimal red-green-blue color value (from
+  // 00 to FF, FF representing 255) or a case-insensitive W3C web color name for the parts of the map outside of the
+  // valid areas of the projection / CRS (default=0xFFFFFF). …"
+  voidColorDefinitionB: maps1('/req/background/void-color-definition B', '_8c0bf87e-94f7-c18a-47ef-74033c186c8a'),
+  // C: "If void-color is not specified, the same color value as for bgcolor (specified or default) SHALL be used."
+  voidColorDefault: maps1('/req/background/void-color-definition C', '_41932fc0-cc9b-e191-d2a9-227aa3cf92fe'),
+  // B: "The server SHALL interpret void-transparent as a Boolean indicating whether the parts of the map outside of the
+  // valid areas of the projection / CRS should be transparent."
+  voidTransparentBoolean: maps1('/req/background/void-transparent-definition B', '_bcbaeb17-b386-6e89-c556-bc1a986e975b'),
+  // C: "If void-transparent is not specified, the server SHALL assume the same value as for transparent (specified or
+  // default)."
+  voidTransparentDefault: maps1('/req/background/void-transparent-definition C', '_a07933e1-16e6-ede5-9085-fdf94cacbaaf'),
+  // A: "A center parameter SHALL be supported to specify the center of the subset of the map to include, with coordinates
+  // in the CRS specified in the center-crs parameter value or in https://www.opengis.net/def/crs/OGC/1.3/CRS84 if the
+  // center-crs parameter is missing."
+  centerDefinitionA: maps1('/req/spatial-subsetting/center-definition A', '_ed5196cb-2a71-a5bd-8420-ab2a86ad237f'),
+  // A: "The map retrieval operation SHALL support a parameter center-crs with the characteristics defined in the OpenAPI
+  // Specification 3.0 fragment: … description: A URI (or safe CURIE) of the coordinate reference system for the
+  // coordinates specified in the `center` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if
+  // different), or the output `crs` (if specified)."
+  centerCrsDefinition: maps1('/req/spatial-subsetting/center-crs A', '_b6d9d8c6-1248-7d1a-6b20-c7d7d8fb16ba'),
+  // C: "If the center-crs is not used, https://www.opengis.net/def/crs/OGC/1.3/CRS84 SHALL be assumed."
+  centerCrsDefault: maps1('/req/spatial-subsetting/center-crs C', '_d019bea9-c107-6ec6-9706-493e41b8f455'),
+  // F: "If no center parameter is used, the center-crs SHALL be ignored."
+  centerCrsAlone: maps1('/req/spatial-subsetting/center-crs F', '_59425413-27a1-284e-2967-b63f70274ce9'),
+  // A: "The map operation SHALL support a parameter subset-crs with the characteristics defined in the OpenAPI
+  // Specification 3.0 fragment: … description: A URI (or safe CURIE) of the coordinate reference system for the
+  // coordinates specified in the `subset` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if
+  // different), or the output `crs` (if specified)."
+  subsetCrsDefinition: maps1('/req/spatial-subsetting/subset-crs A', '_901d70cf-732e-fa5d-3858-d7f65a163556'),
+  // C: "If the subset-crs is not indicated https://www.opengis.net/def/crs/OGC/1.3/CRS84 SHALL be assumed."
+  subsetCrsDefault: maps1('/req/spatial-subsetting/subset-crs C', '_dfbf122d-5dcb-fb48-b399-880dda217b4d'),
+  // F: "If no subset parameter referring to an axis of the CRS is used, the subset-crs SHALL be ignored."
+  subsetCrsAlone: maps1('/req/spatial-subsetting/subset-crs F', '_d9c79ef9-98e3-51be-90b9-3156c53f1151'),
+  // A: "The map operation SHALL support a parameter scale-denominator with the characteristics defined in the OpenAPI
+  // Specification 3.0 fragment: scale-denominator: name: scale-denominator in: query description: Number of units in the
+  // real-world corresponding to one such unit on the display. required: false style: form schema: type: number"
+  scaleDenominatorDefinition: maps1('/req/scaling/scale-denominator-definition A', '_93a1b8ec-76d9-342a-7325-f43e01972ccb'),
+  // B: "The scale-denominator value SHALL be interpreted as the number of real-world units corresponding to one of the
+  // same unit on the map (as printed or displayed), considering only the local subset of the map being returned, based on
+  // the selected (e.g., from display resolution requirements class) or default (0.28 mm/pixel) display resolution."
+  scaleDenominatorMeaning: maps1('/req/scaling/scale-denominator-definition B', '_d3710ae8-49eb-5790-c0ff-bb20a6adc783'),
+  // D: "An HTTP 4xx error SHALL be returned if the scale-denominator parameter is used together with width and/or height
+  // and the implementation does not declare conformance to the spatial subsetting requirements class (which specifies
+  // that the width and height parameters can also take on a subsetting role)."
+  scaleDenominatorDefinitionD: maps1('/req/scaling/scale-denominator-definition D', '_a90cb32a-cbb5-6a1d-fb3d-d58c96759a36'),
+  // E: "An HTTP 4xx error SHALL be returned if the scale-denominator parameter is used together with width and/or
+  // height as well as a bbox (or equivalent subset parameter for a spatial dimension)."
+  scaleDenominatorWithSize: maps1('/req/scaling/scale-denominator-definition E', '_67fc8934-6261-4808-05ad-e2d6950d93c9'),
+  // F: "If the scale-denominator parameter is omitted, the implementation SHALL compute it as needed (for purposes such
+  // as applying scale-dependent symbology rules) based on the default or selected dimensions, display resolution, and
+  // the spatial subset of the map to return."
+  scaleDenominatorLeftOut: maps1('/req/scaling/scale-denominator-definition F', '_8b3a1002-3996-5742-b6f0-c4478f10591c'),
   // ---- The collection's description ----
   // A, in the general-subsetting class: "Wherever applicable (e.g., the collection or dataset description), the extent
   // of any additional dimension(s) beyond temporal and spatial SHALL be described in a way similar to the temporal
@@ -800,19 +884,8 @@ export const MAPS1 = {
   // 3.0 fragment", and the same of height
   widthDefinitionA: maps1('/req/scaling/width-definition A', '_2ec4ccca-5426-ac55-acd3-30d50108e9aa'),
   heightDefinitionA: maps1('/req/scaling/height-definition A', '_5b8d3722-be0e-11c5-0943-6a652b2a8e85'),
-  // A: "The map operation SHALL support a parameter scale-denominator …"
-  scaleDenominatorDefinition: maps1('/req/scaling/scale-denominator-definition A', '_93a1b8ec-76d9-342a-7325-f43e01972ccb'),
-  // E: "An HTTP 4xx error SHALL be returned if the scale-denominator parameter is used together with width and/or height
-  // as well as a bbox (or equivalent subset parameter for a spatial dimension)."
-  scaleDenominatorWithSize: maps1('/req/scaling/scale-denominator-definition E', '_67fc8934-6261-4808-05ad-e2d6950d93c9'),
   // A: "The map operation SHALL support a parameter mm-per-pixel …"
   mmPerPixelDefinition: maps1('/req/display-resolution/mm-per-pixel-definition A', '_9dcda9db-7ba4-99d3-4c85-44ce5c587227'),
-  // A: "The map operation SHALL support a parameter subset-crs …", and center-crs: "The map retrieval operation SHALL
-  // support a parameter center-crs …"
-  subsetCrsDefinition: maps1('/req/spatial-subsetting/subset-crs A', '_901d70cf-732e-fa5d-3858-d7f65a163556'),
-  centerCrsDefinition: maps1('/req/spatial-subsetting/center-crs A', '_b6d9d8c6-1248-7d1a-6b20-c7d7d8fb16ba'),
-  // A: "A center parameter SHALL be supported to specify the center of the subset of the map to include …"
-  centerDefinitionA: maps1('/req/spatial-subsetting/center-definition A', '_ed5196cb-2a71-a5bd-8420-ab2a86ad237f'),
   // B: "Axis names Lat and Lon SHALL be supported for geographic CRS and E and N for projected CRS, which are to be
   // interpreted as the best matching spatial axis in the CRS definition."
   spatialSubsetAxes: maps1('/req/spatial-subsetting/subset-definition B', '_0a81f065-b63e-c685-dc58-c83235fbd2d9'),
@@ -831,7 +904,6 @@ export const MAPS1 = {
   // A, in the background class: "The map operation SHALL support a parameter bgcolor to define a background color …";
   // "… an optional parameter transparent …"; "… a parameter void-color …"; "… an optional parameter void-transparent …"
   bgcolorDefinition: maps1('/req/background/bgcolor-definition A', '_c4aa136d-af90-ae38-7766-a6f30d4d0eb0'),
-  transparentDefinition: maps1('/req/background/transparent-definition A', '_a8548a38-18bc-3152-7b07-dc58c3274499'),
   voidColorDefinition: maps1('/req/background/void-color-definition A', '_7b606505-2851-9277-a482-244c97066857'),
   voidTransparentDefinition: maps1('/req/background/void-transparent-definition A', '_4a99a244-6e2e-9d58-ef09-7e5fd56deecc'),
   // A: "An operation that acts on a resource consisting of multiple geospatial data sub-resources … SHALL support …" the

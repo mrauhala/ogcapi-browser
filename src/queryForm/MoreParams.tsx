@@ -18,6 +18,7 @@ import { paramsIn, renameParam, withParam } from '../query/requestUrl';
 import ParamField, { IssueLine } from './ParamField';
 import type { QueryIssue } from '../query/types';
 import NameToggles from './NameToggles';
+import { OPEN_MORE } from './fieldFocus';
 
 const MONO_INPUT = { htmlInput: { spellCheck: false, autoComplete: 'off', sx: { fontFamily: 'monospace' } } } as const;
 
@@ -52,15 +53,18 @@ function OtherRow({ name, value, onRename, onValue, onRemove, issues = [], openD
   );
 }
 
-// More: what the form has no main field for. crs, from the query's crs_details, and every other parameter the request
-// has, as name = value rows sent as typed, a view of the line as the typed fields are. Closed unless it has something
+// More: what the form has no main field for. crs, from the query's crs_details; a map's fields that are seldom needed,
+// its background, centre, scale and the like, and its Accept header; and every other parameter the request has, as
+// name = value rows sent as typed, a view of the line as the typed fields are. Closed unless it has something
 const MoreParams: React.FC<{
   collection: Collection;
   queryKey: string;
   specs: FieldSpec[];
   crs: string;
   setCrs: (crs: string) => void;
-}> = ({ collection, queryKey, specs, crs, setCrs }) => {
+  fields?: React.ReactNode; // a map's fields under More, as the form renders them
+  filled?: boolean; // whether the request has anything in those
+}> = ({ collection, queryKey, specs, crs, setCrs, fields, filled = false }) => {
   const { requestUrl, editUrl } = useRequestUrl();
   const { issues } = useQueryValidation();
   const openDocs = useOpenDocs();
@@ -71,14 +75,21 @@ const MoreParams: React.FC<{
   const [toggled, setToggled] = useState<boolean | null>(null);
   const [adding, setAdding] = useState<{ name: string; value: string } | null>(null);
   // A map's crs has a field of its own: only crs_details' opens More
-  const open = toggled ?? ((offered.length > 0 && !!crs) || others.length > 0 || !!adding);
+  const open = toggled ?? ((offered.length > 0 && !!crs) || filled || others.length > 0 || !!adding);
+  // The status line jumping to a field in here while it's closed
+  useEffect(() => {
+    const show = () => setToggled(true);
+    document.addEventListener(OPEN_MORE, show);
+    return () => document.removeEventListener(OPEN_MORE, show);
+  }, []);
 
   // A name the form has a field for goes to that field: the form reads the line again
   const edit = (url: string, follow: boolean) => {
     editUrl(url);
     if (follow) openRequest(url, { switchApi: false });
   };
-  const contents = [...(offered.length ? ['crs'] : []), others.length ? `${others.length} other parameter${others.length === 1 ? '' : 's'}` : 'other parameters'];
+  const names = specs.filter(spec => spec.more).flatMap(spec => [spec.name, ...(spec.unit ? [spec.unit.name] : [])]);
+  const contents = [...(offered.length ? ['crs'] : []), ...names, others.length ? `${others.length} other parameter${others.length === 1 ? '' : 's'}` : 'other parameters'];
 
   return (
     <Box id="query-field-more" sx={{ mt: 1.25 }}>
@@ -99,6 +110,7 @@ const MoreParams: React.FC<{
               <NameToggles label="crs" options={offered} value={crs} onChange={setCrs} />
             </ParamField>
           )}
+          {fields}
           <ParamField id="other" title="Other parameters" name="" figure="sent as typed"
             hints={others.length || adding ? [] : ['Any parameter the request has that no field is for: the form sends it as it is']}>
             {others.map(([name, value], index) => (

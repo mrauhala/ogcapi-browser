@@ -151,13 +151,14 @@ const NOTHING_HELD: QuerySelections = {
   bboxAsCoords: false, radius: null, radiusUnits: null, queryParams: {},
 };
 
-// What a map's form holds as typed, one text each
-const MAP_TEXTS = ['bbox', 'bbox-crs', 'width', 'height', 'crs', 'elevation'];
+// What a map's form holds as typed, one text each: all it writes but its subset, which may come in several parts
+const MAP_TEXTS = TYPE_PARAMS.map.filter(name => name !== 'subset');
 
 export function readQuerySelections(url: string, collection: Collection, queryKey: string): QuerySelections {
   const params = new URL(url).searchParams;
   const queryType = queryTypeOf(collection, queryKey);
-  // Of a map's parameters, the form holds its parameter, time, box, size, CRS, subset, elevation and format, as typed. The
+  // Of a map's parameters, the form holds its parameter, time, box, size, CRS, subset, elevation, what's under More and
+  // its format, as typed. The
   // rest stay in the line as typed, and are sent. Several subset parameters are read as one, comma-separated, as Maps 1.0
   // has them: /req/spatial-subsetting/subset-definition I, "Multiple subset parameters SHALL be interpreted, as if all
   // dimension subsetting values were provided in a single subset parameter (comma separated)"

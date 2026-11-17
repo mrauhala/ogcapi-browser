@@ -33,7 +33,7 @@ import { ALL_PANES_WIDTH, MIN_MAP_WIDTH, leftPaneOpen } from './panes';
 import SendButton from './SendButton';
 import RequestUrlField from './RequestUrlField';
 import { RequestUrlProvider, useRequestUrl } from './contexts/RequestUrlContext';
-import { QueryBuilderProvider } from './contexts/QueryBuilderContext';
+import { QueryBuilderProvider, useQueryBuilder } from './contexts/QueryBuilderContext';
 import { ApiProvider, useApi } from './contexts/ApiContext';
 import { OpenCollectionProvider, useOpenCollection } from './contexts/OpenCollectionContext';
 import { OpenRequestProvider, useOpenRequest } from './contexts/OpenRequestContext';
@@ -41,6 +41,7 @@ import RequestNotice from './RequestNotice';
 import { useRequestIssues } from './hooks/useRequestIssues';
 import { isSendableUrl } from './query/requestUrl';
 import { requestLink } from './query/requestLink';
+import { sentAccept } from './query/mapAccept';
 import CopyMenu from './CopyMenu';
 import Paper from '@mui/material/Paper';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -127,6 +128,9 @@ function AppContent({ customServices, setCustomServices }: AppContentProps) {
   const { selectedCollection } = useCollection();
   const { openSerial } = useOpenCollection();
   const { loadApi } = useApi();
+  // A map request's Accept, which the line can't show: sent with it, and in its curl command
+  const { accept, queryTarget } = useQueryBuilder();
+  const requestAccept = sentAccept(requestUrl, queryTarget?.collection, accept);
 
   // Detect system preference
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
@@ -266,10 +270,10 @@ function AppContent({ customServices, setCustomServices }: AppContentProps) {
     if (!isSendableUrl(requestUrl)) return;
     // What's sent is what's shown, so the app goes where an edited URL points
     if (isEdited) openRequest(requestUrl, { switchApi: true });
-    fetchQuery(requestUrl);
+    fetchQuery(requestUrl, requestAccept);
     // Reloading brings the request back, and the address can be passed on
     window.history.replaceState(null, '', requestLink(requestUrl, window.location.href));
-  }, [requestUrl, isEdited, openRequest, fetchQuery]);
+  }, [requestUrl, requestAccept, isEdited, openRequest, fetchQuery]);
 
   // Cmd+Enter (Mac) / Ctrl+Enter (Windows) to send the request
   useEffect(() => {
@@ -303,6 +307,7 @@ function AppContent({ customServices, setCustomServices }: AppContentProps) {
     <CopyMenu
       url={requestUrl}
       auth={requestUrl ? getAuthCredentials(requestUrl) : undefined}
+      accept={requestAccept}
       compact={narrowWindow || !urlInTopRow}
       atBottom={!urlInTopRow}
     />

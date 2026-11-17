@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import InputAdornment from '@mui/material/InputAdornment';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useCollection } from '../contexts/CollectionContext';
@@ -18,7 +19,8 @@ const ParamText: React.FC<{
   warning?: boolean;
   noted?: boolean; // the field says what's wrong with its value itself, so there's no "can't read" besides
   width?: number;
-}> = ({ name, inputId, placeholder, error = false, warning = false, noted = false, width }) => {
+  adornment?: React.ReactNode; // before the value, as a colour's swatch
+}> = ({ name, inputId, placeholder, error = false, warning = false, noted = false, width, adornment }) => {
   const { requestUrl, editUrl } = useRequestUrl();
   const { collectionUrl } = useCollection();
   const { openRequest } = useOpenRequest();
@@ -69,7 +71,10 @@ const ParamText: React.FC<{
           ...(width !== undefined ? { width } : {}),
           ...(warning && !error ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main' } } : {}),
         }}
-        slotProps={{ htmlInput: { 'aria-label': name, spellCheck: false, autoComplete: 'off', sx: VALUE_SX } }}
+        slotProps={{
+          ...(adornment ? { input: { startAdornment: <InputAdornment position="start" sx={{ mr: 0.75 }}>{adornment}</InputAdornment> } } : {}),
+          htmlInput: { 'aria-label': name, spellCheck: false, autoComplete: 'off', sx: VALUE_SX },
+        }}
       />
       {unread && (
         <Typography component="div" sx={{ fontSize: 12, lineHeight: '16px', mt: 0.5, color: 'text.secondary' }}>

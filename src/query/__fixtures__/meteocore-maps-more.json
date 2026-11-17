@@ -1,0 +1,316 @@
+{
+  "_comment": "Trimmed from https://meteocore.app.meteo.fi, fetched 2026-11-17 12:54 UTC with User-Agent ogcapi-browser-check: fmi-radar-composite-dbz and ecmwf-ifs-pressure from /collections/{id} (id, title, crs, storageCrs where it has one, extent.spatial without its grids, and the self and map links); the Maps classes of /conformance; and from /api the query parameters bbox, subset, subset-crs, center, center-crs, width, height, scale-denominator, crs, bgcolor, transparent, void-color, void-transparent, f and quality of /collections/fmi-radar-composite-dbz/map, with their $refs to components.parameters resolved, as served",
+  "collections": [
+    {
+      "id": "fmi-radar-composite-dbz",
+      "title": "Finnish Radar Reflectivity Composite (FMI)",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/3067",
+      "extent": {
+        "spatial": {
+          "bbox": [
+            [
+              6.682740501703563,
+              55.93417040538872,
+              43.12029176280373,
+              72.85568464682855
+            ]
+          ],
+          "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+          "storageCrsBbox": [
+            [
+              -196593.004,
+              6255329.699,
+              1044176.9410000001,
+              8084432.005
+            ]
+          ],
+          "meteocore:nativeGrid": {
+            "crs": "http://www.opengis.net/def/crs/EPSG/0/3067",
+            "cellsCount": [
+              4963,
+              7316
+            ],
+            "resolution": [
+              250.00401873866613,
+              250.01398387096773
+            ],
+            "unit": "m",
+            "bbox": [
+              -196593.004,
+              6255329.699,
+              1044176.9410000001,
+              8084432.005
+            ]
+          }
+        }
+      },
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz",
+          "rel": "self",
+          "type": "application/json",
+          "title": "Finnish Radar Reflectivity Composite (FMI)"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        }
+      ]
+    },
+    {
+      "id": "ecmwf-ifs-pressure",
+      "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels",
+      "crs": [
+        "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+        "http://www.opengis.net/def/crs/EPSG/0/4326",
+        "http://www.opengis.net/def/crs/EPSG/0/3857",
+        "http://www.opengis.net/def/crs/EPSG/0/3067",
+        "http://www.opengis.net/def/crs/EPSG/0/3035"
+      ],
+      "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+      "extent": {
+        "spatial": {
+          "bbox": [
+            [
+              -180.0,
+              -90.0,
+              180.0,
+              90.0
+            ]
+          ],
+          "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+        }
+      },
+      "links": [
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure",
+          "rel": "self",
+          "type": "application/json",
+          "title": "ECMWF IFS Global Forecast (0.25 deg) — Pressure levels"
+        },
+        {
+          "href": "https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/map",
+          "rel": "http://www.opengis.net/def/rel/ogc/1.0/map",
+          "type": "image/png",
+          "title": "Map"
+        }
+      ]
+    }
+  ],
+  "conformsTo": [
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/core",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/collection-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/styled-map",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/spatial-subsetting",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/scaling",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/datetime",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/crs",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/png",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/jpeg",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/background",
+    "http://www.opengis.net/spec/ogcapi-maps-1/1.0/conf/tilesets"
+  ],
+  "mapPath": "/collections/fmi-radar-composite-dbz/map",
+  "parameters": [
+    {
+      "name": "bbox",
+      "in": "query",
+      "description": "Bounding box of the rendered map. The bounding box is provided as four or six coordinates\n\n* Lower left corner, coordinate axis 1\n* Lower left corner, coordinate axis 2\n* Minimum value, coordinate axis 3 (optional)\n* Upper right corner, coordinate axis 1\n* Upper right corner, coordinate axis 2\n* Maximum value, coordinate axis 3 (optional)\n\nThe coordinate reference system and axis order of the values are indicated in the `bbox-crs` parameter or if the parameter is missing in https://www.opengis.net/def/crs/OGC/1.3/CRS84\n\nThis server's maps are two-dimensional: give four values. For WGS 84 longitude/latitude the values are in most cases the sequence of minimum longitude, minimum latitude, maximum longitude and maximum latitude. However, in cases where the box spans the antimeridian the first value (west-most box edge) is larger than the third value (east-most box edge). Not with `center` or a spatial `subset` (400). Without `bbox`, `center` or a spatial `subset` the map covers the collection's whole spatial extent.",
+      "required": false,
+      "schema": {
+        "type": "array",
+        "oneOf": [
+          {
+            "minItems": 4,
+            "maxItems": 4
+          },
+          {
+            "minItems": 6,
+            "maxItems": 6
+          }
+        ],
+        "items": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "style": "form",
+      "explode": false
+    },
+    {
+      "name": "subset",
+      "in": "query",
+      "description": "Retrieve only part of the data by slicing or trimming along one or more axis\nFor trimming: {axisAbbrev}({low}:{high}) (preserves dimensionality)\nFor slicing:  {axisAbbrev}({value})      (reduces dimensionality)\nAn asterisk (`*`) can be used instead of {low} or {high} to indicate the minimum/maximum value.\nFor a temporal dimension, a single asterisk can be used to indicate the high value.\nSupport for `*` is required for time, but optional for spatial and other dimensions.\n\nAxes: `Lon` and `Lat` (also `Long`, `Longitude`, `Latitude`) in a geographic `subset-crs`, `E` and `N` (also `X`, `Easting`, `Y`, `Northing`) in a projected one, each trimmed with an interval; `*` is the collection extent's edge, and an axis left out keeps the extent. A `Lon` low greater than its high crosses the antimeridian. `time` (also `t`) takes double-quoted RFC 3339 values or the partial forms `yyyy`, `yyyy-mm`, `yyyy-mm-dd`, `yyyy-mm-ddThhZ` and `yyyy-mm-ddThh:mmZ`: an instant is snapped like `datetime`, an interval, a partial value or `*` renders the latest time inside it. `reference_time`, on a collection whose `extent` has a `reference_time` dimension, selects its model run: one double-quoted RFC 3339 run of that dimension, the run's EDR instance id, or `*` for the latest run, as omitting it is. A named run is drawn exactly, the latest included: the time is one of that run's own valid times, by default its latest, an instant inside the run snaps to one of its steps, and an instant outside it or an interval holding none of them is a 404. With `*` or no run, the run is the one the collection draws the time from, an older one where the newest lacks it. A run the collection does not have is a 404; an interval of runs, or the axis on a collection without runs, a 400. Any other axis is a 400; an interval entirely outside its axis' valid values, or holding no time, a 404. Spatial axes not with `bbox` or `center`, `time` not with `datetime` (400). Examples: `subset=Lon(19:32),Lat(59:70)`, `subset=reference_time(\"2026-10-01T06:00:00Z\")`.",
+      "style": "form",
+      "explode": false,
+      "required": false,
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "name": "subset-crs",
+      "in": "query",
+      "description": "A URI (or safe CURIE) of the coordinate reference system for the coordinates specified in the `subset` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if different), or the output `crs` (if specified).\n\nThis server accepts every CRS a collection lists in `crs`, as URI, safe CURIE or short identifier. Ignored without a spatial `subset` axis.",
+      "required": false,
+      "schema": {
+        "type": "string"
+      },
+      "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    },
+    {
+      "name": "center",
+      "in": "query",
+      "description": "Coordinates of center point for subsetting, in conjunction with the `width` and/or `height` parameters, taking into consideration the scale and display resolution of the map. The center coordinates are comma-separated and interpreted as [ogc:CRS84], unless the `center-crs` parameter specifies otherwise.\n\nThe coordinates follow the `center-crs` axis order. Without `scale-denominator` the map is at the collection's native resolution. An omitted `width` or `height` is the other's value, both omitted 1024. Not with `bbox` or a spatial `subset` (400).",
+      "required": false,
+      "style": "form",
+      "explode": false,
+      "schema": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    {
+      "name": "center-crs",
+      "in": "query",
+      "description": "A URI (or safe CURIE) of the coordinate reference system for the coordinates specified in the `center` parameter. The valid values are [OGC:CRS84], the native (storage) CRS (if different), or the output `crs` (if specified).\n\nThis server accepts every CRS a collection lists in `crs`, as URI, safe CURIE or short identifier. Ignored without `center`.",
+      "required": false,
+      "schema": {
+        "type": "string"
+      },
+      "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    },
+    {
+      "name": "width",
+      "in": "query",
+      "description": "Width of the viewport in pixel units to present the response (the map subset).\n\nA positive integer up to 8000, and `width` × `height` up to 64000000. Omitted over an area (`bbox`, a spatial `subset` or the collection's extent): the width that keeps pixels square, 1024 for the longer side when `height` is omitted too, or the width `scale-denominator` gives. With `center`, or `scale-denominator` and no area, it sets the map's extent at that scale; omitted, it is `height`'s value, else 1024.",
+      "required": false,
+      "style": "form",
+      "schema": {
+        "type": "number",
+        "maximum": 8000
+      }
+    },
+    {
+      "name": "height",
+      "in": "query",
+      "description": "Height of the viewport in pixel units to present the response (the map subset).\n\nA positive integer up to 8000, and `width` × `height` up to 64000000. Omitted over an area (`bbox`, a spatial `subset` or the collection's extent): the height that keeps pixels square, 1024 for the longer side when `width` is omitted too, or the height `scale-denominator` gives. With `center`, or `scale-denominator` and no area, it sets the map's extent at that scale; omitted, it is `width`'s value, else 1024.",
+      "required": false,
+      "style": "form",
+      "schema": {
+        "type": "number",
+        "maximum": 8000
+      }
+    },
+    {
+      "name": "scale-denominator",
+      "in": "query",
+      "description": "Number of units in the real-world corresponding to one such unit on the display.\n\nA positive number, on the standard 0.28 mm pixel: one pixel spans `scale-denominator` × 0.28 mm on the ground at the map's centre (ground metres, not CRS units). With `bbox` or a spatial `subset` it sets the map's size, and is a 400 together with `width` or `height`; otherwise it sets the map's extent around `center`, or the centre of the collection's extent.",
+      "required": false,
+      "style": "form",
+      "schema": {
+        "type": "number"
+      }
+    },
+    {
+      "name": "crs",
+      "in": "query",
+      "description": "A coordinate reference system of the map response. A list of all supported CRS values can be found under the collection metadata.\n\nA URI the collection lists in `crs`, its safe CURIE, or a short identifier: `CRS:84`, `EPSG:4326`, `EPSG:3857`, `EPSG:3067`, `EPSG:3035`. Default: the collection's `storageCrs` when it is one of these, else CRS84. `Content-Crs` names the CRS of the response.",
+      "required": false,
+      "schema": {
+        "type": "string"
+      },
+      "example": "https://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    },
+    {
+      "name": "bgcolor",
+      "in": "query",
+      "description": "Hexadecimal red-green-blue color value (0-255) or case-insensitive W3C web color name for the\nbackground color (default=0xFFFFFF). For a six digit hexadecimal value, the first and second\ndigits specify the intensity of red. The third and fourth digits specify the intensity of\ngreen. The fifth and sixth digits specify the intensity of blue.\n\nThis server takes `0xRRGGBB` or `#RRGGBB` (`%23RRGGBB` in a URL), hexadecimal digits of either case, or one of the 148 named colours of CSS Color Module Level 4, in any case; anything else is a 400. An opaque map, with `transparent=false` or in `image/jpeg`, which has no alpha, is composited onto this colour: areas with no data take it, and semi-transparent colours blend onto it. A transparent map gives its areas with no data this colour at opacity 0 when `bgcolor` is given, and leaves them as rendered, fully transparent, otherwise.",
+      "required": false,
+      "style": "form",
+      "explode": false,
+      "schema": {
+        "type": "string",
+        "default": "0xFFFFFF"
+      }
+    },
+    {
+      "name": "transparent",
+      "in": "query",
+      "description": "(defaults to `true` without a `bgcolor` specified, but to `false` when a `bgcolor` is used).\n\n`true` or `false`, in any case; anything else is a 400. `true` keeps the map's alpha: areas with no data are fully transparent. `false` composites the map onto `bgcolor`. An `image/jpeg` map, which has no alpha, is always opaque.",
+      "required": false,
+      "style": "form",
+      "explode": false,
+      "schema": {
+        "type": "boolean",
+        "default": true
+      }
+    },
+    {
+      "name": "void-color",
+      "in": "query",
+      "description": "Hexadecimal red-green-blue color value (0-255) or case-insensitive W3C web color name for the\ncolor of parts of the map outside of the valid CRS / projection areas (default=0xFFFFFF). For a six digit hexadecimal value, the first and second\ndigits specify the intensity of red. The third and fourth digits specify the intensity of\ngreen. The fifth and sixth digits specify the intensity of blue.\n\nThis server takes `0xRRGGBB` or `#RRGGBB` (`%23RRGGBB` in a URL), hexadecimal digits of either case, or one of the 148 named colours of CSS Color Module Level 4, in any case; anything else is a 400. Those parts are the rows of a CRS84 or EPSG:4326 map past a pole, and the parts of an EPSG:3067 or EPSG:3035 map past its projection's valid area; Web Mercator maps and map tiles have none. They are painted as areas with no data are, in this colour and as `void-transparent` says. Without it, the `bgcolor`, specified or default, is used.",
+      "required": false,
+      "style": "form",
+      "explode": false,
+      "schema": {
+        "type": "string",
+        "default": "0xFFFFFF"
+      }
+    },
+    {
+      "name": "void-transparent",
+      "in": "query",
+      "description": "(defaults to the same value, specified or default, as `transparent`).\n\n`true` or `false`, in any case; anything else is a 400. Whether the parts of the map outside the valid area of its CRS, those `void-color` describes, are transparent, as `transparent` says of areas with no data.",
+      "required": false,
+      "style": "form",
+      "explode": false,
+      "schema": {
+        "type": "boolean",
+        "default": true
+      }
+    },
+    {
+      "name": "f",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "image/png",
+        "enum": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      },
+      "description": "Output format. `image/png` auto-emits an 8-bit indexed-palette PNG (~3–4× smaller) for colormap-rendered layers; falls back to 32-bit RGBA above 256 distinct colours."
+    },
+    {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "description": "Encoder quality for `image/webp` and `image/jpeg`, an integer from 1 to 100 (MeteoCore extension). For WebP, 1–99 is lossy encoding at that quality and 100 is lossless; without it WebP uses the collection's default quality when the server configures one, else lossless. JPEG defaults to 85. Not accepted with `image/png`: 400."
+    }
+  ]
+}

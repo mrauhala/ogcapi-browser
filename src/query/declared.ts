@@ -17,6 +17,7 @@ export interface ApiDocsParam {
   enumValues: string[] | null;
   defaultValue: string | null; // the schema's default, what the server does unasked
   maximum?: number; // the schema's maximum, as a map's width and height may have: /rec/scaling/max-width-height B
+  minimum?: number; // the schema's minimum, as MeteoCore's quality has
   pointer: string;
   description?: string; // what the API docs say of it: a map's subset names its axes there
 }
@@ -26,12 +27,14 @@ export function apiDocsParams(params: readonly ResolvedParam[]): ApiDocsParam[] 
   return params.filter(param => param.in === 'query').map(param => {
     const given = param.schema?.default;
     const maximum = param.schema?.maximum;
+    const minimum = param.schema?.minimum;
     return {
       name: param.name,
       isArray: param.isArray,
       enumValues: param.enumValues,
       defaultValue: typeof given === 'string' || typeof given === 'number' || typeof given === 'boolean' ? String(given) : null,
       ...(typeof maximum === 'number' && Number.isFinite(maximum) ? { maximum } : {}),
+      ...(typeof minimum === 'number' && Number.isFinite(minimum) ? { minimum } : {}),
       pointer: param.pointer,
       ...(param.description ? { description: param.description } : {}),
     };

@@ -205,6 +205,22 @@ describe('a map request', () => {
     ]);
   });
 
+  it('sends what’s under More as typed, after the subset and the elevation and before the format, and checks it', () => {
+    const queryParams = {
+      subset: 'E(41085:787090)', transparent: 'false', bgcolor: ' 0x0000FF ', 'void-transparent': '', 'void-color': 'red', center: '', 'center-crs': '',
+      'scale-denominator': '5000000', 'subset-crs': 'http://www.opengis.net/def/crs/EPSG/0/3067', quality: '80',
+    };
+    expect(urlOf(input(radar(), { ...bare, format: 'image/jpeg', queryParams })))
+      .toBe(`${ROOT}/fmi-radar-composite-dbz/map?subset=E%2841085%3A787090%29&transparent=false&bgcolor=0x0000FF&void-color=red&scale-denominator=5000000`
+        + '&subset-crs=http%3A%2F%2Fwww.opengis.net%2Fdef%2Fcrs%2FEPSG%2F0%2F3067&quality=80&f=image%2Fjpeg');
+    const wrong = { transparent: 'yes', bgcolor: 'nope', center: '25', 'scale-denominator': '0', 'center-crs': 'EPSG:3067' };
+    expect(urlOf(input(radar(), { ...bare, queryParams: wrong })))
+      .toBe(`${ROOT}/fmi-radar-composite-dbz/map?transparent=yes&bgcolor=nope&center=25&center-crs=EPSG%3A3067&scale-denominator=0`);
+    expect(validateQuery(buildQueryModel(input(radar(), { ...bare, queryParams: wrong }))!).map(issue => issue.id)).toEqual([
+      'maps:transparent:boolean', 'maps:bgcolor:colour', 'maps:center:numbers', 'maps:scale-denominator:number', 'maps:center-crs:curie',
+    ]);
+  });
+
   it('is a style’s own map link for a style picked, what it asks for included, with the form’s parameter in place of the link’s', () => {
     const href = `${ROOT}/ecmwf-ifs-pressure/styles/contours/map?parameter-name=gh`;
     // As picking the style fills the field
@@ -227,9 +243,10 @@ describe('a map request', () => {
   it('has fields of its own, none for an EDR query’s, and finds nothing wrong in another query’s values', () => {
     const collection = withLinkQueries(ifs());
     // Its box and time, as the request has them, and its level and model run in subset, as its extent has them
+    // and under More only the Accept header, which any map request can be sent with
     expect(fieldSpecs(collection, 'map', { parameters: 1 }, { inRequest: ['datetime', 'z', 'bbox'] }).map(spec => spec.id))
-      .toEqual(['bbox', 'parameter-name', 'datetime', 'subset:vertical', 'subset:reference_time', 'subset']);
-    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['z', 'bbox'] }).map(spec => spec.id)).toEqual(['bbox']);
+      .toEqual(['bbox', 'parameter-name', 'datetime', 'subset:vertical', 'subset:reference_time', 'subset', 'accept']);
+    expect(fieldSpecs(withLinkQueries(radar()), 'map', { parameters: 0 }, { inRequest: ['z', 'bbox'] }).map(spec => spec.id)).toEqual(['bbox', 'accept']);
     // z is EDR's: a map's level is in subset
     expect(validateQuery(buildQueryModel(input(ifs(), { parameters: ['gh'], vertical: '777' }))!)).toEqual([]);
   });
@@ -237,6 +254,11 @@ describe('a map request', () => {
 
 describe('a map URL, read back', () => {
   const view = () => withLinkQueries(ifs());
+  // Each text a map's form holds, empty
+  const NONE_HELD = Object.fromEntries([
+    'bbox', 'bbox-crs', 'width', 'height', 'crs', 'subset', 'elevation',
+    'transparent', 'bgcolor', 'void-transparent', 'void-color', 'center', 'center-crs', 'scale-denominator', 'subset-crs', 'quality',
+  ].map(name => [name, '']));
 
   it('is the map query, with its style from the path', () => {
     expect(matchDataQuery(`${ROOT}/ecmwf-ifs-pressure/map?bbox=19,59,32,70&width=256`, view())).toEqual({ queryKey: 'map' });
@@ -256,21 +278,22 @@ describe('a map URL, read back', () => {
     expect(isForCollection(`${ROOT}/fmi-radar-composite-dbz/map/tiles`, radar())).toBe(false);
   });
 
-  it('gives the form its parameter, time, box, size, CRS, subset, elevation and format, and nothing else: the rest stays in the line, as typed', () => {
+  it('gives the form its parameter, time, box, size, CRS, subset, elevation, what’s under More and format, and nothing else: the rest stays in the line, as typed', () => {
     const url = `${ROOT}/ecmwf-ifs-pressure/map?f=image/png&parameter-name=t,%20gh&datetime=2026-11-11T00:00:00Z&z=850&bbox=19,59,32,70&crs=CRS84&within=5&elevation=850`
-      + '&bbox-crs=EPSG:4326&width=256&height=0';
+      + '&bbox-crs=EPSG:4326&width=256&height=0&transparent=false&bgcolor=%23336699&void-color=red&center=25,62&scale-denominator=5000000&quality=80';
     expect(readQuerySelections(url, view(), 'map')).toEqual({
       format: 'image/png', parameters: ['t', 'gh'], datetime: '2026-11-11T00:00:00Z', vertical: '', customDims: {}, points: [], polygons: [], bbox: null,
       bboxAsCoords: false, radius: null, radiusUnits: null,
-      queryParams: { bbox: '19,59,32,70', 'bbox-crs': 'EPSG:4326', width: '256', height: '0', crs: 'CRS84', subset: '', elevation: '850' },
+      queryParams: {
+        ...NONE_HELD, bbox: '19,59,32,70', 'bbox-crs': 'EPSG:4326', width: '256', height: '0', crs: 'CRS84', elevation: '850',
+        transparent: 'false', bgcolor: '#336699', 'void-color': 'red', center: '25,62', 'scale-denominator': '5000000', quality: '80',
+      },
     });
   });
 
   it('reads several subset parameters as one, comma-separated, as Maps 1.0 has them', () => {
     const url = `${ROOT}/ecmwf-ifs-pressure/map?subset=Lon(19:32)&subset=&subset=vertical(850)`;
-    expect(readQuerySelections(url, view(), 'map').queryParams).toEqual({
-      bbox: '', 'bbox-crs': '', width: '', height: '', crs: '', subset: 'Lon(19:32),vertical(850)', elevation: '',
-    });
+    expect(readQuerySelections(url, view(), 'map').queryParams).toEqual({ ...NONE_HELD, subset: 'Lon(19:32),vertical(850)' });
   });
 });
 
