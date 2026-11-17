@@ -82,6 +82,10 @@ export interface UseQueryUrlReturn {
   // when the map query is picked
   styleId: string;
   styleByLink: boolean; // asked for by its own map link, as when picked, rather than by the path a typed URL gave
+  // A map request's Accept header, '' for the app's */*: the line can't show it, so a URL followed leaves it as it is.
+  // It goes when the query is no longer a map
+  accept: string;
+  setAccept: (accept: string) => void;
   selectStyle: (styleId: string) => void;
   mapStyles: MapStylesState;
   selectInstanceQuery: (queryKey: string) => void;
@@ -120,6 +124,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
   const [instanceQueryKey, setInstanceQueryKey] = useState('');
   const [itemId, setItemId] = useState('');
   const [leftBehind, setLeftBehind] = useState('');
+  const [accept, setAccept] = useState('');
   // The style picked, and its own map link: '' to go by the path Maps gives a style, as for one from a typed URL. And
   // what its link put in the form's fields, by name, as text: the next style's link replaces those, unless they changed
   const [style, setStyle] = useState<{ id: string; href: string; linked: Record<string, string> }>(NO_STYLE);
@@ -157,6 +162,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     setItemId('');
     setStyle(NO_STYLE);
     setLeftBehind('');
+    setAccept('');
   }, []);
 
   const getEffectiveOutputFormats = effectiveOutputFormats;
@@ -175,6 +181,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     if (next.queryParams !== queryParams) setQueryParams(next.queryParams);
     setLeftBehind(next.leftBehind);
     setFilterByTime(next.filterByTime);
+    if (next.queryType !== 'map') setAccept('');
     if (next.queryType === 'radius') setRadiusUnits(keptUnit(unitsFor(queryVariables(collection, queryKey), 'within'), radiusUnits));
     setDataQuery(next.queryType);
     // After the map's own clearing of the geometry the new kind of query can't use
@@ -460,6 +467,7 @@ export function useQueryUrl(): UseQueryUrlReturn {
     itemId, setItemId,
     leftBehind,
     styleId: style.id, styleByLink: !!style.href, selectStyle, mapStyles,
+    accept, setAccept,
     queryTarget: target,
     resetQueryState,
     getEffectiveOutputFormats,

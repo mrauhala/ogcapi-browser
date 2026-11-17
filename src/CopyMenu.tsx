@@ -15,6 +15,8 @@ import type { AuthCredentials } from './types/api';
 interface CopyMenuProps {
   url: string;
   auth?: AuthCredentials;
+  // The Accept the request is sent with, where it asks for one: in the curl command
+  accept?: string | null;
   // No room for words: one icon, with the link in its menu
   compact?: boolean;
   atBottom?: boolean;
@@ -23,7 +25,7 @@ interface CopyMenuProps {
 const OUTLINED_SX = { height: 36, flexShrink: 0, px: 1.5, fontSize: 13, textTransform: 'none', whiteSpace: 'nowrap', borderColor: 'divider' };
 
 // The request to take elsewhere: as a URL or a command, or shared as a link that reopens it here
-const CopyMenu: React.FC<CopyMenuProps> = ({ url, auth, compact = false, atBottom = false }) => {
+const CopyMenu: React.FC<CopyMenuProps> = ({ url, auth, accept, compact = false, atBottom = false }) => {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [notice, setNotice] = useState<{ message: string; failed: boolean } | null>(null);
   const disabled = !isSendableUrl(url);
@@ -73,7 +75,7 @@ const CopyMenu: React.FC<CopyMenuProps> = ({ url, auth, compact = false, atBotto
       )}
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
         <MenuItem onClick={() => copy('URL', encodedUrl(url))}>URL</MenuItem>
-        <MenuItem onClick={() => copy('curl command', curlCommand(url, auth))}>curl command</MenuItem>
+        <MenuItem onClick={() => copy('curl command', curlCommand(url, auth, accept))}>curl command</MenuItem>
         {compact && <MenuItem onClick={copyLink}>Link to this request</MenuItem>}
       </Menu>
       <RequestNotice

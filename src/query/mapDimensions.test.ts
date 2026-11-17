@@ -158,7 +158,8 @@ describe('the axes to pick', () => {
 describe('a map’s fields for time, levels, runs and subset', () => {
   it('are the time, the level, the API docs’ elevation, the model run and subset, each tagged by who declared it', () => {
     // After the box, the size and the CRS: see mapBox.test.ts
-    const all = specsOf(ifs());
+    // Those under More are mapMore.test.ts'
+    const all = specsOf(ifs()).filter(field => !field.more);
     expect(all.slice(0, 3).map(field => field.id)).toEqual(['bbox', 'width', 'crs']);
     const fields = all.slice(3);
     expect(fields.map(field => field.id)).toEqual(['datetime', 'subset:vertical', 'elevation', 'subset:reference_time', 'subset']);
@@ -198,11 +199,11 @@ describe('a map’s fields for time, levels, runs and subset', () => {
   });
 
   it('show a level and a run on the draft’s word alone, and subset with them, and the rest only as declared or asked', () => {
-    expect(specsOf(ifs(), null, null).map(field => field.id)).toEqual(['subset:vertical', 'subset:reference_time', 'subset']);
+    expect(specsOf(ifs(), null, null).filter(field => !field.more).map(field => field.id)).toEqual(['subset:vertical', 'subset:reference_time', 'subset']);
     expect(byId(specsOf(ifs(), null, null), 'subset')!.hints).toEqual(['`vertical` and `reference_time` are picked in their fields above, and written here']);
     expect(byId(specsOf(aifs(), null, null), 'subset')!.hints).toEqual(['`reference_time` is picked in its field above, and written here']);
-    expect(specsOf(radar(), null, null)).toEqual([]);
-    expect(specsOf(radar(), null, null, ['datetime', 'subset', 'elevation']).map(field => field.id)).toEqual(['datetime', 'subset']);
+    expect(specsOf(radar(), null, null).filter(field => !field.more)).toEqual([]);
+    expect(specsOf(radar(), null, null, ['datetime', 'subset', 'elevation']).filter(field => !field.more).map(field => field.id)).toEqual(['datetime', 'subset']);
   });
 });
 

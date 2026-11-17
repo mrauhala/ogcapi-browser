@@ -380,7 +380,14 @@ export function mapLineIssues(offer: Offer, line: { bbox: string; center: string
     issues.push({
       id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: sized[0], input: 'form',
       message: `${sized.join(' and ')} with ${has(line.bbox) ? 'bbox' : 'a spatial subset'} and scale-denominator: Maps 1.0 asks a 4xx`,
-      rule: sized.map(name => (name === 'width' ? MAPS1.widthDefinitionF : MAPS1.heightDefinitionF)),
+      rule: [...sized.map(name => (name === 'width' ? MAPS1.widthDefinitionF : MAPS1.heightDefinitionF)), MAPS1.scaleDenominatorWithBbox],
+    });
+  } else if (sized.length && has(line.scaleDenominator) && offer.classes?.has('scaling') && !offer.classes.has('spatial-subsetting')) {
+    // Without spatial subsetting, a size doesn't set the area, so it can't go with a scale at all
+    issues.push({
+      id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: sized[0], input: 'form',
+      message: `${sized.join(' and ')} with scale-denominator, where the API doesn't declare spatial subsetting: Maps 1.0 asks a 4xx`,
+      rule: MAPS1.scaleDenominatorWithSize,
     });
   }
   const number = (text: string) => (has(text) && Number.isFinite(Number(text)) ? Number(text) : null);

@@ -4,10 +4,19 @@ import { openApiDocumentAt } from '../validation/openapi/openApiDocument';
 import type { QueryIssue } from '../query/types';
 import type { ValidationError } from '../types/api';
 
-// Scroll a field into view and focus its control (fields carry id `query-field-<field>`)
-export function focusQueryField(field: string) {
+// Heard by More, which opens: a field closed inside it is jumped to once it shows
+export const OPEN_MORE = 'open-query-more';
+
+// Scroll a field into view and focus its control (fields carry id `query-field-<field>`). One inside More, closed, is
+// there once More opens
+export function focusQueryField(field: string, opened = false) {
   const element = document.getElementById(`query-field-${field}`);
-  if (!element) return;
+  if (!element) {
+    if (opened) return;
+    document.dispatchEvent(new Event(OPEN_MORE));
+    requestAnimationFrame(() => focusQueryField(field, true));
+    return;
+  }
   element.scrollIntoView({ block: 'center', behavior: 'smooth' });
   element.querySelector<HTMLElement>('[role="combobox"], input:not([type="hidden"]), button')?.focus({ preventScroll: true });
 }
