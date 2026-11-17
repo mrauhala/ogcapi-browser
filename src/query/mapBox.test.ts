@@ -259,8 +259,10 @@ describe('the box, size and CRS fields', () => {
   });
 
   it('show where declared, or where the request has them, and say a collection without crs has only CRS84 for sure', () => {
-    expect(specs(radar(), { conformsTo: null, apiDocs: null }).map(field => field.id)).toEqual([]);
-    expect(specs(radar(), { conformsTo: null, apiDocs: null, inRequest: ['bbox-crs', 'height', 'crs'] }).map(field => [field.id, tags(field)]))
+    // Of the main fields: those under More are mapMore.test.ts'
+    const main = (fields: FieldSpec[]) => fields.filter(field => !field.more);
+    expect(main(specs(radar(), { conformsTo: null, apiDocs: null })).map(field => field.id)).toEqual([]);
+    expect(main(specs(radar(), { conformsTo: null, apiDocs: null, inRequest: ['bbox-crs', 'height', 'crs'] })).map(field => [field.id, tags(field)]))
       .toEqual([['bbox', []], ['width', []], ['crs', []]]);
     const bare = { ...radar(), crs: undefined } as unknown as Collection;
     expect(one(specs(bare), 'crs')).toMatchObject({ figure: undefined, options: [], hints: [{ text: 'The collection lists no `crs`: only CRS84 is sure to be supported', rule: MAPS1.crsListed }] });
@@ -364,17 +366,33 @@ describe('what’s wrong with a box and a size, with the rest of the line', () =
   it('has a size with an area and scale-denominator an error, where the API declares scaling', () => {
     expect(mapLineIssues(offer(), line({ bbox: '19,59,32,70', width: '256', scaleDenominator: '5000000' }), null)).toEqual([{
       id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: 'width', input: 'form',
-      message: 'width with bbox and scale-denominator: Maps 1.0 asks a 4xx', rule: [MAPS1.widthDefinitionF],
+      message: 'width with bbox and scale-denominator: Maps 1.0 asks a 4xx', rule: [MAPS1.widthDefinitionF, MAPS1.scaleDenominatorWithBbox],
     }]);
     expect(mapLineIssues(offer(), line({ subset: 'time("x"),Lat(59:70)', width: '256', height: '9', scaleDenominator: '5000000' }), null)).toEqual([{
       id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: 'width', input: 'form',
-      message: 'width and height with a spatial subset and scale-denominator: Maps 1.0 asks a 4xx', rule: [MAPS1.widthDefinitionF, MAPS1.heightDefinitionF],
+      message: 'width and height with a spatial subset and scale-denominator: Maps 1.0 asks a 4xx',
+      rule: [MAPS1.widthDefinitionF, MAPS1.heightDefinitionF, MAPS1.scaleDenominatorWithBbox],
     }]);
-    expect(mapLineIssues(offer(), line({ bbox: '1,2,3,4', height: '9', scaleDenominator: '5' }), null)[0]).toMatchObject({ field: 'height', rule: [MAPS1.heightDefinitionF] });
+    expect(mapLineIssues(offer(), line({ bbox: '1,2,3,4', height: '9', scaleDenominator: '5' }), null)[0]).toMatchObject({ field: 'height', rule: [MAPS1.heightDefinitionF, MAPS1.scaleDenominatorWithBbox] });
     // Without an area, or without scale-denominator, or without scaling, nothing
     expect(mapLineIssues(offer(), line({ subset: 'time("x")', width: '256', scaleDenominator: '5000000' }), null)).toEqual([]);
     expect(mapLineIssues(offer(), line({ bbox: '19,59,32,70', width: '256' }), null)).toEqual([]);
     expect(mapLineIssues(offer(box.conformsTo.filter(uri => !uri.endsWith('/scaling'))), line({ bbox: '1,2,3,4', width: '256', scaleDenominator: '5' }), null)).toEqual([]);
+  });
+
+  it('has a size with scale-denominator an error at all where the API declares scaling and not spatial subsetting', () => {
+    const scalingOnly = offer(box.conformsTo.filter(uri => !uri.endsWith('/spatial-subsetting')));
+    expect(mapLineIssues(scalingOnly, line({ height: '256', scaleDenominator: '5000000' }), null)).toEqual([{
+      id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: 'height', input: 'form',
+      message: "height with scale-denominator, where the API doesn't declare spatial subsetting: Maps 1.0 asks a 4xx", rule: MAPS1.scaleDenominatorWithSize,
+    }]);
+    // With spatial subsetting a size sets the area around a centre, so a scale can go with it; without scaling, a size or
+    // a scale, nothing
+    expect(mapLineIssues(offer(), line({ height: '256', scaleDenominator: '5000000' }), null)).toEqual([]);
+    const neither = offer(box.conformsTo.filter(uri => !uri.endsWith('/scaling') && !uri.endsWith('/spatial-subsetting')));
+    expect(mapLineIssues(neither, line({ height: '256', scaleDenominator: '5000000' }), null)).toEqual([]);
+    expect(mapLineIssues(scalingOnly, line({ scaleDenominator: '5000000' }), null)).toEqual([]);
+    expect(mapLineIssues(scalingOnly, line({ width: '256' }), null)).toEqual([]);
   });
 
   it('has a size past the API docs’ maximum an error, as MeteoCore answers 400', () => {

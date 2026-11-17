@@ -12,6 +12,7 @@ import { distinctLabel, parameterLabel, parameterUnit } from '../utils/coverageT
 import { MAPS1 } from '../standards';
 import { extentDimensions, mapDimensionSpecs } from './mapDimensions';
 import { mapBoxSpecs } from './mapBox';
+import { mapMoreSpecs } from './mapMore';
 
 // Where a Maps conformance class's URI names it: …/spec/ogcapi-maps-1/1.0/conf/{class}
 export const MAPS_CONF = '/spec/ogcapi-maps-1/1.0/conf/';
@@ -184,8 +185,8 @@ export function parameterRows(collection: Collection, styles: readonly MapStyle[
 const DEFAULT_FIELDS = 'defaultFields';
 
 // The fields of a map query that this form has, in order: the box, the size and the CRS, the parameter, its time, level,
-// model run and subset, then the output format. Each shows where it's declared or the request has it, and says who
-// declared it
+// model run and subset, the output format, then those under More. Each shows where it's declared or the request has it,
+// and says who declared it
 export function mapFieldSpecs(collection: Collection, chosen: { parameters: number }, context: FieldContext): FieldSpec[] {
   const offer = mapOffer(mapProfileNames(collection), context.conformsTo, context.apiDocs ?? null);
   const inRequest = new Set(context.inRequest ?? []);
@@ -243,6 +244,7 @@ export function mapFieldSpecs(collection: Collection, chosen: { parameters: numb
       declaredBy: formatBy,
     });
   }
+  fields.push(...mapMoreSpecs(offer, inRequest, requirementOf));
   return fields;
 }
 

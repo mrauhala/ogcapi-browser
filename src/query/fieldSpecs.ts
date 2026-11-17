@@ -36,6 +36,8 @@ export interface FieldSpec {
   choice?: 'one' | 'several'; // how many values it takes, where the form can tell: a map's parameter-name
   axis?: string; // the axis of subset it writes, where it's a field of its own: a map's level, vertical, sent as subset
   declaredBy?: Declarer[]; // who declared it, tagged in its head: a conformance class, a draft profile, the API docs
+  more?: boolean; // shown under More rather than with the main fields: a map's background, centre and scale
+  header?: boolean; // a header the request is sent with, not a query parameter: a map's Accept
 }
 
 export interface FieldContext {
@@ -332,7 +334,7 @@ export function crsOffered(collection: Collection, queryKey: string): string[] {
 // parameter, under More, sent as typed
 export function heldNames(specs: FieldSpec[], queryType: string, crs: string[]): Set<string> {
   return new Set([
-    ...specs.flatMap(spec => [spec.name, ...(spec.unit ? [spec.unit.name] : [])]),
+    ...specs.filter(spec => !spec.header).flatMap(spec => [spec.name, ...(spec.unit ? [spec.unit.name] : [])]),
     // A cube's box may also go as coords, for servers whose API docs ask for them
     ...(queryType === 'cube' ? ['coords'] : []),
     ...(crs.length > 0 ? ['crs'] : []),

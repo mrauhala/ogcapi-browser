@@ -50,8 +50,9 @@ export function responseDetails(response: AxiosResponse<unknown>, target: string
 }
 
 // Sends a query. Any status the server answers with is a response, so a failure can be shown like a
-// success. This rejects only when no response came: a network failure, CORS or an abort.
-export async function sendRequest(url: string, auth?: AuthCredentials, signal?: AbortSignal): Promise<ApiResponse> {
+// success. This rejects only when no response came: a network failure, CORS or an abort. Accept is */*, any format,
+// unless the request asks for one, as a map request may
+export async function sendRequest(url: string, auth?: AuthCredentials, signal?: AbortSignal, accept?: string | null): Promise<ApiResponse> {
   const config = getAxiosConfig(auth, signal);
   const target = addApiKeyToUrl(url, auth);
   makeRoomForWireTiming();
@@ -60,7 +61,7 @@ export async function sendRequest(url: string, auth?: AuthCredentials, signal?: 
     ...config,
     // Bytes, so that binary responses (image/png from OGC API Maps, etc.) survive intact
     responseType: 'arraybuffer',
-    headers: { ...config.headers, Accept: '*/*' },
+    headers: { ...config.headers, Accept: accept || '*/*' },
     validateStatus: () => true,
   });
   const timeMs = performance.now() - started;

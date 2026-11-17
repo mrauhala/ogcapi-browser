@@ -15,6 +15,7 @@ import { apiDocsParams } from './declared';
 import { mapApiDocsIssues, mapQueryIssues } from './mapOffer';
 import { mapDimensionIssues } from './mapDimensions';
 import { mapBoxIssues } from './mapBox';
+import { mapMoreIssues } from './mapMore';
 
 // ── Collection extents, computed once per collection (validation runs on every slider tick) ──
 
@@ -378,7 +379,7 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   // Maps requires no parameter: a bare map is complete. Its parameter is checked against parameter_names, and its style
   // against what the styles and parameters say of each other; its box, size and CRS by Maps 1.0 and the collection's
   // crs list; its time by Maps 1.0's grammar, and its subset, levels and run against that grammar and what the extent
-  // lists
+  // lists; and what's under More, its background, centre, scale and subset CRS, by Maps 1.0
   if (model.queryType === 'map') {
     checkDatetime(model, add, MAPS_DATETIME);
     const subset = model.queryParams.subset ?? '';
@@ -389,6 +390,7 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
       ...mapBoxIssues(model.collection, { bbox: text('bbox'), bboxCrs: text('bbox-crs'), width: text('width'), height: text('height'), crs: text('crs') }),
       ...issues,
       ...mapDimensionIssues(model.collection, { subset, elevation, datetime: model.datetime }),
+      ...mapMoreIssues(model.collection, model.queryParams),
     ].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
   }
   checkGeometry(model, add);
@@ -405,7 +407,10 @@ export function validateQuery(model: QueryModel): QueryIssue[] {
   return issues.sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
 }
 
-const FORM_FIELDS = new Set(['f', 'parameter-name', 'datetime', 'z', 'subset', 'elevation', 'bbox', 'bbox-crs', 'width', 'height', 'crs']);
+const FORM_FIELDS = new Set([
+  'f', 'parameter-name', 'datetime', 'z', 'subset', 'elevation', 'bbox', 'bbox-crs', 'width', 'height', 'crs',
+  'transparent', 'bgcolor', 'void-transparent', 'void-color', 'center', 'center-crs', 'scale-denominator', 'subset-crs', 'quality',
+]);
 
 // Add the API docs' view to the query's own issues. Their issues go under the builder's field names,
 // except on a field EDR or the metadata already flags: those are the stronger source, and one issue
