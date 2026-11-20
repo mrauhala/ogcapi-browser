@@ -10,7 +10,9 @@ import { readCells } from './coverage/coverageCells';
 import { grid, words } from './coverage/cellsTestData';
 import knmi from './locations/__fixtures__/knmi-tg1-oper-locations.json';
 import maps from './query/__fixtures__/meteocore-map-responses.json';
+import checks from './query/__fixtures__/meteocore-map-checks.json';
 import { readImageBytes } from './query/mapResponse';
+import { buildOperationIndex } from './validation/openapi/operationIndex';
 
 // The open collection, which each test can set
 const open = vi.hoisted(() => ({ collection: null as Partial<Collection> | null }));
@@ -25,12 +27,15 @@ vi.mock('@mui/x-data-grid', async importOriginal => ({
   DataGrid: ({ rows }: { rows: unknown[] }) => <div data-rows={rows.length} />,
 }));
 vi.mock('./contexts/OpenRequestContext', () => ({ useOpenRequest: () => ({ openRequest: () => {} }) }));
-// The loaded API, which declares EDR 1.2 and its EDR GeoJSON class
-vi.mock('./contexts/ApiContext', () => ({
-  useApi: () => ({
-    apiUrl: 'https://api.example.com',
-    conformsTo: ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core', 'https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/edr-geojson'],
-  }),
+// The loaded API, which declares EDR 1.2 and its EDR GeoJSON class, unless a test loads another
+const EDR_API = { apiUrl: 'https://api.example.com', conformsTo: ['https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/core', 'https://www.opengis.net/spec/ogcapi-edr-1/1.2/conf/edr-geojson'] };
+const api = vi.hoisted(() => ({ loaded: null as { apiUrl: string; conformsTo: string[] } | null }));
+vi.mock('./contexts/ApiContext', () => ({ useApi: () => api.loaded ?? EDR_API }));
+// The loaded API's docs, indexed, where a test gives them
+const docs = vi.hoisted(() => ({ index: null as unknown }));
+vi.mock('./contexts/OpenApiContext', async importOriginal => ({
+  ...await importOriginal<typeof import('./contexts/OpenApiContext')>(),
+  useOpenApi: () => ({ status: docs.index ? 'ready' : 'none', url: null, description: null, index: docs.index, error: null, captured: null }),
 }));
 // A summary that fails on a response marked for it, as a reader with a bug would
 vi.mock('./coverage/coverageSummary', async importOriginal => {
@@ -72,6 +77,9 @@ const render = (props: Partial<ComponentProps<typeof ResponsePane>>, requestUrl 
     <ResponsePane open onClose={() => {}} url={URL_} data={null} contentType={null} isLoading={false} error={null} {...props} />
   </RequestUrlContext.Provider>,
 );
+
+// The Checks tab's label, as its words read
+const checksLabel = (html: string) => [...html.matchAll(/<button[^>]*role="tab"[^>]*>(.*?)<\/button>/g)].map(([, tab]) => words(tab).replace(/\s+/g, ' ').trim()).find(tab => tab.startsWith('Checks'));
 
 // The tabs, by name, and the one that's selected
 const TAB_NAMES = ['Data', 'Raw', 'Headers', 'Sizes', 'Checks'];
@@ -452,6 +460,121 @@ describe('ResponsePane', () => {
       expect(failed).not.toContain('What the headers say');
       expect(failed).not.toContain('On the map');
       expect(map({ isLoading: true })).not.toContain('What the headers say');
+    });
+
+    it('counts its checks on the Checks tab, but not what it says of the request', () => {
+      open.collection = maps.collection as unknown as Collection;
+      // Every check passes; its pixels aren't square, which is the request's doing
+      expect(checksLabel(map())).toBe('Checks');
+      // Content-Crs isn't the crs asked (made up)
+      const other = MATCH.headers.map(header => (header.name === 'content-crs' ? { ...header, value: 'http://www.opengis.net/def/crs/EPSG/0/3067' } : header));
+      expect(checksLabel(map({ response: { ...OK, contentType: 'image/png', headers: other } }))).toBe('Checks 1 error');
+      open.collection = null;
+    });
+
+    it("counts a refusal's checks, against the loaded API's Maps classes, and not what the form expected", () => {
+      api.loaded = { apiUrl: 'https://meteocore.app.meteo.fi', conformsTo: checks.conformsTo };
+      open.collection = checks.collections.ifs as unknown as Collection;
+      const refused = (name: 'vertical' | 'parameterUnknown' | 'contours') => {
+        const { url, headers, body } = checks.responses[name];
+        return map({ imageUrl: null, image: null, data: body, contentType: 'application/json', response: { ...BAD_REQUEST, contentType: 'application/json', headers } }, url);
+      };
+      expect(tabNames(refused('vertical'))).toEqual(['Raw', 'Headers', 'Sizes', 'Checks']);
+      expect(checksLabel(refused('vertical'))).toBe('Checks 1 note');
+      expect(checksLabel(refused('contours'))).toBe('Checks 1 issue');
+      expect(checksLabel(refused('parameterUnknown'))).toBe('Checks');
+      // A model run by subset: an axis the draft names, which no Maps class the API declares has, so a note
+      const run = checks.responses.run;
+      const ran = () => map({ image: bytes(run.start), response: { ...OK, contentType: 'image/png', headers: run.headers } }, run.url.replace(/%22/g, '"'));
+      expect(checksLabel(ran())).toBe('Checks 1 note');
+      // Of another API than the one loaded, nothing is known of its classes: nothing to say of it
+      api.loaded = null;
+      expect(checksLabel(ran())).toBe('Checks');
+      open.collection = null;
+    });
+
+    describe('against the loaded API', () => {
+      const MAP = '/collections/ecmwf-ifs-pressure/map';
+      const RUN = checks.responses.run;
+      // MeteoCore's API docs for the map, its parameters as served, and limits where a test adds them (made up)
+      const index = (change: { limits?: Record<string, number>; elevation?: unknown } = {}) => buildOperationIndex({
+        url: 'https://meteocore.app.meteo.fi/api',
+        doc: {
+          openapi: '3.0.3', servers: [{ url: 'https://meteocore.app.meteo.fi' }],
+          info: { title: 'MeteoCore', version: '1', ...(change.limits ? { 'x-OGC-limits': { maps: change.limits } } : {}) },
+          paths: { [MAP]: { get: { parameters: checks.apiParams.map(({ pointer: _pointer, ...param }) => (param.name === 'elevation' && change.elevation ? { ...param, schema: change.elevation } : param)) } } },
+        },
+      });
+      const ran = (url: string, props: Partial<ComponentProps<typeof ResponsePane>> = {}) =>
+        map({ image: bytes(RUN.start), response: { ...OK, contentType: 'image/png', headers: RUN.headers }, ...props }, url);
+      const runUrl = RUN.url.replace(/%22/g, '"');
+      const loaded = () => {
+        api.loaded = { apiUrl: 'https://meteocore.app.meteo.fi', conformsTo: checks.conformsTo };
+        open.collection = checks.collections.ifs as unknown as Collection;
+      };
+      const unload = () => {
+        api.loaded = null;
+        open.collection = null;
+        docs.index = null;
+      };
+
+      it('reads its API docs: a parameter they leave out is one a server may ignore, a note', () => {
+        loaded();
+        expect(checksLabel(ran(`${runUrl}&foo=1`))).toBe('Checks 1 note');
+        docs.index = index();
+        expect(checksLabel(ran(`${runUrl}&foo=1`))).toBe('Checks 2 notes');
+        unload();
+      });
+
+      it('reads its limits: a 200 past them is an error', () => {
+        loaded();
+        docs.index = index({ limits: { maxWidth: 200 } });
+        expect(checksLabel(ran(runUrl))).toBe('Checks 1 error');
+        unload();
+      });
+
+      it("reads what its API docs say of the URL: a refusal they foretold is the request's", () => {
+        loaded();
+        const elevation = `https://meteocore.app.meteo.fi${MAP}?elevation=850`;
+        const refused = () => map({ imageUrl: null, image: null, data: '{"description":"elevation 850 is wrong"}', contentType: 'application/json', response: { ...BAD_REQUEST, contentType: 'application/json', headers: RUN.headers } }, elevation);
+        docs.index = index();
+        expect(checksLabel(refused())).toBe('Checks 1 issue');
+        // Made up: API docs whose elevation takes only 500
+        docs.index = index({ elevation: { type: 'number', enum: [500] } });
+        expect(checksLabel(refused())).toBe('Checks');
+        unload();
+      });
+
+      it("reads the error's message for what it names", () => {
+        loaded();
+        const refused = (data: string | null) => map({ imageUrl: null, image: null, data, contentType: 'application/json', response: { ...BAD_REQUEST, contentType: 'application/json', headers: RUN.headers } },
+          `https://meteocore.app.meteo.fi${MAP}?width=256`);
+        expect(checksLabel(refused('{"description":"width 256 is too wide"}'))).toBe('Checks 1 error');
+        expect(checksLabel(refused('{"description":"Something failed"}'))).toBe('Checks 1 issue');
+        unload();
+      });
+    });
+
+    it("reads no image that isn't this response's: one left from the last isn't checked against a JSON 200 (made up)", () => {
+      open.collection = maps.collection as unknown as Collection;
+      // Its headers are the matched view's, so that only its Content-Type is wrong
+      const url = MATCH.url.replace('width=478&height=721', 'width=100&height=100');
+      expect(checksLabel(map({ imageUrl: null, data: '{"type":"FeatureCollection"}', contentType: 'application/json', response: { ...OK, contentType: 'application/json', headers: MATCH.headers } }, url))).toBe('Checks 1 error');
+      open.collection = null;
+    });
+
+    it("counts what the browser couldn't read (made up)", () => {
+      open.collection = maps.collection as unknown as Collection;
+      const hidden = MATCH.headers.filter(header => !/^(access-control-expose-headers|content-datetime)$/.test(header.name));
+      expect(checksLabel(map({ response: { ...OK, contentType: 'image/png', headers: hidden } }))).toBe('Checks 1 note');
+      open.collection = null;
+    });
+
+    it('reads a 200 against Maps 1.0 where the API is another than the one loaded (made up)', () => {
+      open.collection = maps.collection as unknown as Collection;
+      // width=0 drawn: an error by Maps 1.0, whichever classes the API declares, which aren't known
+      expect(checksLabel(map({}, MATCH.url.replace('width=478&height=721', 'width=0')))).toBe('Checks 1 error');
+      open.collection = null;
     });
 
     it("bytes that aren't the image their Content-Type says: Data says so, and Raw is there for them", () => {

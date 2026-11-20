@@ -484,6 +484,11 @@ export const COMMON1 = {
   // /per/core/query-param-name-tolerance does not apply." The latter: "Servers MAY display tolerance for requests with
   // incorrect query parameter names", such as "Ignore unknown/unrecognized parameters"
   unknownParameter: common1('/req/core/query-param-name-unknown A', '_e5765c7a-dfcd-59aa-9c61-ddb071d20944'),
+  // A: "The server SHALL respond with a response with the status code 400 IF the request URI includes a query parameter
+  // that has an invalid value and /per/core/query-param-value-specified does not apply and
+  // /per/core/query-param-value-tolerance does not apply." The latter: "Servers MAY display tolerance for requests where a
+  // parameter has an incorrect value", such as "substituting default values for invalid ones"
+  invalidValue: common1('/req/core/query-param-value-invalid A', '_7cb81d32-e482-5f15-5b82-f52a15a329b7'),
   // Informative: "there is no requirement for the API definition to list every endpoint for which there is a non-404
   // behavior, for it to list every possible query parameter that might affect the behavior of an endpoint, or for it to
   // list every possible value that each query parameter might accept."
@@ -615,6 +620,13 @@ export const MAPS1 = {
   mapResponseH: maps1('/req/core/map-response H', '_e7950323-2ddd-799e-afe6-02f412e2cfb4'),
   // I: "The body of a response of a successful operation SHALL contain a map encoded in the negotiated format."
   mapResponseI: maps1('/req/core/map-response I', '_c504506e-53eb-c109-527d-a57be05be357'),
+  // A: "Every map SHALL be available as an HTTP GET request to a URI that will be composed of three parts. The first part
+  // is the URI of a resource that can be represented as a map (with or without a style path parameter). The second part
+  // follows the pattern /map. The third part provides the retrieval parameters as needed."
+  mapOperation: maps1('/req/core/map-op A', '_48745e0b-03aa-c63c-557f-a6224a5e8110'),
+  // A, in the styled-map class: "Every resource for which a styled map is available SHALL support an HTTP GET operation
+  // to a …/styles/{styleId}/map URL to retrieve a map for a particular style"
+  styledMapOperation: maps1('/req/styled-map/map-operation A', '_083f0096-d608-62ad-e0ea-bb6b91b02ad1'),
   // A: "Even if the content is in the https://www.opengis.net/def/crs/OGC/1.3/CRS84 CRS the headers SHOULD still
   // include a “Content-Crs” header to state the CRS."
   contentCrs: maps1('/rec/core/content-crs A', '_5972794a-f020-79c3-f86d-e889a6d3e4c2'),
@@ -783,6 +795,57 @@ export const MAPS1 = {
   // property, a URI for the semantic definition, a unit of measure if applicable, and a grid definition if applicable,
   // as specified in extent-uad.yaml."
   additionalDimensions: maps1('/req/general-subsetting/uniform-additional-dimensions A', '_96523345-0077-9c2e-e905-1b78aae58e4d'),
+  // ---- What says a parameter of a map request works: each class's "SHALL support a parameter" ----
+  // A: "The map operation SHALL support a parameter width with the characteristics defined in the OpenAPI Specification
+  // 3.0 fragment", and the same of height
+  widthDefinitionA: maps1('/req/scaling/width-definition A', '_2ec4ccca-5426-ac55-acd3-30d50108e9aa'),
+  heightDefinitionA: maps1('/req/scaling/height-definition A', '_5b8d3722-be0e-11c5-0943-6a652b2a8e85'),
+  // A: "The map operation SHALL support a parameter scale-denominator …"
+  scaleDenominatorDefinition: maps1('/req/scaling/scale-denominator-definition A', '_93a1b8ec-76d9-342a-7325-f43e01972ccb'),
+  // E: "An HTTP 4xx error SHALL be returned if the scale-denominator parameter is used together with width and/or height
+  // as well as a bbox (or equivalent subset parameter for a spatial dimension)."
+  scaleDenominatorWithSize: maps1('/req/scaling/scale-denominator-definition E', '_67fc8934-6261-4808-05ad-e2d6950d93c9'),
+  // A: "The map operation SHALL support a parameter mm-per-pixel …"
+  mmPerPixelDefinition: maps1('/req/display-resolution/mm-per-pixel-definition A', '_9dcda9db-7ba4-99d3-4c85-44ce5c587227'),
+  // A: "The map operation SHALL support a parameter subset-crs …", and center-crs: "The map retrieval operation SHALL
+  // support a parameter center-crs …"
+  subsetCrsDefinition: maps1('/req/spatial-subsetting/subset-crs A', '_901d70cf-732e-fa5d-3858-d7f65a163556'),
+  centerCrsDefinition: maps1('/req/spatial-subsetting/center-crs A', '_b6d9d8c6-1248-7d1a-6b20-c7d7d8fb16ba'),
+  // A: "A center parameter SHALL be supported to specify the center of the subset of the map to include …"
+  centerDefinitionA: maps1('/req/spatial-subsetting/center-definition A', '_ed5196cb-2a71-a5bd-8420-ab2a86ad237f'),
+  // B: "Axis names Lat and Lon SHALL be supported for geographic CRS and E and N for projected CRS, which are to be
+  // interpreted as the best matching spatial axis in the CRS definition."
+  spatialSubsetAxes: maps1('/req/spatial-subsetting/subset-definition B', '_0a81f065-b63e-c685-dc58-c83235fbd2d9'),
+  // A: "The server should try to honor the subsetting coordinates requested. For example, if the server has no data in the
+  // requested area, a map filled with the background color or transparent values based on the relevant query parameters
+  // specified should be returned."
+  mapOutsideBounds: maps1('/rec/spatial-subsetting/map-outside-bounds A', '_33f40464-9aa3-e59a-3ac6-702a4df8e139'),
+  // A: "The datetime parameter SHALL have the following characteristics (using an OpenAPI Specification 3.0 fragment):
+  // name: datetime in: query required: false …"
+  datetimeDefinition: maps1('/req/datetime/datetime-definition A', '_2c1c2ab4-3e6a-c426-3373-8b22e90c303a'),
+  // B: "The implementation SHALL support an axis name time."
+  timeAxis: maps1('/req/datetime/subset-definition B', '_6b4d6835-8680-2547-14b3-bb04c30f9de4'),
+  // D: "If the intervalOrSingle values fall entirely outside the range of valid values defined for the identified axis, a
+  // 204 or 404 status code SHALL be returned"
+  timeSubsetOutside: maps1('/req/datetime/subset-definition D', '_53ae6064-c68e-7e11-2122-f5a33c1db4c4'),
+  // A, in the background class: "The map operation SHALL support a parameter bgcolor to define a background color …";
+  // "… an optional parameter transparent …"; "… a parameter void-color …"; "… an optional parameter void-transparent …"
+  bgcolorDefinition: maps1('/req/background/bgcolor-definition A', '_c4aa136d-af90-ae38-7766-a6f30d4d0eb0'),
+  transparentDefinition: maps1('/req/background/transparent-definition A', '_a8548a38-18bc-3152-7b07-dc58c3274499'),
+  voidColorDefinition: maps1('/req/background/void-color-definition A', '_7b606505-2851-9277-a482-244c97066857'),
+  voidTransparentDefinition: maps1('/req/background/void-transparent-definition A', '_4a99a244-6e2e-9d58-ef09-7e5fd56deecc'),
+  // A: "An operation that acts on a resource consisting of multiple geospatial data sub-resources … SHALL support …" the
+  // collections parameter
+  collectionsParameter: maps1('/req/collections-selection/collections-parameter A', '_e2196f30-a508-d4f4-0cb8-263eb4f3cd4f'),
+  // A: "If rotation of the map content is desired, an orientation parameter SHALL be supported …"
+  orientation: maps1('/req/orientation/orientation A', '_0d9a173b-d004-8fd1-1b86-9eb66875ad54'),
+  // A: "A crs-proj-method parameter … SHALL be supported."; "A crs-proj-params parameter SHALL be supported …"; "A
+  // crs-proj-center parameter of the form Lat(centerLat),Lon(centerLon) SHALL be supported …"; "A crs-datum parameter …
+  // SHALL be supported."
+  crsProjMethod: maps1('/req/projection/crs-proj-method A', '_0ec3f6d5-2d36-c535-9d2e-1446fadf2de8'),
+  crsProjParams: maps1('/req/projection/crs-proj-params A', '_cd70a320-885d-3c39-9b54-9e4dda6f8216'),
+  crsProjCenter: maps1('/req/projection/crs-proj-center-definition A', '_66676169-9176-d8fe-8cb5-127665d8269f'),
+  crsDatum: maps1('/req/projection/crs-datum A', '_16760746-6747-8e08-b0d7-2906dde0836b'),
   // ---- Any request a browser makes ----
   // A, in the cors class: "The implementation SHALL support CORS as defined by W3C
   // (https://www.w3.org/TR/2020/SPSD-cors-20200602/)."

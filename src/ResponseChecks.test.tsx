@@ -4,7 +4,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseChecks, { ChecksTabLabel } from './ResponseChecks';
 import { findingMessage, findingPath } from './findingText';
 import type { Collection, ValidationError } from './types/api';
-import { COVJSON, EDR, EDR12 } from './standards';
+import { COVJSON, EDR, EDR12, MAPS1 } from './standards';
+import type { MapFindings } from './query/mapFindings';
 import { appFault } from './validation/severity';
 import { words } from './coverage/cellsTestData';
 import { askedFormatFindings } from './requestFit/formatFit';
@@ -348,6 +349,48 @@ describe('ResponseChecks', () => {
     expect(html).toContain('finding 99');
     expect(html).not.toContain('finding 100');
     expect(html).toContain('And 3 more');
+  });
+});
+
+describe('ResponseChecks: a map', () => {
+  // Findings as mapFindings gives them, for a map that came back and one that was refused
+  const FINDINGS: MapFindings = {
+    map: [
+      { severity: 'pass', message: 'Status 200', rule: MAPS1.mapResponseA },
+      { severity: 'error', message: 'No Content-Datetime, though the collection has a temporal extent', rule: MAPS1.mapResponseF },
+      { severity: 'info', message: 'Content-Datetime 2026-11-16T12:00:00Z, not the 2026-11-16T12:02:00Z asked', rule: MAPS1.datetimeClosest },
+    ],
+    request: [{ severity: 'info', message: "Pixels aren't square: 4,658 m wide and 4,617 m tall, since 478 × 721 isn't the box's shape. 715 tall would keep it" }],
+    browser: [{ severity: 'pass', message: 'Content-Crs and Content-Bbox reached the browser: Access-Control-Expose-Headers: *' }],
+  };
+  const headings = (html: string) => [...html.matchAll(/<h3[^>]*>(.*?)<\/h3>/g)].map(([, text]) => text);
+
+  it('has its checks under three headings: the map against Maps 1.0, the request, and what the browser could read', () => {
+    const html = render({ map: { findings: FINDINGS, success: true } });
+    expect(headings(html)).toEqual(['The map, against OGC API – Maps 1.0', 'About the request, not the server', 'What the browser could read']);
+    expect(html).not.toContain('No schema applies');
+    // The worst first, each with its rule
+    const shown = words(html).replace(/\s+/g, ' ');
+    expect(shown).toContain('The map, against OGC API – Maps 1.0 No Content-Datetime, though the collection has a temporal extent Maps 1 /req/core/map-response F '
+      + 'Content-Datetime 2026-11-16T12:00:00Z, not the 2026-11-16T12:02:00Z asked Maps 1 /per/datetime/closest A Status 200 Maps 1 /req/core/map-response A');
+    expect(html).toContain(`href="${MAPS1.mapResponseF.url}"`);
+    expect(shown).toContain("About the request, not the server Pixels aren't square");
+    expect(['Error', 'Note', 'Passed'].map(label => html.split(`aria-label="${label}"`).length - 1)).toEqual([1, 2, 2]);
+  });
+
+  it("calls a refusal's the answer, and leaves out a heading with nothing under it", () => {
+    const html = render({ map: { findings: { map: FINDINGS.map, request: [], browser: [] }, success: false } });
+    expect(headings(html)).toEqual(['The answer, against OGC API – Maps 1.0 and the API']);
+    expect(headings(render({ map: { findings: { map: [], request: FINDINGS.request, browser: [] }, success: false } }))).toEqual(['About the request, not the server']);
+  });
+
+  it('says there was nothing to check where a map has no findings', () => {
+    expect(render({ map: { findings: { map: [], request: [], browser: [] }, success: false } })).toContain('No schema applies');
+  });
+
+  it('puts what else was found under its own headings, apart from the map’s', () => {
+    const html = render({ map: { findings: FINDINGS, success: true }, formatNotes: [{ message: 'odd', severity: 'warning' }] });
+    expect(headings(html)).toEqual(['The map, against OGC API – Maps 1.0', 'About the request, not the server', 'What the browser could read', 'The format']);
   });
 });
 
