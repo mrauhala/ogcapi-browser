@@ -37,6 +37,7 @@ import ItemText from './queryForm/ItemText';
 import StyleField from './queryForm/StyleField';
 import MoreParams from './queryForm/MoreParams';
 import { paramOf, paramsIn } from './query/requestUrl';
+import type { QueryIssue } from './query/types';
 import { LocationPicker, ParameterPicker } from './queryForm/SearchPickers';
 import { parametersOf } from './queryForm/pickerSearch';
 import ParameterRows from './queryForm/ParameterRows';
@@ -44,6 +45,7 @@ import { hasParameterNames, mapOffer, mapProfileNames, parameterRows, styleDecla
 import { axisBody, subsetIn } from './query/subsetText';
 import { ElevationValue, MapTimeValue, SubsetAxisValue, SubsetValue } from './queryForm/MapDimensionFields';
 import { MapBoxValue, MapCrsValue, MapSizeValue } from './queryForm/MapBoxFields';
+import { AcceptValue, BackgroundValue, CenterValue, ColourSwatch, SubsetCrsValue } from './queryForm/MapMoreFields';
 
 interface CollectionQueryBuilderProps {
   collection: Collection;
@@ -146,6 +148,7 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     bboxAsCoords, setBboxAsCoords,
     filterByTime, setFilterByTime,
     mapStyles, leftBehind,
+    accept, setAccept,
   } = queryState;
   const { radiusUnits, setRadiusUnits } = useMapInteraction();
   const { issues, apiOperation } = useQueryValidation();
@@ -191,6 +194,31 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     }
     if (queryType === 'map' && spec.name === 'crs') {
       return { control: <MapCrsValue options={spec.options ?? []} queryState={queryState} crsText={typed('crs', 'A URI from the list, or its safe CURIE')} />, empty: !sent('crs') };
+    }
+    // Under More: the background and what's outside the CRS's area, each a Boolean and a colour; the centre and its CRS;
+    // the scale, the subset's CRS and the API docs' quality, typed; and the Accept header, which isn't in the line
+    if (queryType === 'map' && (spec.name === 'transparent' || spec.name === 'void-transparent')) {
+      const colour = spec.name === 'transparent' ? 'bgcolor' : 'void-color';
+      const colourText = (
+        <ParamText name={colour} placeholder="0xRRGGBB, or a colour name" error={hasError(colour)} warning={hasWarning(colour)} noted={issuesOf(colour).length > 0}
+          adornment={<ColourSwatch text={paramOf(requestUrl, colour) ?? ''} />} />
+      );
+      return { control: <BackgroundValue queryState={queryState} outside={spec.name !== 'transparent'} colourText={colourText} />, empty: !sent(spec.name) && !sent(colour) };
+    }
+    if (queryType === 'map' && spec.name === 'center') {
+      return {
+        control: <CenterValue collection={collection} queryState={queryState} centerText={typed('center', 'lon,lat')} centerCrsText={typed('center-crs', 'CRS84')} />,
+        empty: !sent('center') && !sent('center-crs'),
+      };
+    }
+    if (queryType === 'map' && spec.name === 'subset-crs') {
+      return { control: <SubsetCrsValue collection={collection} queryState={queryState} text={typed('subset-crs', 'CRS84')} />, empty: !sent('subset-crs') };
+    }
+    if (queryType === 'map' && (spec.name === 'scale-denominator' || spec.name === 'quality')) {
+      return { control: typed(spec.name, spec.name === 'quality' ? 'A number' : 'A number, as 5000000', 200), empty: !sent(spec.name) };
+    }
+    if (queryType === 'map' && spec.header) {
+      return { control: <AcceptValue options={spec.options ?? []} accept={accept} setAccept={setAccept} />, empty: !accept.trim() };
     }
     switch (spec.name) {
       case 'coords':
@@ -300,41 +328,55 @@ const QueryFields: React.FC<{ collection: Collection; queryKey: string; querySta
     }
   };
 
+  // What a field also shows that's another's: a map's box, a spatial subset's clash with it, which is the subset's; its
+  // centre, the clash with bbox, which is bbox's, and with a spatial subset; its scale, the clash with a size, the size's
+  const shared = (spec: FieldSpec): QueryIssue[] => {
+    if (queryType !== 'map') return [];
+    if (spec.id === 'bbox') return issues.filter(issue => issue.id === 'maps:subset:with-bbox');
+    if (spec.id === 'center' && sent('center')) return issues.filter(issue => issue.id === 'maps:bbox:with-center' || issue.id === 'maps:subset:with-bbox');
+    if (spec.id === 'scale-denominator') return issues.filter(issue => issue.id === 'maps:width:with-scale');
+    return [];
+  };
+
+  const field = (spec: FieldSpec) => {
+    const { control, empty } = valueOf(spec);
+    const unit = spec.unit ? valueOf(spec.unit) : null;
+    // A size's issues, then its unit's, then another's it shares
+    const own = [...issuesOf(spec.id), ...(spec.unit ? issuesOf(spec.unit.id) : []), ...shared(spec)];
+    // How to type it, while there's nothing to read or what's there is wrong
+    const grammar = spec.grammar && (empty || own.some(issue => issue.severity === 'error')) ? [spec.grammar] : [];
+    return (
+      <React.Fragment key={spec.id}>
+        <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} ${spec.unitJoin ?? '·'} ${spec.unit.name}` : spec.axis ? `${spec.name}=${spec.axis}(…)` : spec.name}
+          path={spec.header ? 'header' : undefined} figure={spec.figure}
+          requirement={spec.requirement} declaredBy={spec.declaredBy} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
+          leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
+          {spec.unit && unit?.control ? (
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
+              <Box sx={{ width: 128, flexShrink: 0 }}>{control}</Box>
+              {/* Its own id, for the status line's within-units to jump to */}
+              <Box id={`query-field-${spec.unit.id}`}>{unit.control}</Box>
+            </Box>
+          ) : control}
+        </ParamField>
+        {spec.name === 'parameter-name' && queryType !== 'map' && lacksTimeAndLevels(collection, specs) && (
+          <Typography component="div" sx={{ mt: 1.25, px: 1.25, fontSize: 12, lineHeight: '16px', color: 'text.secondary' }}>
+            No <Box component="code" sx={{ fontFamily: 'monospace' }}>datetime</Box> or <Box component="code" sx={{ fontFamily: 'monospace' }}>z</Box>: the
+            collection&apos;s extent has no time or levels. To send one anyway, add it under More.
+          </Typography>
+        )}
+      </React.Fragment>
+    );
+  };
+
+  // A map's fields under More open it while the request has something in them, the Accept header included
+  const more = specs.filter(spec => spec.more);
+  const moreFilled = more.some(spec => (spec.header ? !!accept.trim() : sent(spec.name) || (!!spec.unit && sent(spec.unit.name))));
   return (
     <>
-      {specs.map(spec => {
-        const { control, empty } = valueOf(spec);
-        const unit = spec.unit ? valueOf(spec.unit) : null;
-        // A size's issues, then its unit's. A map's box also shows a spatial subset's clash with it, which is the subset's
-        const own = [
-          ...issuesOf(spec.id), ...(spec.unit ? issuesOf(spec.unit.id) : []),
-          ...(queryType === 'map' && spec.id === 'bbox' ? issues.filter(issue => issue.id === 'maps:subset:with-bbox') : []),
-        ];
-        // How to type it, while there's nothing to read or what's there is wrong
-        const grammar = spec.grammar && (empty || own.some(issue => issue.severity === 'error')) ? [spec.grammar] : [];
-        return (
-          <React.Fragment key={spec.id}>
-            <ParamField id={spec.id} title={spec.title} name={spec.unit ? `${spec.name} ${spec.unitJoin ?? '·'} ${spec.unit.name}` : spec.axis ? `${spec.name}=${spec.axis}(…)` : spec.name} figure={spec.figure}
-              requirement={spec.requirement} declaredBy={spec.declaredBy} missing={own.some(issue => issue.severity === 'missing')} hints={[...spec.hints, ...grammar]} link={spec.link}
-              leftOut={spec.leftOut} empty={empty} issues={own} openDocs={openDocs}>
-              {spec.unit && unit?.control ? (
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                  <Box sx={{ width: 128, flexShrink: 0 }}>{control}</Box>
-                  {/* Its own id, for the status line's within-units to jump to */}
-                  <Box id={`query-field-${spec.unit.id}`}>{unit.control}</Box>
-                </Box>
-              ) : control}
-            </ParamField>
-            {spec.name === 'parameter-name' && queryType !== 'map' && lacksTimeAndLevels(collection, specs) && (
-              <Typography component="div" sx={{ mt: 1.25, px: 1.25, fontSize: 12, lineHeight: '16px', color: 'text.secondary' }}>
-                No <Box component="code" sx={{ fontFamily: 'monospace' }}>datetime</Box> or <Box component="code" sx={{ fontFamily: 'monospace' }}>z</Box>: the
-                collection&apos;s extent has no time or levels. To send one anyway, add it under More.
-              </Typography>
-            )}
-          </React.Fragment>
-        );
-      })}
-      <MoreParams collection={collection} queryKey={queryKey} specs={specs} crs={queryParams.crs ?? ''} setCrs={crs => setQueryParam('crs', crs)} />
+      {specs.filter(spec => !spec.more).map(field)}
+      <MoreParams collection={collection} queryKey={queryKey} specs={specs} crs={queryParams.crs ?? ''} setCrs={crs => setQueryParam('crs', crs)}
+        fields={more.length ? more.map(field) : undefined} filled={moreFilled} />
     </>
   );
 };

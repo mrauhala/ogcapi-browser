@@ -58,8 +58,9 @@ export function knownServiceUrl(root: string, serviceUrls: string[]): string | u
 
 const shellQuoted = (text: string) => `'${text.replace(/'/g, `'\\''`)}'`;
 
-// The request as a command to run elsewhere. Stored credentials never go in it, only where they'd go.
-export function curlCommand(url: string, auth?: AuthCredentials): string {
+// The request as a command to run elsewhere. Stored credentials never go in it, only where they'd go. An Accept the
+// request asks for goes in as it's sent; without one, curl sends */*, as the app does
+export function curlCommand(url: string, auth?: AuthCredentials, accept?: string | null): string {
   const target = auth?.apiKey
     ? addApiKeyToUrl(encodedUrl(url), { apiKey: 'YOUR_API_KEY', apiKeyParam: auth.apiKeyParam })
     : encodedUrl(url);
@@ -67,5 +68,6 @@ export function curlCommand(url: string, auth?: AuthCredentials): string {
     : auth?.bearerToken ? ` -H ${shellQuoted('Authorization: Bearer YOUR_TOKEN')}`
       : auth?.username ? ` -u ${shellQuoted('YOUR_USERNAME:YOUR_PASSWORD')}`
         : '';
-  return `curl -i${credentials} ${shellQuoted(target)}`;
+  const asked = accept?.trim() ? ` -H ${shellQuoted(`Accept: ${accept.trim()}`)}` : '';
+  return `curl -i${credentials}${asked} ${shellQuoted(target)}`;
 }

@@ -33,6 +33,8 @@ export function useQueryResponse(showResponse: () => void) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<{ message: string; retryable: boolean } | null>(null);
   const [url, setUrl] = useState('');
+  // The Accept the last request was sent with, for Try again
+  const acceptRef = useRef<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [validationSchemaName, setValidationSchemaName] = useState<string | null>(null);
   const [scrollToPath, setScrollToPath] = useState<string | undefined>();
@@ -65,6 +67,7 @@ export function useQueryResponse(showResponse: () => void) {
       setContentType(details ? details.contentType : failure ? null : 'application/json');
       setResponse(details ?? null);
       setUrl(storedUrl);
+      acceptRef.current = null;
       setValidationErrors(errors || []);
       setValidationSchemaName(schemaName ?? null);
       setScrollToPath(path);
@@ -73,8 +76,8 @@ export function useQueryResponse(showResponse: () => void) {
     return () => document.removeEventListener('open-validation-response', handleOpenValidationResponse);
   }, [releaseImage, showResponse, showResponseLocation]);
 
-  // Fetches a query into the response pane
-  const fetchQuery = useCallback(async (requestUrl: string) => {
+  // Fetches a query into the response pane, with the Accept it asks for, if any
+  const fetchQuery = useCallback(async (requestUrl: string, accept: string | null = null) => {
     // Cancel any in-flight fetch
     fetchControllerRef.current?.abort();
     const controller = new AbortController();
@@ -82,6 +85,7 @@ export function useQueryResponse(showResponse: () => void) {
 
     showResponse();
     setUrl(requestUrl);
+    acceptRef.current = accept;
     setValidationErrors([]);
     setValidationSchemaName(null);
     setScrollToPath(undefined);
@@ -94,7 +98,7 @@ export function useQueryResponse(showResponse: () => void) {
     showResponseLocation(null);
 
     try {
-      const { body, ...details } = await sendRequest(requestUrl, getAuthCredentials(requestUrl), controller.signal);
+      const { body, ...details } = await sendRequest(requestUrl, getAuthCredentials(requestUrl), controller.signal, accept);
       const { status, contentType: responseType } = details;
       setResponse(details);
       setContentType(responseType);
@@ -189,7 +193,7 @@ export function useQueryResponse(showResponse: () => void) {
 
   // The pane's Try again: the request that failed, even if the query builder has moved on
   const retry = useCallback(() => {
-    if (url) fetchQuery(url);
+    if (url) fetchQuery(url, acceptRef.current);
   }, [url, fetchQuery]);
 
   return {

@@ -103,6 +103,25 @@ describe('MoreParams', () => {
     expect(rows(render(DWD, 'cube'))).toEqual([]);
   });
 
+  it('holds a map’s fields, named in its head, after crs and before the other parameters, and opens while the request has something in them', () => {
+    const specs = fieldSpecs(WITH_CRS, 'position', { parameters: 0 });
+    const mapLike = [...specs, { title: 'Background', name: 'transparent', id: 'transparent', requirement: 'optional' as const, hints: [], more: true,
+      unit: { title: '', name: 'bgcolor', id: 'bgcolor', requirement: 'optional' as const, hints: [] } },
+    { title: 'Format by Accept', name: 'Accept', id: 'accept', requirement: 'optional' as const, hints: [], more: true, header: true }];
+    const html = (filled: boolean) => renderToStaticMarkup(
+      <MoreParams collection={WITH_CRS} queryKey="position" specs={mapLike} crs="OGC:CRS84" setCrs={() => {}} fields={<i id="query-field-mine">fields</i>} filled={filled} />,
+    );
+    expect(header(html(false))).toBe('More: crs, transparent, bgcolor, Accept, other parameters');
+    const open = html(true);
+    expect(open.indexOf('id="query-field-crs"')).toBeLessThan(open.indexOf('<i id="query-field-mine">fields</i>'));
+    expect(open.indexOf('<i id="query-field-mine">fields</i>')).toBeLessThan(open.indexOf('id="query-field-other"'));
+    around.requestUrl = BASE;
+    expect(renderToStaticMarkup(<MoreParams collection={withoutCrs(WITH_CRS, 'position')} queryKey="position" specs={mapLike} crs="" setCrs={() => {}} fields={<i>fields</i>} filled />))
+      .toContain('aria-expanded="true"');
+    expect(renderToStaticMarkup(<MoreParams collection={withoutCrs(WITH_CRS, 'position')} queryKey="position" specs={mapLike} crs="" setCrs={() => {}} fields={<i>fields</i>} filled={false} />))
+      .toContain('aria-expanded="false"');
+  });
+
   it('shows what’s wrong with another parameter under its row, as that nothing declares it', () => {
     around.requestUrl = `${BASE}?foo=bar&debug=1&foo=again`;
     around.issues = [{ id: 'openapi:foo:undeclared', severity: 'warning', source: 'openapi', field: 'foo', message: 'Not declared: nobody names foo', pointer: '/paths/x' }];

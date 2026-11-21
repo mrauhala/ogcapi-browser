@@ -11,6 +11,7 @@ import meteocoreObs from './query/__fixtures__/meteocore-fmi-obs.json';
 import mapsParams from './query/__fixtures__/meteocore-maps-params.json';
 import mapsDims from './query/__fixtures__/meteocore-maps-dimensions.json';
 import mapsBox from './query/__fixtures__/meteocore-maps-box.json';
+import mapsMore from './query/__fixtures__/meteocore-maps-more.json';
 import { MAPS1 } from './standards';
 import { mapStylesOf, withLinkQueries } from './query/mapQuery';
 import { apiDocsParams } from './query/declared';
@@ -80,6 +81,7 @@ function render({ z = '', vertical = LISTED, member, custom = [] }: Form): strin
     vertical: z, setVertical: nothing,
     dimensions: member === undefined ? {} : { member }, setDimension: nothing,
     queryParams: {}, setQueryParam: nothing, bboxAsCoords: false, setBboxAsCoords: nothing, filterByTime: false, setFilterByTime: nothing,
+    accept: '', setAccept: nothing,
   } as unknown as UseQueryUrlReturn;
   const collection = {
     id: 'ifs', extent: { vertical, custom },
@@ -243,6 +245,7 @@ function form(collection: Collection, queryKey: string, overrides: Partial<Recor
     vertical: '', setVertical: nothing,
     dimensions: {}, setDimension: nothing,
     queryParams: {}, setQueryParam: nothing, bboxAsCoords: false, setBboxAsCoords: nothing, filterByTime: false, setFilterByTime: nothing,
+    accept: '', setAccept: nothing,
     ...overrides,
   } as unknown as UseQueryUrlReturn;
   return renderToStaticMarkup(<CollectionQueryBuilder collection={collection} queryState={state} />);
@@ -559,8 +562,9 @@ describe('a map’s box, size and CRS', () => {
     expect(crs.startsWith('Coordinate system crs 5 listed · optional crs API docs')).toBe(true);
     expect(crs).toContain('CRS84 EPSG:4326 EPSG:3857 EPSG:3067 EPSG:3035');
     expect(crs).toContain(`Left out: the storage CRS, storageCrs EPSG:3067 ${MAPS1.mapResponseB.label}`);
-    // Not under More
-    expect(shown(field(html, 'more'))).toBe('More: other parameters');
+    // Not under More, which has the background, the centre, the scale and the subset's CRS, closed with none of them asked
+    expect(shown(field(html, 'more'))).toBe('More: transparent, bgcolor, void-transparent, void-color, center, center-crs, scale-denominator, subset-crs, Accept, other parameters');
+    expect(field(html, 'more')).toContain('aria-expanded="false"');
     // The service's x-OGC-limits.maps, where its API docs' info has them
     expect(size).not.toContain('x-OGC-limits');
     around.docsIndex = { mapLimits: { maxWidth: 2048, maxHeight: null, maxPixels: null, pointer: '/info/x-OGC-limits/maps' } };
@@ -594,5 +598,111 @@ describe('a map’s box, size and CRS', () => {
     // The crs asked is pressed, and doesn't open More
     expect(count(block(html, 'crs', 'datetime'), 'aria-pressed="true"')).toBe(1);
     expect(field(html, 'more')).toContain('aria-expanded="false"');
+  });
+});
+
+// What's under More for the radar's map on MeteoCore: its background, outside the CRS, centre, scale, subset CRS,
+// quality and Accept, each a block as the main fields are
+describe('a map’s More', () => {
+  const ROOT = 'https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map';
+  const radar = () => withLinkQueries(structuredClone(mapsMore.collections[0]) as unknown as Collection);
+  const index = buildOperationIndex({ url: 'https://meteocore.app.meteo.fi/api', doc: { paths: { [mapsMore.mapPath]: { get: { parameters: mapsMore.parameters } } } } });
+  const operation = { template: mapsMore.mapPath, pointer: '/paths/x', required: [], params: apiDocsParams(index.entries[0].params) };
+  const state = (accept = '') => ({ styleId: '', styleByLink: false, selectStyle: () => {}, mapStyles: { status: 'ready', styles: [], source: null }, accept, setAccept: () => {} });
+  // The blocks inside More, in order, and a block from its id to the next block's head
+  const moreIds = (html: string) => blockIds(html.slice(html.indexOf('id="query-field-more"'))).filter(id => id !== 'more');
+  const block = (html: string, id: string, next: string) => html.slice(html.lastIndexOf('<', html.indexOf(`id="query-field-${id}"`)), html.lastIndexOf('<', html.indexOf(`id="query-field-${next}"`)));
+  const IN_MORE = ['transparent', 'bgcolor', 'void-transparent', 'void-color', 'center', 'center-crs', 'scale-denominator', 'subset-crs', 'quality', 'accept', 'other'];
+
+  beforeEach(() => {
+    around.conformsTo = mapsMore.conformsTo;
+    issues.apiOperation = operation;
+  });
+
+  it('is closed with none of them asked, and opens with any, the Accept header included', () => {
+    around.requestUrl = ROOT;
+    let html = form(radar(), 'map', state());
+    expect(shown(field(html, 'more'))).toBe('More: transparent, bgcolor, void-transparent, void-color, center, center-crs, scale-denominator, subset-crs, quality, Accept, other parameters');
+    expect(field(html, 'more')).toContain('aria-expanded="false"');
+    expect(html).not.toContain('id="query-field-transparent"');
+    for (const asked of ['void-color=red', 'center-crs=CRS:84', 'quality=80', 'subset-crs=CRS:84']) {
+      around.requestUrl = `${ROOT}?${asked}`;
+      expect(field(form(radar(), 'map', state()), 'more'), asked).toContain('aria-expanded="true"');
+    }
+    around.requestUrl = ROOT;
+    html = form(radar(), 'map', state('image/jpeg'));
+    expect(field(html, 'more')).toContain('aria-expanded="true"');
+    expect(moreIds(html)).toEqual(IN_MORE);
+    // None of them is among the main fields
+    expect(blockIds(html.slice(0, html.indexOf('id="query-field-more"'))).filter(id => IN_MORE.includes(id))).toEqual([]);
+  });
+
+  it('names each block by what’s sent, tags who declares it, and says what the server does while it’s left out', () => {
+    around.requestUrl = `${ROOT}?quality=80`;
+    const html = form(radar(), 'map', state());
+    const heads = ['transparent', 'void-transparent', 'center', 'scale-denominator', 'subset-crs', 'quality', 'accept'];
+    const next = (id: string) => [...heads, 'other'][heads.indexOf(id) + 1];
+    const said = (id: string) => shown(block(html, id, next(id)));
+    expect(said('transparent').startsWith('Background transparent · bgcolor optional background API docs true default false')).toBe(true);
+    expect(said('transparent')).toContain("Left out: transparent where there's no data: transparent is true without a bgcolor");
+    expect(block(html, 'transparent', 'void-transparent')).toContain('placeholder="0xRRGGBB, or a colour name"');
+    expect(block(html, 'transparent', 'void-transparent')).toContain('aria-label="No colour"');
+    expect(said('void-transparent').startsWith('Outside the CRS void-transparent · void-color optional background API docs')).toBe(true);
+    expect(said('center').startsWith('Centre center · center-crs optional spatial-subsetting API docs CRS84 EPSG:3067')).toBe(true);
+    expect(block(html, 'center', 'scale-denominator')).toContain('placeholder="lon,lat"');
+    expect(said('scale-denominator').startsWith('Scale scale-denominator optional scaling API docs')).toBe(true);
+    expect(said('subset-crs').startsWith('Subset CRS subset-crs optional spatial-subsetting API docs CRS84 EPSG:3067')).toBe(true);
+    expect(said('quality').startsWith('Quality quality optional API docs The API docs: Encoder quality')).toBe(true);
+    expect(typedValue(html, 'quality')).toBe('80');
+    expect(said('quality')).not.toContain('Left out');
+    expect(said('accept').startsWith('Format by Accept Accept (header) optional core image/png image/jpeg image/webp')).toBe(true);
+    expect(said('accept')).toContain("Left out: */* , as the app sends it: the server's default format");
+  });
+
+  it('says nothing left out of a block with either of its names asked', () => {
+    around.requestUrl = `${ROOT}?bgcolor=red&center-crs=CRS:84`;
+    const html = form(radar(), 'map', state());
+    expect(shown(block(html, 'transparent', 'void-transparent'))).not.toContain('Left out');
+    expect(shown(block(html, 'center', 'scale-denominator'))).not.toContain('Left out');
+    // The block beside them is still left out
+    expect(shown(block(html, 'void-transparent', 'center'))).toContain('Left out: as the background');
+  });
+
+  it('holds what the request has, and shows each one’s issue in its block, and the clashes of center and scale with the box and size', () => {
+    around.requestUrl = `${ROOT}?transparent=yes&bgcolor=nope&center=25,62&bbox=19,59,32,70&width=256&scale-denominator=0`;
+    issues.list = [
+      { id: 'maps:bbox:with-center', severity: 'error', source: 'maps', field: 'bbox', message: 'bbox with center: Maps 1.0 asks a 4xx for either with the other' },
+      { id: 'maps:width:with-scale', severity: 'error', source: 'maps', field: 'width', message: 'width with bbox and scale-denominator: Maps 1.0 asks a 4xx' },
+      { id: 'maps:transparent:boolean', severity: 'error', source: 'maps', field: 'transparent', message: "transparent yes isn't true or false" },
+      { id: 'maps:bgcolor:colour', severity: 'error', source: 'maps', field: 'bgcolor', message: 'bgcolor nope is neither' },
+      { id: 'maps:scale-denominator:number', severity: 'error', source: 'maps', field: 'scale-denominator', message: "scale-denominator 0 isn't positive" },
+    ];
+    const html = form(radar(), 'map', state('image/jpeg'));
+    expect(['bgcolor', 'center', 'scale-denominator'].map(name => typedValue(html, name))).toEqual(['nope', '25,62', '0']);
+    const background = shown(block(html, 'transparent', 'void-transparent'));
+    expect(background).toContain("transparent yes isn't true or false");
+    expect(background).toContain('bgcolor nope is neither');
+    // yes, pressed beside true and false, and the colour's grammar again while it's wrong
+    expect(background.startsWith('Background transparent · bgcolor optional background API docs true false default yes')).toBe(true);
+    expect(shown(block(html, 'center', 'scale-denominator'))).toContain('bbox with center');
+    expect(shown(block(html, 'scale-denominator', 'subset-crs'))).toContain("scale-denominator 0 isn't positive");
+    expect(shown(block(html, 'scale-denominator', 'subset-crs'))).toContain('width with bbox and scale-denominator');
+    // Each also in its own: the box's and the size's
+    expect(count(html, 'bbox with center')).toBe(2);
+    expect(count(html, 'width with bbox and scale-denominator')).toBe(2);
+    expect(block(html, 'accept', 'other')).toContain('value="image/jpeg"');
+    expect(shown(block(html, 'accept', 'other'))).not.toContain('Left out');
+    // A colour in error is typed in red, as the box's numbers are
+    const colour = block(html, 'transparent', 'void-transparent');
+    expect(colour.slice(colour.lastIndexOf('<input', colour.indexOf('aria-label="bgcolor"')), colour.indexOf('aria-label="bgcolor"'))).toContain('aria-invalid="true"');
+    // A centre's clash with a spatial subset is shown there only while it has a centre
+    around.requestUrl = `${ROOT}?subset=Lon(19:32)`;
+    issues.list = [{ id: 'maps:subset:with-bbox', severity: 'error', source: 'maps', field: 'subset', message: 'Lon in subset with bbox' }];
+    const centre = shown(block(form(radar(), 'map', state('image/jpeg')), 'center', 'scale-denominator'));
+    expect(centre.startsWith('Centre center · center-crs')).toBe(true);
+    expect(centre).not.toContain('Lon in subset');
+    around.requestUrl = `${ROOT}?subset=Lon(19:32)&center=25,62`;
+    issues.list = [{ id: 'maps:subset:with-bbox', severity: 'error', source: 'maps', field: 'subset', message: 'Lon in subset with center' }];
+    expect(shown(block(form(radar(), 'map', state()), 'center', 'scale-denominator'))).toContain('Lon in subset with center');
   });
 });

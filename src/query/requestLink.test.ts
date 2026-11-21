@@ -174,6 +174,15 @@ describe('curlCommand', () => {
     expect(command).toBe("curl -i 'https://api.test/x?a=1&key=YOUR_API_KEY'");
   });
 
+  it('asks for the format the request asks for by Accept, as sent, and leaves curl’s own */* otherwise', () => {
+    expect(curlCommand(REQUEST, undefined, 'image/jpeg')).toBe(`curl -i -H 'Accept: image/jpeg' ${ENCODED}`);
+    expect(curlCommand(REQUEST, { bearerToken: 'SECRET' }, ' image/webp ')).toBe(`curl -i -H 'Authorization: Bearer YOUR_TOKEN' -H 'Accept: image/webp' ${ENCODED}`);
+    // A quote in it can't end the argument
+    expect(curlCommand(REQUEST, undefined, "image/png;x='1'")).toBe(`curl -i -H 'Accept: image/png;x='\\''1'\\''' ${ENCODED}`);
+    expect(curlCommand(REQUEST, undefined, '')).toBe(`curl -i ${ENCODED}`);
+    expect(curlCommand(REQUEST, undefined, null)).toBe(`curl -i ${ENCODED}`);
+  });
+
   it('prefers a custom header, as sending does', () => {
     expect(curlCommand('https://api.test/x', { customAuthHeader: 'A', bearerToken: 'B', username: 'C' })).toContain('YOUR_AUTHORIZATION');
     expect(curlCommand('https://api.test/x', { bearerToken: 'B', username: 'C' })).toContain('YOUR_TOKEN');
