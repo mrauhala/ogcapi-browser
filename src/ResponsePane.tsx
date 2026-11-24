@@ -174,7 +174,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
   // A map's image, read against what was asked of it. Only a success's: an error's body isn't the map asked for
   const mapReading = useMemo(
     () => (imageUrl && image && response && answered && isMapRequest(url)
-      ? readMapResponse({ url, headers: response.headers, contentType: contentType ?? '', image, collection: checkedAgainst })
+      ? readMapResponse({ url, headers: response.headers, contentType: contentType ?? '', image, collection: checkedAgainst, accept: response.accept })
       : null),
     [imageUrl, image, response, answered, url, contentType, checkedAgainst],
   );
@@ -189,7 +189,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
       success: response.status >= 200 && response.status < 300,
       findings: mapFindings({
         url, status: response.status, headers: response.headers, contentType: contentType ?? response.contentType,
-        image: imageUrl ? image : null, body: data, collection: checkedAgainst, conformsTo: own ? conformsTo : null,
+        image: imageUrl ? image : null, body: data, accept: response.accept, collection: checkedAgainst, conformsTo: own ? conformsTo : null,
         apiDocs: docs?.operation ? apiDocsParams(docs.operation.entry.params) : null, apiDocsIssues: docs?.issues ?? [], limits: own ? docsIndex?.mapLimits ?? null : null,
       }),
     };
@@ -376,7 +376,7 @@ const ResponsePane: React.FC<ResponsePaneProps> = ({
           </Box>
         )}
 
-        {!isLoading && response && tab === 'headers' && <ResponseHeaders headers={response.headers} />}
+        {!isLoading && response && tab === 'headers' && <ResponseHeaders headers={response.headers} accept={response.accept} />}
 
         {!isLoading && response && tab === 'sizes' && <ResponseSizes response={response} />}
 

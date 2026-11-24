@@ -472,6 +472,21 @@ describe('ResponsePane', () => {
       open.collection = null;
     });
 
+    it('reads its format against the Accept the response was sent with, in Checks and in Data', () => {
+      open.collection = maps.collection as unknown as Collection;
+      const sent = (accept?: string) => map({ response: { ...OK, contentType: 'image/png', headers: MATCH.headers, ...(accept === undefined ? {} : { accept }) } });
+      expect(checksLabel(sent('image/jpeg'))).toBe('Checks 1 error');
+      expect(words(sent('image/jpeg'))).toContain('Content-Type image/png but Accept: image/jpeg asked');
+      expect(checksLabel(sent('image/png'))).toBe('Checks');
+      expect(words(sent('image/png'))).toContain('Content-Type image/png as Accept: image/png asked');
+      // The app's own */*, and a response with none recorded: nothing to say of it
+      for (const html of [sent('*/*'), sent()]) {
+        expect(checksLabel(html)).toBe('Checks');
+        expect(words(html)).not.toContain('Accept');
+      }
+      open.collection = null;
+    });
+
     it("counts a refusal's checks, against the loaded API's Maps classes, and not what the form expected", () => {
       api.loaded = { apiUrl: 'https://meteocore.app.meteo.fi', conformsTo: checks.conformsTo };
       open.collection = checks.collections.ifs as unknown as Collection;

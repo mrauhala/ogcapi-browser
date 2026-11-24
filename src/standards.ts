@@ -493,6 +493,9 @@ export const COMMON1 = {
   // behavior, for it to list every possible query parameter that might affect the behavior of an endpoint, or for it to
   // list every possible value that each query parameter might accept."
   notEverything: common1('8.3.1', '_47dc2dee-1319-6f8c-9b86-19b5dcfa8862'),
+  // Informative, Table 2, "Typical HTTP status codes": "406: Content negotiation failed. For example, the Accept header
+  // submitted in the request did not support any of the media types supported by the server for the requested resource."
+  notAcceptable: common1('8.2, Table 2', 'status-codes'),
   // A: "The JSON representation SHALL conform to the OpenAPI Specification, version 3.0."
   oas30Definition: common1('/req/oas30/oas-definition-2 A', '_48babc53-510b-a0e2-e472-1ed54b360850'),
 };
@@ -586,6 +589,8 @@ export const RECORDS1 = {
 // A requirement's statements have ids of their own, each cited by its requirement and letter
 const MAPS_1 = 'https://docs.ogc.org/is/20-058/20-058.html';
 const maps1 = (requirement: string, anchor: string): Rule => ({ label: `Maps 1 ${requirement}`, url: `${MAPS_1}#${anchor}`, ...statementOf(requirement) });
+// An abstract test, by its identifier and number, linked to its test purpose
+const maps1Test = (test: string, anchor: string): Rule => ({ label: `Maps 1 ${test}`, url: `${MAPS_1}#${anchor}` });
 
 export const MAPS1 = {
   // ---- What a map response's checks rest on: its status, headers and body, and the size, box, time and CRS asked ----
@@ -740,6 +745,21 @@ export const MAPS1 = {
   // A: "Every 200-response of the server with the media type image/svg+xml SHALL be an SVG document representing only
   // a map."
   svgContent: maps1('/req/svg/content A', '_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a'),
+  // ---- Each encoding class's abstract test, which asks for its media type by Accept: its test purpose ----
+  // A.55: "Verify that the implementation supports retrieving maps negotiating for PNG content". Its method: "When:
+  // retrieving a PNG (image/png) representation of a map resource through HTTP content negotiation"
+  pngNegotiation: maps1Test('/conf/png/content, test A.55', '_a8720227-d856-4b8f-28f7-da317f81d29e'),
+  // A.56: "Verify that the implementation supports retrieving maps negotiating for JPEG content". Its method: "When:
+  // retrieving a JPEG (image/jpeg) representation of a map resource through HTTP content negotiation"
+  jpegNegotiation: maps1Test('/conf/jpeg/content, test A.56', '_ffab49c5-9f28-fe6c-0b60-ef139157a559'),
+  // A.57: "Verify that the implementation supports retrieving maps negotiating for JPEG XL content"
+  jpegxlNegotiation: maps1Test('/conf/jpegxl/content, test A.57', '_bc6e5278-07cf-7359-931c-7de5e4065158'),
+  // A.58: "Verify that the implementation supports retrieving maps negotiating for TIFF and/or GeoTIFF content"
+  tiffNegotiation: maps1Test('/conf/tiff/content, test A.58', '_355817b1-f278-b929-4a28-74980e3f6729'),
+  // A.59: "Verify that the implementation supports retrieving maps negotiating for SVG content"
+  svgNegotiation: maps1Test('/conf/svg/content, test A.59', '_aeab50eb-656a-ad8c-f0b8-0ae80fb3d1d7'),
+  // A.60: "Verify that the implementation supports retrieving maps negotiating for HTML content"
+  htmlNegotiation: maps1Test('/conf/html/content, test A.60', '_ab210e7d-7592-c74c-3055-20c9a0ef75c0'),
   // ---- What a map request asks for ----
   // 7.2.3, NOTE 2: "HTTP content negotiation addresses the same use cases as the FORMAT= parameter of WMS. However, for
   // convenience, some implementations can implement an f= parameter for circumstances where content negotiation is not

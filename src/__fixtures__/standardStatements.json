@@ -167,6 +167,7 @@
   "https://docs.ogc.org/is/20-058/20-058.html#_2da5a1e8-8c62-d5e8-e0b7-e4e809b723ca": "/req/scaling/width-definition H",
   "https://docs.ogc.org/is/20-058/20-058.html#_2ec4ccca-5426-ac55-acd3-30d50108e9aa": "/req/scaling/width-definition A",
   "https://docs.ogc.org/is/20-058/20-058.html#_2ffbc90c-1c04-83a1-62d5-2ec717b12040": "/req/scaling/height-definition H",
+  "https://docs.ogc.org/is/20-058/20-058.html#_355817b1-f278-b929-4a28-74980e3f6729": "/req/tiff/content",
   "https://docs.ogc.org/is/20-058/20-058.html#_35ec26ab-2e34-4c64-dd64-5cc8a3b14995": "/req/scaling/height-definition C",
   "https://docs.ogc.org/is/20-058/20-058.html#_3741a1cd-d9f4-5b80-48cd-ea0846d8529f": "/req/core/map-response G",
   "https://docs.ogc.org/is/20-058/20-058.html#_40571e51-0d0d-fdba-7d9d-8e780c4aec19": "/req/background/bgcolor-definition B",
@@ -216,11 +217,15 @@
   "https://docs.ogc.org/is/20-058/20-058.html#_a07933e1-16e6-ede5-9085-fdf94cacbaaf": "/req/background/void-transparent-definition C",
   "https://docs.ogc.org/is/20-058/20-058.html#_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a": "/req/svg/content A",
   "https://docs.ogc.org/is/20-058/20-058.html#_a8548a38-18bc-3152-7b07-dc58c3274499": "/req/background/transparent-definition A",
+  "https://docs.ogc.org/is/20-058/20-058.html#_a8720227-d856-4b8f-28f7-da317f81d29e": "/req/png/content",
   "https://docs.ogc.org/is/20-058/20-058.html#_a90cb32a-cbb5-6a1d-fb3d-d58c96759a36": "/req/scaling/scale-denominator-definition D",
+  "https://docs.ogc.org/is/20-058/20-058.html#_ab210e7d-7592-c74c-3055-20c9a0ef75c0": "/req/html/content",
+  "https://docs.ogc.org/is/20-058/20-058.html#_aeab50eb-656a-ad8c-f0b8-0ae80fb3d1d7": "/req/svg/content",
   "https://docs.ogc.org/is/20-058/20-058.html#_b07c77fe-28e9-2ee0-dc18-431e55045bce": "/req/background/transparent-definition B",
   "https://docs.ogc.org/is/20-058/20-058.html#_b1081210-6da4-4bf7-52d5-7c3b46602866": "/req/spatial-subsetting/subset-definition D",
   "https://docs.ogc.org/is/20-058/20-058.html#_b3eb32ab-ecd7-72a8-1928-821f288545aa": "/req/scaling/height-definition F",
   "https://docs.ogc.org/is/20-058/20-058.html#_b6d9d8c6-1248-7d1a-6b20-c7d7d8fb16ba": "/req/spatial-subsetting/center-crs A",
+  "https://docs.ogc.org/is/20-058/20-058.html#_bc6e5278-07cf-7359-931c-7de5e4065158": "/req/jpegxl/content",
   "https://docs.ogc.org/is/20-058/20-058.html#_bcbaeb17-b386-6e89-c556-bc1a986e975b": "/req/background/void-transparent-definition B",
   "https://docs.ogc.org/is/20-058/20-058.html#_c4aa136d-af90-ae38-7766-a6f30d4d0eb0": "/req/background/bgcolor-definition A",
   "https://docs.ogc.org/is/20-058/20-058.html#_c504506e-53eb-c109-527d-a57be05be357": "/req/core/map-response I",
@@ -241,5 +246,6 @@
   "https://docs.ogc.org/is/20-058/20-058.html#_e7950323-2ddd-799e-afe6-02f412e2cfb4": "/req/core/map-response H",
   "https://docs.ogc.org/is/20-058/20-058.html#_e7b294ca-7533-fa03-7b61-935faba51964": "/req/tiff/content A",
   "https://docs.ogc.org/is/20-058/20-058.html#_ed5196cb-2a71-a5bd-8420-ab2a86ad237f": "/req/spatial-subsetting/center-definition A",
-  "https://docs.ogc.org/is/20-058/20-058.html#_edb78a9c-f29a-9a28-df1e-405aa6fad8ba": "/req/background/bgcolor-definition C"
+  "https://docs.ogc.org/is/20-058/20-058.html#_edb78a9c-f29a-9a28-df1e-405aa6fad8ba": "/req/background/bgcolor-definition C",
+  "https://docs.ogc.org/is/20-058/20-058.html#_ffab49c5-9f28-fe6c-0b60-ef139157a559": "/req/jpeg/content"
 }
