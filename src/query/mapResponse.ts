@@ -1,4 +1,5 @@
-// A map response, read against what was asked: its image (its size, and its bytes against its Content-Type), and what
+// A map response, read against what was asked: its image (its size, and its bytes against its Content-Type), its format
+// against the Accept it was sent with, and what
 // its Content-Crs, Content-Bbox and Content-Datetime headers say, each against the request's crs, bbox and datetime and
 // the collection's storageCrs and extent. And where the map can lie the image, which it can in CRS84, EPSG:4326 and
 // EPSG:3857 only. The headers' rules are OGC API - Maps - Part 1: Core 1.0's (OGC 20-058, an approved standard published
@@ -9,6 +10,7 @@ import type { ResponseHeader } from '../api/sendRequest';
 import type { BBox } from './types';
 import { CRS84_URI, crsCode, outputCrs, readBox, sameCrs, shortCrs } from './mapBox';
 import { rounded } from './mapLayer';
+import { acceptAsked, acceptsType } from './mapAccept';
 import { paramOf } from './requestUrl';
 import { axisOfPart, parsePart, subsetIn, subsetParts, unquoted } from './subsetText';
 
@@ -264,6 +266,8 @@ export interface MapResponseInput {
   image: ImageBytes;
   // The collection the request is for, where it's the open one
   collection: Collection | null;
+  // The Accept the request was sent with, where it's known
+  accept?: string | null;
 }
 
 export const headerOf = (headers: ResponseHeader[], name: string): string | null =>
@@ -308,6 +312,19 @@ function imageRow(url: string, contentType: string, image: ImageBytes): Response
     tone = 'wrong';
   }
   return { name: 'image', value, against: against.join('; '), tone };
+}
+
+// The Content-Type against the Accept sent, where it asked for a format: f, the API docs' own parameter, may have asked
+// for another, which the server followed
+function typeRow(url: string, contentType: string, accept: string | null | undefined): ResponseRow | null {
+  const asked = acceptAsked(accept);
+  if (!asked) return null;
+  const typed = contentType.split(';')[0].trim().toLowerCase();
+  const value = typed || 'none';
+  if (acceptsType(asked.ranges, typed)) return { name: 'Content-Type', value, against: `as Accept: ${asked.sent} asked`, tone: 'ok' };
+  const f = paramOf(url, 'f')?.trim().toLowerCase() ?? '';
+  if (f && f === typed) return { name: 'Content-Type', value, against: `as f asked, not Accept: ${asked.sent}`, tone: 'differs' };
+  return { name: 'Content-Type', value, against: `but Accept: ${asked.sent} asked`, tone: 'wrong' };
 }
 
 function crsRow(url: string, received: string | null, collection: Collection | null): ResponseRow {
@@ -435,7 +452,7 @@ function pixelRow(crs: string, box: Box, pixel: [number, number], image: ImageBy
   return { name: 'a pixel', value, against: `not square: ${keep} px tall keeps the box's shape`, tone: 'differs' };
 }
 
-export function readMapResponse({ url, headers, contentType, image, collection }: MapResponseInput): MapResponseReading {
+export function readMapResponse({ url, headers, contentType, image, collection, accept }: MapResponseInput): MapResponseReading {
   const crsHeader = headerOf(headers, 'content-crs');
   const bboxHeader = headerOf(headers, 'content-bbox');
   const crs = crsHeader === null ? CRS84_URI : readContentCrs(crsHeader);
@@ -445,8 +462,10 @@ export function readMapResponse({ url, headers, contentType, image, collection }
   const pixel: [number, number] | null = box && sized && box[2] > box[0] && box[3] > box[1]
     ? [(box[2] - box[0]) / image.width!, (box[3] - box[1]) / image.height!] : null;
 
+  const typed = typeRow(url, contentType, accept);
   const rows: ResponseRow[] = [
     imageRow(url, contentType, image),
+    ...(typed ? [typed] : []),
     crsRow(url, crsHeader === null ? null : crs, collection),
     bboxRow(url, bboxHeader, crs, box, pixel, collection),
   ];

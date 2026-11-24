@@ -24,6 +24,9 @@ export interface ResponseDetails {
   requestUrlBytes: number;
   // The browser's own record of the sizes; null if it keeps that from this page
   timing: WireTiming | null;
+  // The Accept the request was sent with, as it went: */* unless it asked for a format. None for what the app fetched by
+  // itself, as loading an API
+  accept?: string;
 }
 
 export interface ApiResponse extends ResponseDetails {
@@ -55,16 +58,17 @@ export function responseDetails(response: AxiosResponse<unknown>, target: string
 export async function sendRequest(url: string, auth?: AuthCredentials, signal?: AbortSignal, accept?: string | null): Promise<ApiResponse> {
   const config = getAxiosConfig(auth, signal);
   const target = addApiKeyToUrl(url, auth);
+  const sent = accept || '*/*';
   makeRoomForWireTiming();
   const started = performance.now();
   const response = await axios.get<ArrayBuffer>(target, {
     ...config,
     // Bytes, so that binary responses (image/png from OGC API Maps, etc.) survive intact
     responseType: 'arraybuffer',
-    headers: { ...config.headers, Accept: accept || '*/*' },
+    headers: { ...config.headers, Accept: sent },
     validateStatus: () => true,
   });
   const timeMs = performance.now() - started;
 
-  return { ...responseDetails(response, target, response.data.byteLength, timeMs), body: response.data };
+  return { ...responseDetails(response, target, response.data.byteLength, timeMs), accept: sent, body: response.data };
 }

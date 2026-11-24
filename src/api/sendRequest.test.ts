@@ -36,6 +36,7 @@ describe('sendRequest', () => {
         { name: 'x-b', value: '2' },
       ],
       contentType: 'application/vnd.cov+json',
+      accept: '*/*',
     });
     expect(new TextDecoder().decode(body)).toBe('{"type":"Coverage"}');
   });
@@ -68,14 +69,14 @@ describe('sendRequest', () => {
     expect(config?.signal).toBe(signal);
   });
 
-  it('asks for the format a request asks for by Accept, as a map request can, and for any without one', async () => {
+  it('asks for the format a request asks for by Accept, as a map request can, and for any without one, saying which went', async () => {
     const get = answer();
-    await sendRequest(URL_, undefined, undefined, 'image/jpeg');
+    expect((await sendRequest(URL_, undefined, undefined, 'image/jpeg')).accept).toBe('image/jpeg');
     expect(get.mock.calls[0][1]?.headers).toEqual({ Accept: 'image/jpeg' });
-    await sendRequest(URL_, { bearerToken: 'abc' }, undefined, 'image/webp;q=1, image/png;q=0.5');
+    expect((await sendRequest(URL_, { bearerToken: 'abc' }, undefined, 'image/webp;q=1, image/png;q=0.5')).accept).toBe('image/webp;q=1, image/png;q=0.5');
     expect(get.mock.calls[1][1]?.headers).toEqual({ Authorization: 'Bearer abc', Accept: 'image/webp;q=1, image/png;q=0.5' });
-    await sendRequest(URL_, undefined, undefined, '');
-    await sendRequest(URL_, undefined, undefined, null);
+    expect((await sendRequest(URL_, undefined, undefined, '')).accept).toBe('*/*');
+    expect((await sendRequest(URL_, undefined, undefined, null)).accept).toBe('*/*');
     expect(get.mock.calls.slice(2).map(call => call[1]?.headers)).toEqual([{ Accept: '*/*' }, { Accept: '*/*' }]);
   });
 

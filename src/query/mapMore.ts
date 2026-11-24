@@ -3,7 +3,7 @@
 // (subset-crs), the API docs' quality, and the Accept header its format is negotiated by. By OGC API - Maps - Part 1:
 // Core 1.0 (OGC 20-058, an approved standard published 2024-08-09). Nothing is filled in: what the server does without
 // each is said, by the rule that says it. Pure.
-import type { Collection } from '../types/api';
+import type { Citation, Collection } from '../types/api';
 import type { QueryIssue } from './types';
 import type { FieldSpec, Requirement } from './fieldSpecs';
 import { declarersOf, type Declarer, type Offer } from './declared';
@@ -58,9 +58,11 @@ export function transparentIs(transparent: string, bgcolor: string): { value: 't
 
 // ---- The Accept header ----
 
-// The media type each Maps encoding class gives a map in: /req/png/content and the others
-const ENCODINGS: readonly [string, string][] = [
-  ['png', 'image/png'], ['jpeg', 'image/jpeg'], ['jpegxl', 'image/jxl'], ['tiff', 'image/tiff'], ['svg', 'image/svg+xml'], ['html', 'text/html'],
+// The media type each Maps encoding class gives a map in (/req/png/content and the others), and the class's test, which
+// asks for it by Accept
+export const ENCODINGS: readonly (readonly [string, string, Citation])[] = [
+  ['png', 'image/png', MAPS1.pngNegotiation], ['jpeg', 'image/jpeg', MAPS1.jpegNegotiation], ['jpegxl', 'image/jxl', MAPS1.jpegxlNegotiation],
+  ['tiff', 'image/tiff', MAPS1.tiffNegotiation], ['svg', 'image/svg+xml', MAPS1.svgNegotiation], ['html', 'text/html', MAPS1.htmlNegotiation],
 ];
 
 // The formats to ask for by Accept: those of the encoding classes the API declares, then those the API docs' f lists

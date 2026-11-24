@@ -56,7 +56,8 @@
     "_6fb8dd73-5b9d-ed6a-7d7f-69a66a8020aa",
     "_7cb81d32-e482-5f15-5b82-f52a15a329b7",
     "_b08a7693-7aaf-7d12-0fae-fb28d38b7e17",
-    "_e5765c7a-dfcd-59aa-9c61-ddb071d20944"
+    "_e5765c7a-dfcd-59aa-9c61-ddb071d20944",
+    "status-codes"
   ],
   "https://docs.ogc.org/is/19-079r2/19-079r2.html": [
     "req_queryables_get-queryables-op",
@@ -249,6 +250,7 @@
     "_2ec4ccca-5426-ac55-acd3-30d50108e9aa",
     "_2ffbc90c-1c04-83a1-62d5-2ec717b12040",
     "_33f40464-9aa3-e59a-3ac6-702a4df8e139",
+    "_355817b1-f278-b929-4a28-74980e3f6729",
     "_35ec26ab-2e34-4c64-dd64-5cc8a3b14995",
     "_3741a1cd-d9f4-5b80-48cd-ea0846d8529f",
     "_40571e51-0d0d-fdba-7d9d-8e780c4aec19",
@@ -303,13 +305,17 @@
     "_a07933e1-16e6-ede5-9085-fdf94cacbaaf",
     "_a09a946f-b99c-9fb4-eda5-9dc0f0661b1a",
     "_a8548a38-18bc-3152-7b07-dc58c3274499",
+    "_a8720227-d856-4b8f-28f7-da317f81d29e",
     "_a90cb32a-cbb5-6a1d-fb3d-d58c96759a36",
+    "_ab210e7d-7592-c74c-3055-20c9a0ef75c0",
+    "_aeab50eb-656a-ad8c-f0b8-0ae80fb3d1d7",
     "_b07c77fe-28e9-2ee0-dc18-431e55045bce",
     "_b1081210-6da4-4bf7-52d5-7c3b46602866",
     "_b154a1a2-a7b0-dcaf-eca8-3b18b2a15229",
     "_b3eb32ab-ecd7-72a8-1928-821f288545aa",
     "_b4a11d57-bf11-81b5-cf87-288c92e1b315",
     "_b6d9d8c6-1248-7d1a-6b20-c7d7d8fb16ba",
+    "_bc6e5278-07cf-7359-931c-7de5e4065158",
     "_bcbaeb17-b386-6e89-c556-bc1a986e975b",
     "_c4aa136d-af90-ae38-7766-a6f30d4d0eb0",
     "_c504506e-53eb-c109-527d-a57be05be357",
@@ -330,7 +336,8 @@
     "_e7950323-2ddd-799e-afe6-02f412e2cfb4",
     "_e7b294ca-7533-fa03-7b61-935faba51964",
     "_ed5196cb-2a71-a5bd-8420-ab2a86ad237f",
-    "_edb78a9c-f29a-9a28-df1e-405aa6fad8ba"
+    "_edb78a9c-f29a-9a28-df1e-405aa6fad8ba",
+    "_ffab49c5-9f28-fe6c-0b60-ef139157a559"
   ],
   "https://github.com/opengeospatial/metocean-common-profile-ogcapi/blob/026d0ba48542bf6dd6e7a7f74705d5a38e8de5c8/profile/requirements/collection-parameters/REQ_names.adoc?plain=1": [
     "L10",

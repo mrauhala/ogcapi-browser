@@ -4,7 +4,8 @@
 // and what a permission allows, or an aside, a note. A 4xx is read against the request: a refusal the standard asks for
 // passes, and one for a request the form judged valid says what in the API suggested it would work, so that a developer
 // can tell whether the request or the server is at fault. What's about the request rather than the server goes apart and
-// counts for nothing, as does whether the browser could read the headers, which is the server's CORS. Pure.
+// counts for nothing, as does whether the browser could read the headers, which is the server's CORS. The format is
+// checked against the Accept the request was sent with, which Maps 1.0 negotiates it by. Pure.
 import type { Citation, Collection, ValidationError } from '../types/api';
 import type { ResponseHeader } from '../api/sendRequest';
 import type { MapLimits } from '../validation/openapi/operationIndex';
@@ -14,6 +15,8 @@ import { mapOffer, mapProfileNames } from './mapOffer';
 import { declaredAxes, dimensionOf, SPATIAL_AXES, subsetAxisIssues } from './mapDimensions';
 import { CRS84_URI, boxInCrs84, crsCode, isUnsafeCurie, outputCrs, readBox, sameCrs, shortCrs } from './mapBox';
 import { linkQuery, mapStylesOf, withLinkQueries, type MapStyle } from './mapQuery';
+import { acceptAsked, acceptsType, type AcceptSent } from './mapAccept';
+import { ENCODINGS, acceptOptions } from './mapMore';
 import { matchDataQuery, readQuerySelections } from './parseQueryUrl';
 import { buildQueryModel } from './queryModel';
 import { parameterIdsOf, queryTypeOf } from './queryTypes';
@@ -35,6 +38,8 @@ export interface MapFindingsInput {
   image: ImageBytes | null;
   // The body as text: an error's, or what a success sent that isn't an image
   body: string | null;
+  // The Accept the request was sent with: */* where it asked for no format. None for a stored response
+  accept?: string | null;
   // The collection the request is for, where it's the open one
   collection: Collection | null;
   // The API's conformance, null while it isn't known
@@ -478,6 +483,17 @@ export function basesOf(ctx: Context): Basis[] {
   return [...bases, ...subsetBases(ctx)];
 }
 
+// ---- The format, by Accept ----
+
+// What Accept takes of the formats the API says it makes, those of the encoding classes it declares, then its API docs'
+// f's; and the classes among them, with each one's test, which asks for its media type by Accept
+function acceptMeets(ctx: Context, accept: AcceptSent) {
+  const { options } = acceptOptions(ctx.offer);
+  const types = options.filter(type => acceptsType(accept.ranges, type));
+  const classes = ENCODINGS.filter(([name, type]) => has(ctx, name) && types.includes(type));
+  return { offered: options, types, classes: classes.map(([name]) => name), classTypes: classes.map(([, type]) => type), tests: classes.map(([, , test]) => test) };
+}
+
 // ---- A refusal ----
 
 // A refusal as said after its status: width=0: it isn't a positive integer, and Maps 1.0 asks a 4xx
@@ -486,6 +502,24 @@ const refusalSaid = (refusal: Refusal) => `${refusal.what}: ${refusal.why ? `${r
 function refusalFindings(input: MapFindingsInput, ctx: Context, found: MapFindings) {
   const { status } = input;
   const message = serverMessage(input.body);
+  // A 406 for a format asked by Accept: content negotiation failed, as Common Part 1 has a 406 say, unless Accept takes a
+  // format the API says it makes
+  const accept = acceptAsked(input.accept);
+  if (status === 406 && accept) {
+    const meets = acceptMeets(ctx, accept);
+    const what = `406 for Accept: ${accept.sent}`;
+    if (meets.classes.length) {
+      const makes = meets.classes.length > 1 ? 'make' : 'makes';
+      found.map.push(finding('error', `${what}, though ${classList(meets.classes)}, which the API declares, ${makes} maps in ${meets.classTypes.join(' and ')}${says(message)}`, meets.tests));
+    } else if (meets.types.length) {
+      found.map.push(finding('warning', `${what}, though the API docs' f lists ${meets.types.join(', ')}${says(message)}`));
+    } else if (ctx.offer.classes === null && !ctx.offer.apiDocs) {
+      found.request.push(finding('info', `${what}: the API's conformance and its API docs aren't known here, so nothing says whether it should have worked${says(message)}`));
+    } else {
+      found.map.push(finding('pass', `${what}, which takes no format the API declares or its API docs list: content negotiation failed${says(message)}`, COMMON1.notAcceptable));
+    }
+    return;
+  }
   const refusals = refusalsAsked(ctx);
   if (refusals.length) {
     for (const refusal of refusals) {
@@ -580,26 +614,43 @@ function successFindings(input: MapFindingsInput, ctx: Context, found: MapFindin
     }
   }
 
-  // The Content-Type, and the body it says
+  // The Content-Type, and the body it says, against f, the API docs' parameter, and the Accept sent, which Maps 1.0
+  // negotiates the format by. Where f and Accept ask for different formats, the one the server followed passes, and the
+  // clash is the request's
   const typed = input.contentType.split(';')[0].trim().toLowerCase();
   const asked = paramOf(url, 'f')?.trim() ?? '';
+  const accept = acceptAsked(input.accept);
+  const byF = !!asked && asked.toLowerCase() === typed;
+  const byAccept = !!accept && acceptsType(accept.ranges, typed);
+  const clash = !!asked && !!accept && !acceptsType(accept.ranges, asked);
+  const as = byF && byAccept ? ', as f and Accept asked' : byF ? ', as f asked' : byAccept ? ', as Accept asked' : '';
+  if (accept && clash && (byF || byAccept)) {
+    found.request.push(finding('info', `f=${asked} and Accept: ${accept.sent} ask for different formats: the server sent ${typed}, as ${byF ? 'f' : 'Accept'} asked`, MAPS1.formatNegotiation));
+  } else if (accept && !byAccept) {
+    const said = `Accept: ${accept.sent} asked, and the Content-Type is ${typed || 'none'}`;
+    const meets = acceptMeets(ctx, accept);
+    if (meets.offered.length && !meets.types.length) {
+      found.request.push(finding('info', `${said}: Accept takes no format the API declares or its API docs list, and HTTP lets a server disregard an Accept it can't meet (RFC 9110, 12.5.1)`));
+    } else {
+      found.map.push(finding('error', said, [MAPS1.mapResponseI, ...meets.tests]));
+    }
+  }
   if (!typed.startsWith('image/')) {
-    if (asked && asked.toLowerCase() === typed) found.map.push(finding('pass', `Content-Type ${typed}, as f asked`, MAPS1.mapResponseI));
+    if (byF || byAccept) found.map.push(finding('pass', `Content-Type ${typed}${as}`, MAPS1.mapResponseI));
     else {
       const start = message ? `: it starts with ${message.slice(0, 60)}` : '';
       found.map.push(finding('error', `Content-Type ${typed || 'none'}: a map's 200 is the map itself, encoded as an image${start}`, MAPS1.mapResponseI));
     }
   } else {
     const format = typedFormat(input.contentType);
-    const asF = asked && asked.toLowerCase() === typed ? ', as f asked' : '';
-    if (asked && !asF) found.map.push(finding('warning', `f=${asked} asked, and the Content-Type is ${typed}`, MAPS1.mapResponseI));
-    if (!format) found.map.push(finding('pass', `Content-Type ${typed}${asF}: an image, whose bytes the app doesn't read`, MAPS1.mapResponseI));
+    if (asked && !byF && !(clash && byAccept)) found.map.push(finding('warning', `f=${asked} asked, and the Content-Type is ${typed}`, MAPS1.mapResponseI));
+    if (!format) found.map.push(finding('pass', `Content-Type ${typed}${as}: an image, whose bytes the app doesn't read`, MAPS1.mapResponseI));
     else if (!image || image.format === null) {
       found.map.push(finding('error', `Content-Type ${typed}, and the body isn't a ${format}: it starts with ${image?.start ?? 'nothing'}`, CONTENT_RULES[format] ?? MAPS1.mapResponseI));
     } else if (image.format !== format) {
       found.map.push(finding('error', `Content-Type ${typed}, and the body is a ${image.format}`, CONTENT_RULES[format] ?? MAPS1.mapResponseI));
     } else {
-      found.map.push(finding('pass', `Content-Type ${typed}${asF}, and the body is a ${format}`, CONTENT_RULES[format] ? [MAPS1.mapResponseI, CONTENT_RULES[format]!] : MAPS1.mapResponseI));
+      found.map.push(finding('pass', `Content-Type ${typed}${as}, and the body is a ${format}`, CONTENT_RULES[format] ? [MAPS1.mapResponseI, CONTENT_RULES[format]!] : MAPS1.mapResponseI));
     }
   }
   if (!image) {

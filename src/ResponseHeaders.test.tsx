@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ResponseHeaders from './ResponseHeaders';
+import { words } from './coverage/cellsTestData';
 
 describe('ResponseHeaders', () => {
   it('lists each header with its value, in the given order', () => {
@@ -21,5 +22,21 @@ describe('ResponseHeaders', () => {
   it('says the browser may hide some headers', () => {
     const html = renderToStaticMarkup(<ResponseHeaders headers={[]} />);
     expect(html).toContain('Access-Control-Expose-Headers');
+  });
+
+  it('shows the Accept the request was sent with, which the request line can’t, apart from the response’s', () => {
+    const html = renderToStaticMarkup(<ResponseHeaders headers={[{ name: 'content-type', value: 'image/png' }]} accept="image/jpeg" />);
+    expect(words(html)).toContain('Request accept image/jpeg Response content-type image/png');
+    expect(words(html)).toContain("Request shows the Accept the app sent, which the request line can't");
+    // The app's own, for any format
+    expect(words(renderToStaticMarkup(<ResponseHeaders headers={[]} accept="*/*" />))).toContain('Request accept */* Response');
+  });
+
+  it('has no request part for a response the app fetched by itself, whose Accept it didn’t set', () => {
+    const html = renderToStaticMarkup(<ResponseHeaders headers={[{ name: 'content-type', value: 'application/json' }]} />);
+    expect(html).not.toContain('>Request<');
+    expect(html).not.toContain('>Response<');
+    expect(html).not.toContain('accept');
+    expect(words(html)).not.toContain('Request shows');
   });
 });

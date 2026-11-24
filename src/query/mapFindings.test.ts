@@ -36,6 +36,7 @@ interface Change {
   conformsTo?: string[] | null;
   apiDocs?: ApiDocsParam[] | null;
   limits?: MapFindingsInput['limits'];
+  accept?: string | null;
 }
 
 // A fixture's response, read as the pane reads it, with what a test changes
@@ -58,6 +59,7 @@ function inputOf(name: Name, change: Change = {}): MapFindingsInput {
     conformsTo: change.conformsTo !== undefined ? change.conformsTo : MAPS,
     apiDocs: change.apiDocs !== undefined ? change.apiDocs : DOCS,
     limits: change.limits ?? null,
+    accept: change.accept ?? null,
   };
 }
 
@@ -158,6 +160,71 @@ describe('a map that came back', () => {
       // WebP has no class of its own in Maps 1.0
       expect(one(mapSaid('bare', { headers: { 'content-type': 'image/webp' } }), /Content-Type/)).toEqual(['error: Content-Type image/webp, and the body is a PNG | /req/core/map-response I']);
       expect(one(mapSaid('bare', { headers: { 'content-type': 'image/gif' } }), /Content-Type/)).toEqual(["pass: Content-Type image/gif: an image, whose bytes the app doesn't read | /req/core/map-response I"]);
+    });
+  });
+
+  // MeteoCore ignores Accept: asked for image/jpeg with no f, it sends image/png, as 'bare' has it
+  describe('its format, against the Accept it was sent with', () => {
+    const format = (change: Change, name: Name = 'bare') => {
+      const found = run(name, change);
+      return [...one(said(found.map), /Content-Type|Accept/), ...said(found.request).map(line => `request ${line}`)];
+    };
+    const BARE = 'https://meteocore.app.meteo.fi/collections/fmi-radar-composite-dbz/map';
+
+    it('says nothing of the app’s */*, nor where none is known', () => {
+      const plain = ['pass: Content-Type image/png, and the body is a PNG | /req/core/map-response I · /req/png/content A'];
+      expect(format({})).toEqual(plain);
+      expect(format({ accept: '*/*' })).toEqual(plain);
+      expect(format({ accept: '*/*;q=0.5' })).toEqual(plain);
+    });
+
+    it('passes a Content-Type Accept takes, by its type, type/* or */*', () => {
+      expect(format({ accept: 'image/png' })).toEqual(['pass: Content-Type image/png, as Accept asked, and the body is a PNG | /req/core/map-response I · /req/png/content A']);
+      expect(format({ accept: 'image/*' })).toEqual(['pass: Content-Type image/png, as Accept asked, and the body is a PNG | /req/core/map-response I · /req/png/content A']);
+      expect(format({ accept: 'image/jpeg, */*;q=0.1' })).toEqual(['pass: Content-Type image/png, as Accept asked, and the body is a PNG | /req/core/map-response I · /req/png/content A']);
+      expect(format({ accept: 'image/jpeg' }, 'jpeg')).toEqual(['pass: Content-Type image/jpeg, as f and Accept asked, and the body is a JPEG | /req/core/map-response I · /req/jpeg/content A']);
+      // Made up: a JSON 200 Accept asked for, as f would
+      expect(format({ accept: 'application/json', headers: { 'content-type': 'application/json' }, image: null, body: '{}' })).toEqual(['pass: Content-Type application/json, as Accept asked | /req/core/map-response I']);
+    });
+
+    it('is an error where it isn’t one Accept takes, citing the test of the class the API declares for what was asked', () => {
+      expect(format({ accept: 'image/jpeg' })).toEqual([
+        'error: Accept: image/jpeg asked, and the Content-Type is image/png | /req/core/map-response I · /conf/jpeg/content, test A.56',
+        'pass: Content-Type image/png, and the body is a PNG | /req/core/map-response I · /req/png/content A',
+      ]);
+      // Its most specific range takes image/png out
+      expect(format({ accept: 'image/*, image/png;q=0' })[0]).toBe('error: Accept: image/*, image/png;q=0 asked, and the Content-Type is image/png | /req/core/map-response I · /conf/jpeg/content, test A.56');
+      // WebP has no Maps class: the API docs' f lists it
+      expect(format({ accept: 'image/webp' })[0]).toBe('error: Accept: image/webp asked, and the Content-Type is image/png | /req/core/map-response I');
+      // JPEG that only the API docs' f lists, where the API doesn't declare the class: no test of its to cite
+      expect(format({ accept: 'image/jpeg', conformsTo: MAPS.filter(uri => !uri.endsWith('/conf/jpeg')) })[0]).toBe('error: Accept: image/jpeg asked, and the Content-Type is image/png | /req/core/map-response I');
+      // Where nothing is known of what the API makes
+      expect(format({ accept: 'image/gif', conformsTo: null, apiDocs: null })[0]).toBe('error: Accept: image/gif asked, and the Content-Type is image/png | /req/core/map-response I');
+    });
+
+    it('is about the request where Accept takes no format the API declares or lists, which HTTP lets a server disregard', () => {
+      expect(format({ accept: 'image/gif' })).toEqual([
+        'pass: Content-Type image/png, and the body is a PNG | /req/core/map-response I · /req/png/content A',
+        "request info: Accept: image/gif asked, and the Content-Type is image/png: Accept takes no format the API declares or its API docs list, and HTTP lets a server disregard an Accept it can't meet (RFC 9110, 12.5.1)",
+      ]);
+    });
+
+    it('with f asking for another, passes the one the server followed, and says the clash is the request’s', () => {
+      const negotiation = 'request info: f=image/png and Accept: image/jpeg ask for different formats: the server sent image/png, as f asked | 7.2.3 NOTE 2';
+      expect(format({ url: `${BARE}?f=image/png`, accept: 'image/jpeg' })).toEqual([
+        'pass: Content-Type image/png, as f asked, and the body is a PNG | /req/core/map-response I · /req/png/content A', negotiation,
+      ]);
+      expect(format({ url: `${BARE}?f=image/jpeg`, accept: 'image/png' })).toEqual([
+        'pass: Content-Type image/png, as Accept asked, and the body is a PNG | /req/core/map-response I · /req/png/content A',
+        'request info: f=image/jpeg and Accept: image/png ask for different formats: the server sent image/png, as Accept asked | 7.2.3 NOTE 2',
+      ]);
+      // Both asked for what the server didn't send: each is checked as alone
+      expect(format({ url: `${BARE}?f=image/jpeg`, accept: 'image/jpeg' })).toEqual([
+        'error: Accept: image/jpeg asked, and the Content-Type is image/png | /req/core/map-response I · /conf/jpeg/content, test A.56',
+        'warning: f=image/jpeg asked, and the Content-Type is image/png | /req/core/map-response I',
+        'pass: Content-Type image/png, and the body is a PNG | /req/core/map-response I · /req/png/content A',
+      ]);
+      expect(format({ url: `${BARE}?f=image/png`, accept: 'image/png' })).toEqual(['pass: Content-Type image/png, as f and Accept asked, and the body is a PNG | /req/core/map-response I · /req/png/content A']);
     });
   });
 
@@ -477,6 +544,38 @@ describe('a refusal', () => {
     expect(mapSaid('vertical', { url: 'https://meteocore.app.meteo.fi/collections/ecmwf-ifs-pressure/styles/nope/map?width=256', body: '{"description":"Something failed"}' })).toEqual([
       "warning: 400 for a request the form found nothing wrong with, and the server's message names none of its parameters. The server says: \"Something failed\". What the API says of each: width=256: scaling and spatial-subsetting, which the API declares, have the server support width | /req/scaling/width-definition A",
     ]);
+  });
+
+  describe('a 406 for a format asked by Accept (made up)', () => {
+    const notAcceptable = (accept: string | null, change: Change = {}) => {
+      const found = run('vertical', { status: 406, body: JSON.stringify({ description: 'Not Acceptable' }), accept, ...change });
+      return [...said(found.map), ...said(found.request).map(line => `request ${line}`)];
+    };
+
+    it('is an error where Accept takes a format of a class the API declares, citing its test', () => {
+      expect(notAcceptable('image/jpeg')).toEqual(['error: 406 for Accept: image/jpeg, though jpeg, which the API declares, makes maps in image/jpeg. The server says: "Not Acceptable" | /conf/jpeg/content, test A.56']);
+      expect(notAcceptable('image/png, image/jpeg;q=0.5')).toEqual([
+        'error: 406 for Accept: image/png, image/jpeg;q=0.5, though png and jpeg, which the API declares, make maps in image/png and image/jpeg. The server says: "Not Acceptable" | /conf/png/content, test A.55 · /conf/jpeg/content, test A.56',
+      ]);
+    });
+
+    it("is an issue where only the API docs' f lists one Accept takes", () => {
+      expect(notAcceptable('image/webp')).toEqual(["warning: 406 for Accept: image/webp, though the API docs' f lists image/webp. The server says: \"Not Acceptable\""]);
+    });
+
+    it("passes where Accept takes no format the API makes, as Common Part 1 has a 406 say, and says nothing where that isn't known", () => {
+      expect(notAcceptable('image/gif')).toEqual(['pass: 406 for Accept: image/gif, which takes no format the API declares or its API docs list: content negotiation failed. The server says: "Not Acceptable" | Common 1 8.2, Table 2']);
+      // Its API docs known, its conformance not: what they list says enough
+      expect(notAcceptable('image/gif', { conformsTo: null })[0]).toMatch(/^pass: 406 for Accept: image\/gif, which takes no format/);
+      expect(notAcceptable('image/gif', { conformsTo: null, apiDocs: null })).toEqual([
+        'request info: 406 for Accept: image/gif: the API\'s conformance and its API docs aren\'t known here, so nothing says whether it should have worked. The server says: "Not Acceptable"',
+      ]);
+    });
+
+    it('is read as any refusal where the app’s */* went', () => {
+      expect(notAcceptable('*/*')).toEqual(notAcceptable(null));
+      expect(notAcceptable(null)[0]).toMatch(/^pass: 406 for subset=vertical\(850\)/);
+    });
   });
 
   it('of the server itself, a 5xx, is an issue', () => {

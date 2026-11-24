@@ -14,7 +14,7 @@ const imageOf = (name: Name) => readImageBytes(bytesOf(fixture.responses[name].s
 const typeOf = (headers: ResponseHeader[]) => headers.find(header => header.name === 'content-type')?.value ?? '';
 
 // A fixture's response read as the pane reads it, its headers changed or taken out where a test says
-function read(name: Name, change: { url?: string; headers?: Record<string, string | null>; collection?: Collection | null; image?: ImageBytes } = {}): MapResponseReading {
+function read(name: Name, change: { url?: string; headers?: Record<string, string | null>; collection?: Collection | null; image?: ImageBytes; accept?: string } = {}): MapResponseReading {
   const response = fixture.responses[name];
   let headers: ResponseHeader[] = response.headers.map(header => ({ ...header }));
   for (const [header, value] of Object.entries(change.headers ?? {})) {
@@ -23,7 +23,7 @@ function read(name: Name, change: { url?: string; headers?: Record<string, strin
   }
   return readMapResponse({
     url: change.url ?? response.url, headers, contentType: typeOf(headers), image: change.image ?? imageOf(name),
-    collection: change.collection === undefined ? RADAR : change.collection,
+    collection: change.collection === undefined ? RADAR : change.collection, accept: change.accept,
   });
 }
 const row = (reading: MapResponseReading, name: string) => reading.rows.find(each => each.name === name);
@@ -288,6 +288,18 @@ describe('readMapResponse', () => {
     // And bytes it can't read, of a type it doesn't check: a GIF, sent as one
     const gif = readImageBytes(new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x2c, 0x01, 0x58, 0x02]));
     expect(said(read('webp', { headers: { 'content-type': 'image/gif' }, image: gif }), 'image')).toBe("its size unread | width asked: the bytes don't say the size | none");
+  });
+
+  it('the format against the Accept sent, only where it asked for one: f may have asked for another, which the server followed', () => {
+    const bare = fixture.responses.bare.url;
+    expect(row(read('bare'), 'Content-Type')).toBeUndefined();
+    expect(row(read('bare', { accept: '*/*' }), 'Content-Type')).toBeUndefined();
+    expect(said(read('bare', { accept: 'image/png' }), 'Content-Type')).toBe('image/png | as Accept: image/png asked | ok');
+    expect(said(read('bare', { accept: 'image/*;q=0.9, image/jpeg' }), 'Content-Type')).toBe('image/png | as Accept: image/*;q=0.9, image/jpeg asked | ok');
+    expect(said(read('bare', { accept: 'image/jpeg' }), 'Content-Type')).toBe('image/png | but Accept: image/jpeg asked | wrong');
+    expect(said(read('bare', { accept: 'image/jpeg', url: `${bare}${bare.includes('?') ? '&' : '?'}f=image/png` }), 'Content-Type')).toBe('image/png | as f asked, not Accept: image/jpeg | differs');
+    // Next to the image's, before the headers'
+    expect(read('bare', { accept: 'image/jpeg' }).rows.map(each => each.name).slice(0, 3)).toEqual(['image', 'Content-Type', 'Content-Crs']);
   });
 
   it('a size not what was asked, and one the bytes don’t give', () => {
