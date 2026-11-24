@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.6.0...v0.7.0) (2026-11-24)
+
+
+### Features
+
+* a map's format is checked against the Accept it was sent with, which Headers shows and Data reads its Content-Type against ([#220](https://github.com/mrauhala/ogcapi-browser/issues/220)) ([e07fb50](https://github.com/mrauhala/ogcapi-browser/commit/e07fb50ef2370e66b55089e8e4ab7cadf149fa26))
+
 ## [0.6.0](https://github.com/mrauhala/ogcapi-browser/compare/v0.5.0...v0.6.0) (2026-11-21)
 
 
